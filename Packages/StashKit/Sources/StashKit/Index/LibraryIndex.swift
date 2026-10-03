@@ -167,6 +167,22 @@ public final class LibraryIndex: Sendable {
         }
     }
 
+    /// mtime of `item.json` as last indexed, for the given ids.
+    public func mtimes(for ids: [String]) async throws -> [String: Double] {
+        try await db.read { db in
+            var out: [String: Double] = [:]
+            for id in ids { if let m = try Double.fetchOne(db, sql: "SELECT mtime FROM items WHERE id = ?", arguments: [id]) { out[id] = m } }
+            return out
+        }
+    }
+
+    /// Distinct "added by" handles with item counts (not trashed), biggest first.
+    public func addedByCounts() async throws -> [(who: String, count: Int)] {
+        try await db.read { db in
+            try Row.fetchAll(db, sql: "SELECT addedBy AS who, COUNT(*) AS n FROM items WHERE deletedAt IS NULL AND addedBy <> '' GROUP BY addedBy ORDER BY n DESC, addedBy").map { ($0["who"], $0["n"]) }
+        }
+    }
+
     public func itemId(withSHA256 sha: String, includeDeleted: Bool = false) async throws -> String? {
         try await db.read { db in
             try String.fetchOne(db, sql: "SELECT id FROM items WHERE sha256 = ?" + (includeDeleted ? "" : " AND deletedAt IS NULL") + " LIMIT 1", arguments: [sha])
@@ -286,6 +302,7 @@ public final class LibraryIndex: Sendable {
             wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId IN (\(q.collectionIds.map { _ in "?" }.joined(separator: ","))))")
             for id in q.collectionIds.sorted() { args += [id] }
         }
+        if let who = q.addedBy { wheres.append("i.addedBy = ?"); args += [who] }
         if q.squareOnly { wheres.append("i.width > 0 AND i.height > 0 AND ABS(i.width * 1.0 / i.height - 1.0) <= 0.05") }
         if let smart = q.smart {
             let (sql, a) = SmartRuleCompiler.compile(smart)

@@ -15,6 +15,8 @@ public struct ItemQuery: Sendable {
     public var collectionIds: Set<String> = []
     /// Inbox: items that are in no collection
     public var unfiled = false
+    /// Only items saved by this person (the `addedBy` handle)
+    public var addedBy: String?
     /// Roughly square images (aspect ratio within 5% of 1:1)
     public var squareOnly = false
     /// Evaluate a smart folder's rules in addition to the other filters

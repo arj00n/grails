@@ -32,12 +32,21 @@ public enum FixtureLibrary {
         return Thumbnailer.encodeJPEG(ctx.makeImage()!)!
     }
 
+    /// Drops a new item straight into a library folder, bypassing the store: what another Mac's sync client does.
+    public static func writeRemoteItem(into layout: LibraryLayout, name: String, addedBy: String) throws {
+        let id = ULID().string
+        let item = Item(id: id, kind: .image, file: "original.jpg", name: name, ext: "jpg", bytes: 1500, width: 64, height: 64, sha256: "remote-\(id)", tags: ["remote"], addedBy: addedBy)
+        try FileManager.default.createDirectory(at: layout.itemDir(id), withIntermediateDirectories: true)
+        try tinyJPEG(red: 0.9, green: 0.4, blue: 0.2).write(to: layout.thumbURL(id))
+        try AtomicFile.writeJSON(item, to: layout.itemJSON(id))
+    }
+
     /// Creates `count` items under a new library at `root`. Deterministic for a given `seed`.
     @discardableResult
     /// - Parameters:
     ///   - collections: how many collections to create (items join 0–2 of them).
     ///   - likedOneIn: roughly 1 in N items is liked; 0 means none.
-    public static func generate(at root: URL, count: Int, seed: UInt64 = 42, collections collectionCount: Int = 20, likedOneIn: Int = 10) throws -> LibraryLayout {
+    public static func generate(at root: URL, count: Int, seed: UInt64 = 42, collections collectionCount: Int = 20, likedOneIn: Int = 10, contributors: [String] = ["fixture"]) throws -> LibraryLayout {
         var rng = SplitMix64(state: seed)
         let layout = LibraryLayout(root: root)
         let fm = FileManager.default
@@ -78,7 +87,7 @@ public enum FixtureLibrary {
                 name: "Item \(String(format: "%05d", n)) \(tags.first ?? "")", ext: "jpg", bytes: 1500,
                 width: 64, height: 64, sha256: "fixture\(n)", source: ItemSource(site: "example.com"), tags: tags,
                 collections: collections, liked: likedOneIn > 0 && Int.random(in: 0..<likedOneIn, using: &rng) == 0, palette: pal,
-                addedAt: Date(timeIntervalSince1970: (when.timeIntervalSince1970 * 1000).rounded() / 1000), addedBy: "fixture"
+                addedAt: Date(timeIntervalSince1970: (when.timeIntervalSince1970 * 1000).rounded() / 1000), addedBy: contributors[n % max(contributors.count, 1)]
             )
             let dir = layout.itemDir(id)
             try fm.createDirectory(at: dir, withIntermediateDirectories: true)
