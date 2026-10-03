@@ -1,0 +1,60 @@
+name: Stash
+options:
+  bundleIdPrefix: in.justswish
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  StashKit:
+    path: Packages/StashKit
+targets:
+  Stash:
+    type: application
+    platform: macOS
+    sources: [Apps/Stash]
+    dependencies:
+      - package: StashKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: in.justswish.stash
+        PRODUCT_NAME: Stash
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Stash
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.graphics-design
+        INFOPLIST_KEY_NSHumanReadableCopyright: "MIT licensed"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+  StashCLI:
+    type: tool
+    platform: macOS
+    sources: [Apps/StashCLI]
+    dependencies:
+      - package: StashKit
+    settings:
+      base:
+        PRODUCT_NAME: stash
+        CODE_SIGN_IDENTITY: "-"
+  StashUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [Apps/StashUITests]
+    dependencies:
+      - target: Stash
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+schemes:
+  Stash:
+    build:
+      targets:
+        Stash: all
+        StashCLI: all
+    test:
+      targets: [StashUITests]
