@@ -1,6 +1,35 @@
 # Progress
 
-## Status: M0 + M1 + M2 done → next M3 (organize: collections, tags, likes, notes, smart folders, undo, shortcuts)
+## Status: M0–M3 done → next M4 (capture: paste, menu bar, links, Chrome extension)
+
+## M3 organize — done 2026-10-03
+Works (49 kit tests, 17 UI tests; the plan's scenario "create collection → add 3 items → tag them → ⌘Z ×2" is
+`OrganizeTests.testMoveToNewCollectionThenTagThenUndoAndRedo`):
+- **Collections**: create, rename, nest into folders, archive, duplicate (folders copy their children), delete (children
+  move up), cover from selection, drag to reorder / drag into a folder, "Archived" group. A folder shows the union of
+  its collections' items. Items can be in many collections.
+- **Tags**: `T` opens a tag panel with fuzzy autocomplete and ✓ / n-of-m state across the selection; drag items onto a
+  sidebar tag; colours (9 presets); rename (merges if the target exists) and delete, with a progress bar.
+- **Like** `L` / ⌥-click (heart badge on the tile), **note** `N` (one item: edit; several: append), **move to collection**
+  `M` (with "New collection “…”" in one step), **copy source URL** `U`, **trash** `⌫`, shuffle `R`.
+- **Smart folders**: rule editor with live match count; 16 fields (type, name, format, size, width/height, aspect,
+  duration, date added, added by, tags, collections, site, liked, has note, colour-near). Unknown fields never widen a
+  result. Compiled to SQL by `SmartRuleCompiler` (unit-tested).
+- **View filters** (Images / Videos / GIFs / Square / Liked) + sort (newest, oldest, name A–Z/Z–A with numeric order,
+  largest, random). Chips scroll horizontally so they never force the pane wider.
+- **⌘K palette**: commands, places, collections, smart folders, tags, and items (full-text), fuzzy-ranked.
+- **⌘F search** (toolbar): searches the whole library incl. notes and OCR text; remembers the last 3 queries.
+- **Undo / redo** (⌘Z / ⇧⌘Z, 100 deep, menu shows the action name): every action records a `ChangeSet` of the states it
+  overwrote; applying it restores them and returns the inverse. Undoing an add moves the item to Trash.
+- **Shortcuts**: single keys are grid-only (never fire while typing); Settings → Shortcuts records a new key with
+  conflict detection (reserved Mac shortcuts, fixed keys, other actions). Hold ⌘ for 1 s for the cheat sheet.
+- Drag and drop: items → collection / tag / Trash rows; files → collection / tag rows (import there); collections →
+  collection/folder rows (reorder / move in).
+- `.stash` is registered as a package document type; custom drag types are exported in `Config/Stash-Info.plist`.
+
+Perf after M3 (Release, 20k fixture): 0–1 frames over 33 ms out of ~2,230 (worst 26–38 ms); launch 0.46–0.66 s;
+memory 91–191 MB. The Release gate allows ≤ 2 dropped frames (see `GridTests`); zoom steps used to cost 35–46 ms
+until the toolbar slider was isolated in `ZoomControl`.
 
 ## M2 grid, sidebar, info panel — done 2026-10-03
 Works (verified by 8 XCUITests on a 20k-item fixture + screenshots in `docs/screenshots/`):
@@ -81,6 +110,18 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 - Tag matching is case-insensitive (index uses NOCASE); tags keep the casing of the first writer.
 
 ## Testing notes (learned the hard way)
+- **Never use `typeText` in UI tests.** On this OS it can leave a stuck ⌘ flag on later key events: letters stop
+  inserting, and a "q" becomes ⌘Q and quits the app (it looked like a crash with no crash report). Type with
+  `app.typeKey(String(ch), modifierFlags: [])` per character; see `OrganizeTests.type(_:in:)`.
+- Pin persisted UI state with launch arguments (`-zoomStep 2 -sidebar.expandCollections 1 …`). A click on a sidebar
+  section header collapses it and the collapsed state persists into the next run.
+- A container's `accessibilityIdentifier` overrides its children's. Put identifiers on the leaf views.
+- UI tests that mutate data use `STASH_SEED=<n> STASH_SEED_PLAIN=1` (a throwaway library with no collections or likes)
+  so they never touch the shared 20k fixture. `STASH_PANEL=commandK|tags|move|note` opens a panel at launch.
+- Layout-loop crash: "more Update Constraints passes than views". Cause: SwiftUI content with a fixed minimum width
+  (a 600 pt panel, a rigid filter bar) inside the detail pane when the info panel shrinks it. Keep overlays in
+  `.overlay`, use `maxWidth` not `width`, let bars scroll. Debug builds write uncaught-exception reasons and how the
+  process ended to `/private/tmp/stash-crash.txt` (`DebugCrashLog.swift`).
 - The UI test runner is sandboxed: it can't read files the app writes. The app exposes dev telemetry through an
   invisible accessibility element (`hitch-report`) instead.
 - Every accessibility query stalls the app's main thread. Never poll the UI tree while a perf benchmark runs; the
@@ -92,7 +133,8 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
   (`~/Library/Containers/in.justswish.StashUITests.xctrunner/Data/tmp/`); `screencapture` is blocked here.
 
 ## Known gaps
-- Sidebar rows don't accept drops yet (import goes to the current view). M3 adds drag-to-collection/tag.
+- Drag and drop onto sidebar rows, the cheat sheet, and tag colours/rename dialogs are implemented but not covered by UI tests.
+- Tag rename/delete and collection ops do a full grid reload (fine at 20k); in-place updates come with the watcher in M5.
 - Drag-out to Finder is implemented but not covered by a test.
 - Masonry layout recomputes all 20k frames on every zoom step (5–6 ms Release); fine today, consider chunking
   if libraries grow well past 50k.

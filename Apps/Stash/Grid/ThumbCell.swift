@@ -12,6 +12,7 @@ final class ThumbCell: NSCollectionViewItem {
     private var op: Operation?
     private(set) var itemID: String?
     private let placeholder = NSImageView()
+    private let heart = NSImageView()
 
     override func loadView() {
         let v = TileView()
@@ -31,6 +32,21 @@ final class ThumbCell: NSCollectionViewItem {
             placeholder.widthAnchor.constraint(equalToConstant: 28),
             placeholder.heightAnchor.constraint(equalToConstant: 28),
         ])
+        heart.image = NSImage(systemSymbolName: "heart.fill", accessibilityDescription: "Liked")
+        heart.contentTintColor = .systemPink
+        heart.shadow = {
+            let sh = NSShadow(); sh.shadowColor = NSColor.black.withAlphaComponent(0.55); sh.shadowBlurRadius = 3; sh.shadowOffset = .zero
+            return sh
+        }()
+        heart.translatesAutoresizingMaskIntoConstraints = false
+        heart.isHidden = true
+        v.addSubview(heart)
+        NSLayoutConstraint.activate([
+            heart.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
+            heart.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
+            heart.widthAnchor.constraint(equalToConstant: 16),
+            heart.heightAnchor.constraint(equalToConstant: 16),
+        ])
         view = v
     }
 
@@ -44,6 +60,7 @@ final class ThumbCell: NSCollectionViewItem {
     func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat) {
         op?.cancel()
         itemID = s.id
+        heart.isHidden = !s.liked
         view.layer?.cornerRadius = cornerRadius
         view.layer?.contentsGravity = gravity
         let pixels = max(view.bounds.width, view.bounds.height) * scale

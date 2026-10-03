@@ -4,13 +4,27 @@ import Foundation
 extension LibraryStore {
     // MARK: Undo
 
+    /// Starts noting the "before" state of everything subsequently changed. Pair with `endRecording(label:)`.
+    /// Use this form from the UI (a closure can't hop from the main actor into this actor under Swift 6).
+    public func beginRecording() { recorder = ChangeRecorder() }
+
+    /// Stops recording and returns the change set that undoes everything since `beginRecording()`.
+    public func endRecording(label: String) -> ChangeSet {
+        let r = recorder ?? ChangeRecorder()
+        recorder = nil
+        return ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders)
+    }
+
     /// Runs `body` and returns the "before" state of everything it changed, ready to hand to `apply(_:)`.
     public func recording<T>(label: String, _ body: () async throws -> T) async throws -> (value: T, undo: ChangeSet) {
-        recorder = ChangeRecorder()
-        defer { recorder = nil }
-        let value = try await body()
-        let r = recorder ?? ChangeRecorder()
-        return (value, ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders))
+        beginRecording()
+        do {
+            let value = try await body()
+            return (value, endRecording(label: label))
+        } catch {
+            _ = endRecording(label: label)
+            throw error
+        }
     }
 
     /// Restores the states in `changes`; returns the inverse (apply that to redo).

@@ -19,14 +19,36 @@ targets:
     sources: [Apps/Stash]
     dependencies:
       - package: StashKit
+    info:
+      path: Config/Stash-Info.plist
+      properties:
+        CFBundleDisplayName: Stash
+        LSApplicationCategoryType: public.app-category.graphics-design
+        NSHumanReadableCopyright: MIT licensed
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Stash Library
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [in.justswish.stash.library]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: in.justswish.stash.library
+            UTTypeDescription: Stash Library
+            UTTypeConformsTo: [com.apple.package]
+            UTTypeTagSpecification:
+              public.filename-extension: [stash]
+          - UTTypeIdentifier: in.justswish.stash.items
+            UTTypeDescription: Stash Items
+            UTTypeConformsTo: [public.data]
+          - UTTypeIdentifier: in.justswish.stash.collection
+            UTTypeDescription: Stash Collection
+            UTTypeConformsTo: [public.data]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: in.justswish.stash
         PRODUCT_NAME: Stash
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Stash
-        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.graphics-design
-        INFOPLIST_KEY_NSHumanReadableCopyright: "MIT licensed"
+        GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES

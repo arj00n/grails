@@ -34,7 +34,10 @@ public enum FixtureLibrary {
 
     /// Creates `count` items under a new library at `root`. Deterministic for a given `seed`.
     @discardableResult
-    public static func generate(at root: URL, count: Int, seed: UInt64 = 42) throws -> LibraryLayout {
+    /// - Parameters:
+    ///   - collections: how many collections to create (items join 0–2 of them).
+    ///   - likedOneIn: roughly 1 in N items is liked; 0 means none.
+    public static func generate(at root: URL, count: Int, seed: UInt64 = 42, collections collectionCount: Int = 20, likedOneIn: Int = 10) throws -> LibraryLayout {
         var rng = SplitMix64(state: seed)
         let layout = LibraryLayout(root: root)
         let fm = FileManager.default
@@ -45,7 +48,7 @@ public enum FixtureLibrary {
 
         var collectionIds: [String] = []
         var order: String?
-        for i in 0..<20 {
+        for i in 0..<collectionCount {
             order = FractionalIndex.after(order)
             let c = StashCollection(name: "Collection \(i + 1)", order: order!, updatedBy: "fixture")
             try AtomicFile.writeJSON(c, to: layout.collectionURL(c.id))
@@ -64,7 +67,7 @@ public enum FixtureLibrary {
             let tagCount = Int.random(in: 1...4, using: &rng)
             let tags = Array(Set((0..<tagCount).map { _ in words.randomElement(using: &rng)! }))
             var collections: [String: String] = [:]
-            for _ in 0..<Int.random(in: 0...2, using: &rng) {
+            for _ in 0..<(collectionIds.isEmpty ? 0 : Int.random(in: 0...2, using: &rng)) {
                 collections[collectionIds.randomElement(using: &rng)!] = FractionalIndex.after(String(n))
             }
             let when = start.addingTimeInterval(Double(n) * 60)
@@ -74,7 +77,7 @@ public enum FixtureLibrary {
                 id: id, kind: .image, file: "original.jpg",
                 name: "Item \(String(format: "%05d", n)) \(tags.first ?? "")", ext: "jpg", bytes: 1500,
                 width: 64, height: 64, sha256: "fixture\(n)", source: ItemSource(site: "example.com"), tags: tags,
-                collections: collections, liked: Int.random(in: 0..<10, using: &rng) == 0, palette: pal,
+                collections: collections, liked: likedOneIn > 0 && Int.random(in: 0..<likedOneIn, using: &rng) == 0, palette: pal,
                 addedAt: Date(timeIntervalSince1970: (when.timeIntervalSince1970 * 1000).rounded() / 1000), addedBy: "fixture"
             )
             let dir = layout.itemDir(id)

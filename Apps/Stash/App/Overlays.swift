@@ -1,0 +1,116 @@
+import SwiftUI
+
+struct PromptCard: View {
+    var model: AppModel
+    let request: PromptRequest
+    @State private var text = ""
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { model.prompt = nil }
+            VStack(alignment: .leading, spacing: 12) {
+                Text(request.title).font(.headline)
+                if !request.message.isEmpty { Text(request.message).font(.callout).foregroundStyle(.secondary) }
+                FocusedTextField(
+                    text: $text, placeholder: request.placeholder, identifier: "prompt-field",
+                    font: .systemFont(ofSize: 15), onSubmit: submit, onEscape: { model.prompt = nil }
+                )
+                .frame(height: 22)
+                .padding(.horizontal, 8).padding(.vertical, 5)
+                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 7))
+                HStack {
+                    Spacer()
+                    Button("Cancel") { model.prompt = nil }.keyboardShortcut(.cancelAction)
+                    Button(request.confirmTitle, action: submit).keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                        .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
+                        .accessibilityIdentifier("prompt-confirm")
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: 380)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
+            .shadow(color: .black.opacity(0.3), radius: 24, y: 8)
+        }
+        .onAppear { text = request.initial }
+    }
+
+    private func submit() {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard !t.isEmpty else { return }
+        model.prompt = nil
+        request.onSubmit(t)
+    }
+}
+
+struct ConfirmCard: View {
+    var model: AppModel
+    let request: ConfirmRequest
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { model.confirm = nil }
+            VStack(alignment: .leading, spacing: 12) {
+                Text(request.title).font(.headline)
+                Text(request.message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                HStack {
+                    Spacer()
+                    Button("Cancel") { model.confirm = nil }.keyboardShortcut(.cancelAction)
+                    Button(request.confirmTitle, role: request.destructive ? .destructive : nil) {
+                        model.confirm = nil
+                        request.onConfirm()
+                    }
+                    .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("confirm-button")
+                }
+            }
+            .padding(18)
+            .frame(maxWidth: 400)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
+            .shadow(color: .black.opacity(0.3), radius: 24, y: 8)
+        }
+    }
+}
+
+struct ToastView: View {
+    let text: String
+    var body: some View {
+        Text(text)
+            .font(.callout)
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .background(.regularMaterial, in: Capsule())
+            .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
+            .shadow(radius: 8, y: 2)
+            .accessibilityIdentifier("toast")
+    }
+}
+
+/// Hold ⌘ for a second to see the shortcuts.
+struct CheatSheet: View {
+    @State private var store = ShortcutStore.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Shortcuts").font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {
+                ForEach(ShortcutAction.allCases) { a in
+                    GridRow {
+                        Text(store.shortcut(for: a).display)
+                            .font(.system(.callout, design: .monospaced).weight(.semibold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 5))
+                        Text(a.title)
+                    }
+                }
+                GridRow { Text("Space").font(.system(.callout, design: .monospaced).weight(.semibold)).padding(.horizontal, 6).background(.quaternary, in: RoundedRectangle(cornerRadius: 5)); Text("Preview") }
+                GridRow { Text("⌘Z").font(.system(.callout, design: .monospaced).weight(.semibold)).padding(.horizontal, 6).background(.quaternary, in: RoundedRectangle(cornerRadius: 5)); Text("Undo / ⇧⌘Z redo") }
+                GridRow { Text("⌥ click").font(.system(.callout, design: .monospaced).weight(.semibold)).padding(.horizontal, 6).background(.quaternary, in: RoundedRectangle(cornerRadius: 5)); Text("Like") }
+            }
+        }
+        .padding(18)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
+        .shadow(color: .black.opacity(0.3), radius: 24, y: 8)
+    }
+}

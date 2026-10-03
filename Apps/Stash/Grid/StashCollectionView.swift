@@ -8,6 +8,11 @@ final class StashCollectionView: NSCollectionView {
     /// +1 / -1 zoom step with the viewport point (in this view's coordinates) to keep fixed.
     var onZoom: ((Int, NSPoint) -> Void)?
     var onScrollActivity: (() -> Void)?
+    /// Plain-key shortcuts (L, T, M, …). Return true when handled. Only called while the grid itself has focus,
+    /// so they never fire while a text field is being typed in.
+    var keyHandler: ((NSEvent) -> Bool)?
+    /// ⌥-click on a tile (like / unlike without changing the selection)
+    var onOptionClick: ((Int) -> Void)?
     private var magnifyAccumulator: CGFloat = 0
 
     override var acceptsFirstResponder: Bool { true }
@@ -19,6 +24,7 @@ final class StashCollectionView: NSCollectionView {
 
     override func keyDown(with event: NSEvent) {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return super.keyDown(with: event) }
+        if event.modifierFlags.intersection(Shortcut.mask).isEmpty, keyHandler?(event) == true { return }
         switch event.keyCode {
         case 49: onPreview?()          // space
         case 36, 76: onOpen?()         // return / enter
@@ -29,6 +35,11 @@ final class StashCollectionView: NSCollectionView {
 
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
+        if event.modifierFlags.contains(.option), !event.modifierFlags.contains(.command),
+           let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)) {
+            onOptionClick?(ip.item)
+            return
+        }
         if event.clickCount == 2, indexPathForItem(at: convert(event.locationInWindow, from: nil)) != nil {
             super.mouseDown(with: event)
             onOpen?()

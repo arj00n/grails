@@ -1,6 +1,7 @@
 import AppKit
 import StashKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct GridView: NSViewRepresentable {
     var model: AppModel
@@ -29,6 +30,15 @@ struct GridView: NSViewRepresentable {
         cv.onEscape = { [weak c] in c?.escape() }
         cv.onZoom = { [weak c] step, p in c?.hitch?.noteActivity(); c?.zoom(step: step, at: p) }
         cv.onScrollActivity = { [weak c] in c?.hitch?.noteActivity() }
+        cv.keyHandler = { [weak c] event in
+            guard let c, let action = ShortcutStore.shared.action(for: event, plainOnly: true) else { return false }
+            c.model.run(action)
+            return true
+        }
+        cv.onOptionClick = { [weak c] i in
+            guard let c, let s = c.item(at: i) else { return }
+            c.model.toggleLike(ids: [s.id])
+        }
         c.collectionView = cv
 
         let scroll = NSScrollView()
@@ -284,12 +294,19 @@ struct GridView: NSViewRepresentable {
             model.selection = []
         }
 
+        func item(at i: Int) -> ItemSummary? { items[safe: i] }
+
         // MARK: Drag out
 
+        /// Each dragged tile carries its file (for Finder, Figma, Slack) and its id (for the sidebar's drop targets).
         func collectionView(_ cv: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-            guard let s = items[safe: indexPath.item], let url = model.originalURL(for: s),
-                  FileManager.default.fileExists(atPath: url.path) else { return nil }
-            return url as NSURL
+            guard let s = items[safe: indexPath.item] else { return nil }
+            let pb = NSPasteboardItem()
+            if let ids = try? JSONEncoder().encode([s.id]) { pb.setData(ids, forType: NSPasteboard.PasteboardType(UTType.stashItems.identifier)) }
+            if let url = model.originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {
+                pb.setString(url.absoluteString, forType: .fileURL)
+            }
+            return pb
         }
     }
 }
