@@ -9,7 +9,7 @@ struct SidebarView: View {
     @AppStorage("sidebar.showTags") private var showTags = true
     @AppStorage("sidebar.expandCollections") private var expandCollections = true
     @AppStorage("sidebar.expandSmart") private var expandSmart = true
-    @AppStorage("sidebar.expandTags") private var expandTags = true
+    @AppStorage("sidebar.expandTags") private var expandTags = false
     @State private var targeted: String?
 
     private var topLevel: [StashCollection] { model.collections.filter { $0.parentId == nil && !$0.archived } }

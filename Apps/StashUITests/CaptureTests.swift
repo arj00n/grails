@@ -16,7 +16,7 @@ final class CaptureTests: XCTestCase {
         app.launchEnvironment["STASH_API_TOKEN"] = token
         app.launchEnvironment["STASH_NO_MENUBAR"] = "1"
         if let port { app.launchEnvironment["STASH_API_PORT"] = port }
-        app.launchArguments += ["-zoomStep", "0", "-layoutMode", "square", "-appearance", "light",
+        app.launchArguments += ["-tileWidth", "90", "-layoutMode", "square", "-appearance", "light",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()

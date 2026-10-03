@@ -5,8 +5,10 @@ final class StashCollectionView: NSCollectionView {
     var onPreview: (() -> Void)?
     var onOpen: (() -> Void)?
     var onEscape: (() -> Void)?
-    /// +1 / -1 zoom step with the viewport point (in this view's coordinates) to keep fixed.
-    var onZoom: ((Int, NSPoint) -> Void)?
+    /// Multiplicative zoom (1.02 = 2% bigger) about a point in this view's coordinates, delivered continuously while
+    /// pinching or ⌘-scrolling. `onZoomEnd` fires when the gesture finishes.
+    var onZoom: ((CGFloat, NSPoint) -> Void)?
+    var onZoomEnd: (() -> Void)?
     var onScrollActivity: (() -> Void)?
     /// Plain-key shortcuts (L, T, M, …). Return true when handled. Only called while the grid itself has focus,
     /// so they never fire while a text field is being typed in.
@@ -16,7 +18,6 @@ final class StashCollectionView: NSCollectionView {
     var onPaste: (() -> Void)?
     /// Builds the right-click menu for the tile at an index (also makes that tile the selection if it wasn't).
     var contextMenuProvider: ((Int) -> NSMenu?)?
-    private var magnifyAccumulator: CGFloat = 0
 
     override var acceptsFirstResponder: Bool { true }
 
@@ -63,11 +64,10 @@ final class StashCollectionView: NSCollectionView {
 
     override func scrollWheel(with event: NSEvent) {
         if event.modifierFlags.contains(.command) {
-            // ⌘+scroll zooms; one step per ~40 points of scroll
-            magnifyAccumulator += event.scrollingDeltaY
+            // ⌘ + two-finger scroll zooms continuously about the pointer
             let p = convert(event.locationInWindow, from: nil)
-            if magnifyAccumulator > 40 { magnifyAccumulator = 0; onZoom?(1, p) }
-            else if magnifyAccumulator < -40 { magnifyAccumulator = 0; onZoom?(-1, p) }
+            onZoom?(exp(event.scrollingDeltaY * (event.hasPreciseScrollingDeltas ? 0.006 : 0.03)), p)
+            if event.phase == .ended || event.momentumPhase == .ended || event.phase == .cancelled { onZoomEnd?() }
             return
         }
         onScrollActivity?()
@@ -75,11 +75,10 @@ final class StashCollectionView: NSCollectionView {
     }
 
     override func magnify(with event: NSEvent) {
-        magnifyAccumulator += event.magnification * 100
         let p = convert(event.locationInWindow, from: nil)
-        if magnifyAccumulator > 25 { magnifyAccumulator = 0; onZoom?(1, p) }
-        else if magnifyAccumulator < -25 { magnifyAccumulator = 0; onZoom?(-1, p) }
+        onZoom?(1 + event.magnification, p)
+        if event.phase == .ended || event.phase == .cancelled { onZoomEnd?() }
     }
 
-    override func endGesture(with event: NSEvent) { magnifyAccumulator = 0 }
+    override func endGesture(with event: NSEvent) { onZoomEnd?() }
 }

@@ -17,7 +17,7 @@ final class OrganizeTests: XCTestCase {
         app.launchEnvironment["STASH_INDEX_PATH"] = dir + "/index.sqlite"
         if let panel { app.launchEnvironment["STASH_PANEL"] = panel }
         // Pin persisted UI state: a previous run's click on a sidebar header can leave a section collapsed.
-        app.launchArguments += ["-zoomStep", "0", "-layoutMode", "square", "-appearance", "light",
+        app.launchArguments += ["-tileWidth", "90", "-layoutMode", "square", "-appearance", "light",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()
@@ -85,10 +85,12 @@ final class OrganizeTests: XCTestCase {
         XCTAssertTrue(app.staticTexts["2 items"].waitForExistence(timeout: 10))
         app.staticTexts["All"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["40 items"].waitForExistence(timeout: 10))
-        // the filter chip narrows the same way
-        app.buttons["filter-liked"].click()
+        // the filter menu narrows the same way
+        app.menuButtons["filter-menu"].click()
+        app.menuItems["Liked"].click()
         XCTAssertTrue(app.staticTexts["2 items"].waitForExistence(timeout: 10))
-        app.buttons["filter-liked"].click()
+        app.menuButtons["filter-menu"].click()
+        app.menuItems["Liked"].click()
         XCTAssertTrue(app.staticTexts["40 items"].waitForExistence(timeout: 10))
     }
 
@@ -201,13 +203,41 @@ final class OrganizeTests: XCTestCase {
         func tileWidth() -> CGFloat { grid.groups.element(boundBy: 2).frame.width }
         let small = tileWidth()
         XCTAssertGreaterThan(small, 20)
+        func waitForWidth(_ test: (CGFloat) -> Bool) -> CGFloat {
+            for _ in 0..<40 { let w = tileWidth(); if test(w) { return w }; Thread.sleep(forTimeInterval: 0.1) }
+            return tileWidth()
+        }
+        // ⌘+ is a smooth animated zoom (×1.25 each) that settles with tiles filling the row
         app.typeKey("=", modifierFlags: .command)
         app.typeKey("=", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["M"].waitForExistence(timeout: 5), "slider label follows the zoom step")
-        let bigger = tileWidth()
-        XCTAssertGreaterThan(bigger, small * 1.4, "tiles grew after zooming in (\(small) → \(bigger))")
+        let bigger = waitForWidth { $0 > small * 1.3 }
+        XCTAssertGreaterThan(bigger, small * 1.3, "tiles grew after zooming in (\(small) → \(bigger))")
         app.typeKey("-", modifierFlags: .command)
         app.typeKey("-", modifierFlags: .command)
-        XCTAssertTrue(app.staticTexts["XS"].waitForExistence(timeout: 5))
+        let back = waitForWidth { $0 < bigger * 0.85 }
+        XCTAssertLessThan(back, bigger * 0.85, "and shrank again (\(bigger) → \(back))")
+        XCTAssertFalse(app.sliders.firstMatch.exists, "no zoom slider any more")
+    }
+
+    /// ⌘ + two-finger scroll zooms continuously (a pinch takes the same path; XCUITest can't synthesize one on macOS).
+    @MainActor
+    func testCommandScrollZoomsTheGrid() throws {
+        let app = launch(items: 60)
+        XCTAssertTrue(app.staticTexts["60 items"].waitForExistence(timeout: 30))
+        let grid = app.collectionViews["grid"]
+        XCTAssertTrue(grid.waitForExistence(timeout: 10))
+        func tileWidth() -> CGFloat { grid.groups.element(boundBy: 2).frame.width }
+        func settled() -> CGFloat {
+            var last = tileWidth()
+            for _ in 0..<30 { Thread.sleep(forTimeInterval: 0.15); let w = tileWidth(); if abs(w - last) < 0.5 { return w }; last = w }
+            return last
+        }
+        let before = settled()
+        XCUIElement.perform(withKeyModifiers: .command) { grid.scroll(byDeltaX: 0, deltaY: 120) }
+        let zoomedIn = settled()
+        XCTAssertGreaterThan(zoomedIn, before * 1.3, "⌘-scroll up made tiles bigger (\(before) → \(zoomedIn))")
+        XCUIElement.perform(withKeyModifiers: .command) { grid.scroll(byDeltaX: 0, deltaY: -240) }
+        let zoomedOut = settled()
+        XCTAssertLessThan(zoomedOut, zoomedIn * 0.8, "⌘-scroll down made them smaller (\(zoomedIn) → \(zoomedOut))")
     }
 }

@@ -16,7 +16,7 @@ final class GridTests: XCTestCase {
         app.launchEnvironment["STASH_INDEX_PATH"] = indexPath
         app.launchEnvironment["STASH_HITCH_REPORT"] = "1"
         if bench { app.launchEnvironment["STASH_BENCH"] = "1" }
-        app.launchArguments += ["-zoomStep", "2", "-layoutMode", layout, "-appearance", "light",
+        app.launchArguments += ["-tileWidth", "190", "-layoutMode", layout, "-appearance", "light",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()
@@ -87,9 +87,8 @@ final class GridTests: XCTestCase {
     func testLayoutToggleAndSidebarNavigation() throws {
         let app = try launch()
         XCTAssertTrue(app.staticTexts["20,000 items"].waitForExistence(timeout: 60))
-        let picker = app.radioGroups["layout-picker"]
-        picker.radioButtons.element(boundBy: 1).click()          // masonry
-        XCTAssertEqual(picker.radioButtons.element(boundBy: 1).value as? Int, 1)
+        let switcher = app.radioGroups["view-switcher"]
+        XCTAssertEqual(switcher.radioButtons.count, 2, "Grid and Canvas")
         app.collectionViews["grid"].scroll(byDeltaX: 0, deltaY: -600)
         app.staticTexts["Liked"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["20,000 items"].waitForNonExistence(timeout: 10))
@@ -108,7 +107,7 @@ final class GridTests: XCTestCase {
             try XCTSkipIf(fixture.isEmpty)
             app.launchEnvironment["STASH_LIBRARY"] = fixture
             app.launchEnvironment["STASH_INDEX_PATH"] = indexPath
-            app.launchArguments += ["-zoomStep", "1", "-layoutMode", "square", "-appearance", appearance]
+            app.launchArguments += ["-tileWidth", "130", "-layoutMode", "square", "-appearance", appearance]
             app.launch(); app.activate()
             XCTAssertTrue(app.staticTexts["20,000 items"].waitForExistence(timeout: 60))
             app.buttons["info-toggle"].click()

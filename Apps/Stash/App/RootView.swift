@@ -24,14 +24,12 @@ struct RootView: View {
     }
 
     private var detail: some View {
-        // The filter bar is a sibling above the grid (not a safe-area inset): an inset feeds the hosted scroll view
-        // changing content insets, which SwiftUI answers with another layout pass, and AppKit aborts the loop.
-        VStack(spacing: 0) {
-            FilterBar(model: model)
-            ZStack {
-                gridBackground
-                if model.items.isEmpty && model.store != nil { emptyState }
-                GridView(model: model)
+        ZStack {
+            gridBackground
+            if model.items.isEmpty && model.store != nil { emptyState }
+            switch model.viewMode {
+            case .grid: GridView(model: model)
+            case .canvas: CanvasPlaceholder(model: model)
             }
         }
         // Overlays must not take part in layout: a fixed-width panel inside the ZStack would raise the detail pane's
@@ -110,14 +108,14 @@ struct RootView: View {
 
     @ToolbarContentBuilder private var toolbar: some ToolbarContent {
         ToolbarItemGroup {
-            Picker("Layout", selection: $model.layoutMode) {
-                ForEach(GridLayoutMode.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
+            Picker("View", selection: $model.viewMode) {
+                ForEach(ViewMode.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
             }
             .pickerStyle(.segmented)
-            .help("Square or masonry tiles")
-            .accessibilityIdentifier("layout-picker")
+            .help("Grid or Canvas (⌘1 / ⌘2)")
+            .accessibilityIdentifier("view-switcher")
 
-            ZoomControl(model: model)
+            FilterMenu(model: model)
 
             Button { model.showInfo.toggle() } label: { Label("Info", systemImage: "sidebar.right") }
                 .help("Show or hide the info panel (I)")
@@ -126,20 +124,50 @@ struct RootView: View {
     }
 }
 
-/// The toolbar zoom slider. Its own view so a zoom step re-evaluates only this and the grid, not the whole window
-/// (re-laying out the split view on every step was the main source of dropped frames while zooming).
-struct ZoomControl: View {
-    var model: AppModel
+/// Everything that narrows or orders the view, in one place: type filters, liked, who added it, and sort.
+struct FilterMenu: View {
+    @Bindable var model: AppModel
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "minus.magnifyingglass").foregroundStyle(.secondary)
-            Slider(value: Binding(get: { Double(model.zoomStep) }, set: { model.zoomStep = Int($0.rounded()) }), in: 0...Double(Zoom.maxStep), step: 1)
-                .frame(width: 110)
-                .accessibilityIdentifier("zoom-slider")
-            Image(systemName: "plus.magnifyingglass").foregroundStyle(.secondary)
-            Text(Zoom.labels[model.zoomStep]).font(.caption.monospaced()).frame(width: 28, alignment: .leading)
+        Menu {
+            Toggle("Images", isOn: $model.filters.images)
+            Toggle("Videos", isOn: $model.filters.videos)
+            Toggle("GIFs", isOn: $model.filters.gifs)
+            Toggle("Square", isOn: $model.filters.square)
+            Toggle("Liked", isOn: $model.filters.liked)
+            if model.contributors.count > 1 {
+                Divider()
+                Menu("Added by") {
+                    Button { model.addedByFilter = nil } label: { Label("Everyone", systemImage: model.addedByFilter == nil ? "checkmark" : "") }
+                    ForEach(model.contributors, id: \.who) { c in
+                        Button { model.addedByFilter = c.who } label: {
+                            Label("\(c.who) (\(c.count.formatted()))", systemImage: model.addedByFilter == c.who ? "checkmark" : "")
+                        }
+                    }
+                }
+            }
+            Divider()
+            Picker("Sort", selection: $model.sort) {
+                ForEach(SortChoice.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.inline)
+            if model.filters.isActive || model.addedByFilter != nil {
+                Divider()
+                Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil }
+            }
+        } label: {
+            Image(systemName: model.filters.isActive || model.addedByFilter != nil
+                  ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
         }
-        .help("Zoom (⌘ + scroll or pinch)")
+        .menuIndicator(.hidden)
+        .help("Filter and sort")
+        .accessibilityLabel("Filter and sort")
+        .accessibilityIdentifier("filter-menu")
     }
+}
+
+/// Stand-in until the canvas lands.
+struct CanvasPlaceholder: View {
+    var model: AppModel
+    var body: some View { ContentUnavailableView("Canvas", systemImage: "rectangle.on.rectangle.angled") }
 }

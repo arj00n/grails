@@ -3,7 +3,7 @@ import XCTest
 /// Team features: first-run welcome, library switcher, who-added-what, and live updates from the shared folder.
 final class TeamTests: XCTestCase {
     @MainActor
-    private func launch(items: Int, people: String? = nil, remoteAfter: Int? = nil, zoom: Int = 2, library: Bool = true, extra: [String: String] = [:]) -> XCUIApplication {
+    private func launch(items: Int, people: String? = nil, remoteAfter: Int? = nil, zoom: Int = 190, library: Bool = true, extra: [String: String] = [:]) -> XCUIApplication {
         let dir = "/private/tmp/stash-ui-tests/\(UUID().uuidString)"
         let app = XCUIApplication()
         if library {
@@ -17,7 +17,7 @@ final class TeamTests: XCTestCase {
         if let people { app.launchEnvironment["STASH_SEED_PEOPLE"] = people }
         if let remoteAfter { app.launchEnvironment["STASH_SIMULATE_REMOTE"] = "\(remoteAfter)" }
         for (k, v) in extra { app.launchEnvironment[k] = v }
-        app.launchArguments += ["-zoomStep", "\(zoom)", "-layoutMode", "square", "-appearance", "light", "-showAddedBy", "1",
+        app.launchArguments += ["-tileWidth", "\(zoom)", "-layoutMode", "square", "-appearance", "light", "-showAddedBy", "1",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()
@@ -52,13 +52,14 @@ final class TeamTests: XCTestCase {
     func testAddedByFilterNarrowsToOnePerson() throws {
         let app = launch(items: 6, people: "ana,ben")
         XCTAssertTrue(app.staticTexts["6 items"].waitForExistence(timeout: 30))
-        let filter = app.menuButtons["filter-added-by"]
+        let filter = app.menuButtons["filter-menu"]
         XCTAssertTrue(filter.waitForExistence(timeout: 10))
         filter.click()
+        app.menuItems["Added by"].click()
         app.menuItems["ben (3)"].click()
         XCTAssertTrue(app.staticTexts["3 items"].waitForExistence(timeout: 10))
         filter.click()
-        app.menuItems["Everyone"].click()
+        app.menuItems["Clear Filters"].click()
         XCTAssertTrue(app.staticTexts["6 items"].waitForExistence(timeout: 10))
     }
 

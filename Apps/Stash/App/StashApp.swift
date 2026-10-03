@@ -43,8 +43,11 @@ struct StashApp: App {
                 Divider()
                 Button("Zoom In") { model.run(.zoomIn) }.shortcut(.zoomIn)
                 Button("Zoom Out") { model.run(.zoomOut) }.shortcut(.zoomOut)
+                Button("Grid") { model.viewMode = .grid }.keyboardShortcut("1")
+                Button("Canvas") { model.viewMode = .canvas }.keyboardShortcut("2")
+                Divider()
                 Button("Square Tiles") { model.layoutMode = .square }
-                Button("Masonry Tiles") { model.layoutMode = .masonry }
+                Button("Original Proportions") { model.layoutMode = .masonry }
                 Button("Shuffle") { model.run(.shuffle) }
             }
             CommandMenu("Item") {

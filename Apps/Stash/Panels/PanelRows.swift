@@ -35,8 +35,10 @@ extension AppModel {
         add(.init(id: "cmd-shuffle", title: "Shuffle", symbol: "shuffle", accessory: key(.shuffle)) { [self] in run(.shuffle) })
         add(.init(id: "cmd-zin", title: "Zoom In", symbol: "plus.magnifyingglass", accessory: key(.zoomIn)) { [self] in run(.zoomIn) })
         add(.init(id: "cmd-zout", title: "Zoom Out", symbol: "minus.magnifyingglass", accessory: key(.zoomOut)) { [self] in run(.zoomOut) })
-        add(.init(id: "cmd-square", title: "Layout: Square Tiles", symbol: "square.grid.2x2") { [self] in layoutMode = .square })
-        add(.init(id: "cmd-masonry", title: "Layout: Masonry", symbol: "rectangle.3.group") { [self] in layoutMode = .masonry })
+        add(.init(id: "cmd-grid", title: "View: Grid", symbol: "square.grid.2x2", accessory: "⌘1") { [self] in viewMode = .grid })
+        add(.init(id: "cmd-canvas", title: "View: Canvas", symbol: "rectangle.on.rectangle.angled", accessory: "⌘2") { [self] in viewMode = .canvas })
+        add(.init(id: "cmd-square", title: "Grid: Square Tiles", symbol: "square.grid.2x2") { [self] in layoutMode = .square })
+        add(.init(id: "cmd-masonry", title: "Grid: Original Proportions", symbol: "rectangle.3.group") { [self] in layoutMode = .masonry })
         if let t = undoTitle { add(.init(id: "cmd-undo", title: t, symbol: "arrow.uturn.backward", accessory: "⌘Z") { [self] in Task { await undo() } }) }
         if let t = redoTitle { add(.init(id: "cmd-redo", title: t, symbol: "arrow.uturn.forward", accessory: "⇧⌘Z") { [self] in Task { await redo() } }) }
         add(.init(id: "cmd-empty", title: "Empty Trash…", symbol: "trash.slash") { [self] in confirmEmptyTrash() })

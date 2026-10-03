@@ -24,6 +24,9 @@ struct SettingsView: View {
                     Text("Default").tag("default"); Text("Black").tag("black"); Text("White").tag("white"); Text("Grey").tag("grey")
                 }
                 Toggle("Show who added each item (initials on tiles)", isOn: $showAddedBy)
+                Picker("Grid tiles", selection: Binding(get: { model.layoutMode }, set: { model.layoutMode = $0 })) {
+                    Text("Squares").tag(GridLayoutMode.square); Text("Original proportions").tag(GridLayoutMode.masonry)
+                }
                 Slider(value: $spacing, in: 0...32, step: 1) { Text("Tile spacing") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("32") }
                 Slider(value: $cornerRadius, in: 0...24, step: 1) { Text("Corner radius") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("24") }
                 Section("Capture") {

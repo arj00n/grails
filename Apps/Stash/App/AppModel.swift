@@ -17,11 +17,19 @@ enum GridLayoutMode: String, CaseIterable, Identifiable {
     var symbol: String { self == .square ? "square.grid.2x2" : "rectangle.3.group" }
 }
 
-/// Zoom steps are target tile widths in points. The last one is "Fit" (one big tile per row on most windows).
+/// Tile size is continuous: pinch or ⌘-scroll scales it smoothly, then it settles so tiles fill each row.
 enum Zoom {
-    static let widths: [CGFloat] = [90, 130, 190, 280, 420, 680]
-    static let labels = ["XS", "S", "M", "L", "XL", "Fit"]
-    static let maxStep = widths.count - 1
+    static let minWidth: CGFloat = 56
+    static let maxWidth: CGFloat = 720
+    static let defaultWidth: CGFloat = 190
+    static func clamp(_ w: CGFloat) -> CGFloat { min(max(w, minWidth), maxWidth) }
+}
+
+enum ViewMode: String, CaseIterable, Identifiable {
+    case grid, canvas
+    var id: String { rawValue }
+    var label: String { self == .grid ? "Grid" : "Canvas" }
+    var symbol: String { self == .grid ? "square.grid.2x2" : "rectangle.on.rectangle.angled" }
 }
 
 enum SortChoice: String, CaseIterable, Identifiable {
@@ -58,6 +66,12 @@ struct ViewFilters: Equatable {
         if gifs { k.insert(.gif) }
         return k
     }
+}
+
+struct CanvasRequest: Equatable {
+    enum Kind: Equatable { case fit, fitSelection, arrangeAll, arrangeSelection, zoom(CGFloat), bringToFront, sendToBack }
+    let id = UUID()
+    var kind: Kind
 }
 
 enum Panel: Equatable { case commandK, tags, move, note }
@@ -121,6 +135,13 @@ final class AppModel {
     private var shuffleSeed: UInt64 = 1
 
     var showInfo = false
+    /// One-shot commands for the canvas (fit, arrange, zoom); the canvas runs each request once.
+    var canvasRequest: CanvasRequest?
+    /// ⌘+ / ⌘− in the grid: one column fewer or more, animated.
+    var gridZoomTick = 0
+    @ObservationIgnored private var pendingColumnDelta = 0
+    /// Total column steps requested since the last call (rapid presses arrive in one update).
+    func takeColumnDelta() -> Int { defer { pendingColumnDelta = 0 }; return pendingColumnDelta }
     var previewID: String?
     var panel: Panel?
     var prompt: PromptRequest?
@@ -140,8 +161,11 @@ final class AppModel {
     var undoTitle: String? { undoStack.last.map { "Undo \($0.label)" } }
     var redoTitle: String? { redoStack.last.map { "Redo \($0.label)" } }
 
-    var zoomStep: Int { didSet { UserDefaults.standard.set(zoomStep, forKey: "zoomStep") } }
+    /// Persisted tile width for the grid (the grid writes it back after a zoom gesture settles).
+    var tileWidth: CGFloat { didSet { UserDefaults.standard.set(Double(tileWidth), forKey: "tileWidth") } }
+    /// Grid tile shape: squares, or each image's own proportions.
     var layoutMode: GridLayoutMode { didSet { UserDefaults.standard.set(layoutMode.rawValue, forKey: "layoutMode") } }
+    var viewMode: ViewMode { didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: "viewMode") } }
 
     private var reloadTask: Task<Void, Never>?
     /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
@@ -173,8 +197,9 @@ final class AppModel {
 
     init() {
         let d = UserDefaults.standard
-        // `integer(forKey:)` also reads values passed as launch arguments, which arrive as strings.
-        zoomStep = min(max(d.object(forKey: "zoomStep") == nil ? 2 : d.integer(forKey: "zoomStep"), 0), Zoom.maxStep)
+        // `double(forKey:)` also reads values passed as launch arguments, which arrive as strings.
+        tileWidth = d.object(forKey: "tileWidth") == nil ? Zoom.defaultWidth : Zoom.clamp(CGFloat(d.double(forKey: "tileWidth")))
+        viewMode = ViewMode(rawValue: d.string(forKey: "viewMode") ?? "") ?? .grid
         layoutMode = GridLayoutMode(rawValue: d.string(forKey: "layoutMode") ?? "") ?? .square
         showInfo = ProcessInfo.processInfo.environment["STASH_SHOW_INFO"] != nil   // dev/UI tests
     }
@@ -519,11 +544,17 @@ final class AppModel {
             if sort == .random { reloadSoon() } else { sort = .random }
         case .trash: trashSelection()
         case .commandPalette: panel = .commandK
-        case .zoomIn: zoomStep = min(zoomStep + 1, Zoom.maxStep)
-        case .zoomOut: zoomStep = max(zoomStep - 1, 0)
+        case .zoomIn: zoom(by: 1.25)
+        case .zoomOut: zoom(by: 1 / 1.25)
         case .newCollection: promptNewCollection(kind: "collection", parent: nil)
         case .newSmartFolder: smartEditor = SmartEditorState()
         }
+    }
+
+    /// ⌘+ / ⌘−: the grid animates to the new size; the canvas zooms about its centre.
+    func zoom(by factor: CGFloat) {
+        if viewMode == .canvas { canvasRequest = CanvasRequest(kind: .zoom(factor)) }
+        else { pendingColumnDelta += factor > 1 ? -1 : 1; gridZoomTick += 1 }   // bigger tiles = fewer columns
     }
 
     func toggleLike(ids: [String]) {

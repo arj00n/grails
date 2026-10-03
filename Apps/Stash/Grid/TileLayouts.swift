@@ -6,6 +6,8 @@ class TileLayout: NSCollectionViewLayout {
     var targetWidth: CGFloat = 190 { didSet { if oldValue != targetWidth { invalidateLayout() } } }
     var spacing: CGFloat = 8 { didSet { if oldValue != spacing { invalidateLayout() } } }
     var inset: CGFloat = 12
+    /// During a pinch the tile size follows the gesture exactly (grid centred); at rest tiles stretch to fill each row.
+    var exact = false { didSet { if oldValue != exact { invalidateLayout() } } }
     var itemCount: Int { collectionView?.numberOfItems(inSection: 0) ?? 0 }
     var availableWidth: CGFloat { max(1, (collectionView?.bounds.width ?? 800) - inset * 2) }
     private var lastWidth: CGFloat = 0
@@ -15,7 +17,27 @@ class TileLayout: NSCollectionViewLayout {
         return newBounds.width != lastWidth
     }
 
-    func columnCount(for width: CGFloat) -> Int { max(1, Int((width + spacing) / (targetWidth + spacing))) }
+    func columnCount(for width: CGFloat) -> Int { max(1, Int((width + spacing) / (targetWidth + spacing) + 1e-6)) }
+
+    /// Columns, tile width and left edge for the current width and mode.
+    func geometry() -> (cols: Int, tile: CGFloat, leading: CGFloat) {
+        let avail = availableWidth
+        if exact {
+            let t = min(targetWidth, avail)
+            let c = max(1, Int((avail + spacing) / (t + spacing) + 1e-6))
+            let used = CGFloat(c) * t + CGFloat(c - 1) * spacing
+            return (c, t, inset + max(0, (avail - used) / 2))
+        }
+        let c = columnCount(for: avail)
+        return (c, (avail - CGFloat(c - 1) * spacing) / CGFloat(c), inset)
+    }
+
+    /// The tile width a target settles to: the nearest column count, stretched so rows are full.
+    func fillWidth(forTarget target: CGFloat) -> CGFloat {
+        let avail = availableWidth
+        let c = max(1, Int(((avail + spacing) / (target + spacing)).rounded()))
+        return (avail - CGFloat(c - 1) * spacing) / CGFloat(c)
+    }
 
     func attributes(_ index: Int, _ frame: CGRect) -> NSCollectionViewLayoutAttributes {
         let a = NSCollectionViewLayoutAttributes(forItemWith: IndexPath(item: index, section: 0))
@@ -28,11 +50,11 @@ class TileLayout: NSCollectionViewLayout {
 final class SquareLayout: TileLayout {
     private var cols = 1
     private var tile: CGFloat = 100
+    private var leading: CGFloat = 12
     private var height: CGFloat = 0
 
     override func prepare() {
-        cols = columnCount(for: availableWidth)
-        tile = (availableWidth - CGFloat(cols - 1) * spacing) / CGFloat(cols)
+        (cols, tile, leading) = geometry()
         let rows = (itemCount + cols - 1) / cols
         height = inset * 2 + CGFloat(rows) * tile + CGFloat(max(0, rows - 1)) * spacing
     }
@@ -41,7 +63,7 @@ final class SquareLayout: TileLayout {
 
     private func frame(_ i: Int) -> CGRect {
         let row = i / cols, col = i % cols
-        return CGRect(x: inset + CGFloat(col) * (tile + spacing), y: inset + CGFloat(row) * (tile + spacing), width: tile, height: tile)
+        return CGRect(x: leading + CGFloat(col) * (tile + spacing), y: inset + CGFloat(row) * (tile + spacing), width: tile, height: tile)
     }
 
     override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
@@ -74,13 +96,12 @@ final class MasonryLayout: TileLayout {
     var dataVersion = 0 { didSet { signature = [] } }
 
     override func prepare() {
-        let sig: [CGFloat] = [availableWidth, targetWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion)]
+        let sig: [CGFloat] = [availableWidth, targetWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion), exact ? 1 : 0]
         guard sig != signature else { return }
         signature = sig
         let t0 = CACurrentMediaTime()
         defer { HitchMonitor.record("masonryPrepare", since: t0) }
-        let cols = columnCount(for: availableWidth)
-        let w = (availableWidth - CGFloat(cols - 1) * spacing) / CGFloat(cols)
+        let (cols, w, leading) = geometry()
         var heights = [CGFloat](repeating: inset, count: cols)
         columns = Array(repeating: [], count: cols)
         frames = []
@@ -88,7 +109,7 @@ final class MasonryLayout: TileLayout {
         for i in 0..<min(itemCount, aspects.count) {
             let c = heights.indices.min { heights[$0] < heights[$1] } ?? 0
             let h = min(max(w * aspects[i], w * 0.3), w * 3)
-            frames.append(CGRect(x: inset + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
+            frames.append(CGRect(x: leading + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
             columns[c].append(i)
             heights[c] += h + spacing
         }
