@@ -11,8 +11,14 @@ public struct ItemQuery: Sendable {
     public var tag: String?
     public var untagged = false
     public var collectionId: String?
+    /// Any of these collections (used to show a folder as the union of everything inside it)
+    public var collectionIds: Set<String> = []
     /// Inbox: items that are in no collection
     public var unfiled = false
+    /// Roughly square images (aspect ratio within 5% of 1:1)
+    public var squareOnly = false
+    /// Evaluate a smart folder's rules in addition to the other filters
+    public var smart: SmartFolder?
     /// true = the Trash view
     public var deleted = false
     public var sort: ItemSort?

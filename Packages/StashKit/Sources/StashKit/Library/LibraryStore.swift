@@ -29,6 +29,8 @@ public actor LibraryStore {
     public private(set) var manifest: LibraryManifest
     public nonisolated let index: LibraryIndex
     public var userHandle: String
+    /// Non-nil while `recording(label:)` is running; mutations note the state they overwrite.
+    var recorder: ChangeRecorder?
 
     private init(layout: LibraryLayout, manifest: LibraryManifest, index: LibraryIndex, userHandle: String) {
         self.layout = layout; self.manifest = manifest; self.index = index; self.userHandle = userHandle
@@ -178,9 +180,7 @@ public actor LibraryStore {
         let c = StashCollection(
             kind: kind, name: name, parentId: parentId, order: FractionalIndex.after(siblings.last?.order), updatedBy: userHandle
         )
-        let url = layout.collectionURL(c.id)
-        try AtomicFile.writeJSON(c, to: url)
-        try await index.upsertCollection(c, mtime: FileStat.mtime(url) ?? 0)
+        try await persistCollection(c)
         return c
     }
 
@@ -216,7 +216,7 @@ public actor LibraryStore {
         result.removed = gone.count
         try await index.remove(ids: gone)
 
-        for c in LibraryIndex.readCollections(layout) { try await index.upsertCollection(c.value, mtime: c.mtime) }
+        try await index.replaceCollections(LibraryIndex.readCollections(layout))
         return result
     }
 
@@ -258,7 +258,8 @@ public actor LibraryStore {
 
     // MARK: Internals
 
-    private func persist(_ item: Item) async throws {
+    func persist(_ item: Item) async throws {
+        noteBefore(item: item.id)
         let url = layout.itemJSON(item.id)
         try AtomicFile.writeJSON(item, to: url)
         try await index.upsert(item, mtime: FileStat.mtime(url) ?? 0)

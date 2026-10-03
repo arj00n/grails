@@ -62,3 +62,12 @@ enum Extras {
         }
     }
 }
+
+extension JSONValue: ExpressibleByStringLiteral, ExpressibleByIntegerLiteral, ExpressibleByFloatLiteral,
+    ExpressibleByBooleanLiteral, ExpressibleByNilLiteral {
+    public init(stringLiteral value: String) { self = .string(value) }
+    public init(integerLiteral value: Int) { self = .int(value) }
+    public init(floatLiteral value: Double) { self = .double(value) }
+    public init(booleanLiteral value: Bool) { self = .bool(value) }
+    public init(nilLiteral: ()) { self = .null }
+}

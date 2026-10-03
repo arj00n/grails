@@ -173,6 +173,38 @@ public final class LibraryIndex: Sendable {
         }
     }
 
+    /// Replaces the collections table with what's on disk (picks up deletions made by other machines).
+    public func replaceCollections(_ list: [(value: StashCollection, mtime: Double)]) async throws {
+        try await db.write { db in
+            try db.execute(sql: "DELETE FROM collections")
+            for c in list {
+                try db.execute(sql: """
+                INSERT INTO collections (id, kind, name, parentId, orderKey, archived, mtime) VALUES (?,?,?,?,?,?,?)
+                """, arguments: [c.value.id, c.value.kind, c.value.name, c.value.parentId, c.value.order, c.value.archived, c.mtime])
+            }
+        }
+    }
+
+    public func removeCollection(id: String) async throws {
+        try await db.write { db in
+            try db.execute(sql: "DELETE FROM collections WHERE id = ?", arguments: [id])
+            try db.execute(sql: "DELETE FROM item_collections WHERE collectionId = ?", arguments: [id])
+        }
+    }
+
+    /// Ids of every item in the library (including trashed) that currently has `tag` (case-insensitive).
+    public func itemIds(withTag tag: String) async throws -> [String] {
+        try await db.read { db in
+            try String.fetchAll(db, sql: "SELECT itemId FROM item_tags WHERE tag = ?", arguments: [tag])
+        }
+    }
+
+    public func itemIds(inCollection id: String) async throws -> [String] {
+        try await db.read { db in
+            try String.fetchAll(db, sql: "SELECT itemId FROM item_collections WHERE collectionId = ?", arguments: [id])
+        }
+    }
+
     public func collections() async throws -> [StashCollection] {
         try await db.read { db in
             try Row.fetchAll(db, sql: "SELECT * FROM collections ORDER BY orderKey").map { r in
@@ -242,6 +274,16 @@ public final class LibraryIndex: Sendable {
         if let c = q.collectionId {
             wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId = ?)")
             args += [c]
+        }
+        if !q.collectionIds.isEmpty {
+            wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId IN (\(q.collectionIds.map { _ in "?" }.joined(separator: ","))))")
+            for id in q.collectionIds.sorted() { args += [id] }
+        }
+        if q.squareOnly { wheres.append("i.width > 0 AND i.height > 0 AND ABS(i.width * 1.0 / i.height - 1.0) <= 0.05") }
+        if let smart = q.smart {
+            let (sql, a) = SmartRuleCompiler.compile(smart)
+            wheres.append("(\(sql))")
+            args += a
         }
         if q.unfiled { wheres.append("NOT EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id)") }
         let whereSQL = wheres.joined(separator: " AND ")

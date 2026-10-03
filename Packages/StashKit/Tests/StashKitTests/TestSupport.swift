@@ -31,4 +31,18 @@ enum TestSupport {
         let store = try LibraryStore.create(at: root, name: "Test", index: try LibraryIndex(path: nil), userHandle: handle)
         return (store, root)
     }
+
+    /// Writes items straight to disk (as another Mac would) and rescans, so tests can use kinds we can't import.
+    static func seed(_ store: LibraryStore, _ items: [Item]) async throws {
+        for item in items { try AtomicFile.writeJSON(item, to: store.layout.itemJSON(item.id)) }
+        try await store.rescan()
+    }
+
+    static func item(_ name: String, kind: ItemKind = .image, tags: [String] = [], w: Int = 100, h: Int = 100, bytes: Int64 = 1000,
+                     liked: Bool = false, note: String = "", site: String? = nil, palette: [PaletteColor] = [],
+                     collections: [String: String] = [:], addedAt: Date = .stashNow, addedBy: String = "ana") -> Item {
+        Item(kind: kind, file: "original.png", name: name, ext: "png", bytes: bytes, width: w, height: h,
+             source: site.map { ItemSource(site: $0) }, tags: tags, collections: collections, liked: liked, note: note,
+             palette: palette, addedAt: addedAt, addedBy: addedBy)
+    }
 }
