@@ -44,6 +44,13 @@ struct SettingsView: View {
                         Button("Tag existing items now") { model.autoTagEverything() }
                         if let p = model.autoTagProgress { Text("\(p.done) of \(p.total)").foregroundStyle(.secondary).monospacedDigit() }
                     }
+                    if !model.autoTagSkipped.isEmpty {
+                        LabeledContent("Skipped here") {
+                            Text(model.autoTagSkipped.joined(separator: ", ")).lineLimit(3).multilineTextAlignment(.trailing)
+                        }
+                        .help("Tags the recognizer put on so many of your items that they stopped being useful. Learned from this library.")
+                        Button("Reset skipped tags") { model.resetAutoTagSkipped() }
+                    }
                     Text("Uses Apple's on-device image recognition. Nothing leaves this Mac. Tags are ordinary tags: edit or remove any of them and they stay gone.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
@@ -78,6 +85,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 520)
+        .task { await model.refreshAutoTagSkipped() }
     }
 }
 

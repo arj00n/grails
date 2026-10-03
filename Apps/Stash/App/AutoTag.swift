@@ -47,12 +47,27 @@ extension AppModel {
             }
             if model.autoTagGeneration == generation { self.autoTagProgress = nil; self.autoTagTask = nil }
             guard model.store === store else { return }
-            if summary.tagsAdded > 0 { await model.reload() }
+            await model.refreshAutoTagSkipped()
+            if summary.tagsAdded > 0 || summary.pruned > 0 { await model.reload() }
             if announce {
                 model.showToast(summary.tagsAdded > 0
                     ? "Added \(summary.tagsAdded) tag\(summary.tagsAdded == 1 ? "" : "s") to \(summary.tagged) item\(summary.tagged == 1 ? "" : "s")"
                     : "No new tags found")
             }
+        }
+    }
+
+    func refreshAutoTagSkipped() async {
+        guard let store else { autoTagSkipped = []; return }
+        autoTagSkipped = await store.autoTagIgnored().sorted()
+    }
+
+    func resetAutoTagSkipped() {
+        guard let store else { return }
+        Task {
+            try? await store.resetAutoTagIgnored()
+            await refreshAutoTagSkipped()
+            showToast("Auto-tag will suggest every tag again")
         }
     }
 

@@ -17,13 +17,10 @@ public struct ImageTaggerOptions: Sendable, Equatable {
         self.minConfidence = minConfidence; self.maxTags = maxTags; self.denylist = denylist
     }
 
-    /// Root-of-the-taxonomy labels that are true of almost anything and make a team's tag list noisy.
-    public static let defaultDenylist: Set<String> = [
-        "structure", "material", "land", "liquid", "outdoor", "indoor", "adult", "occupation", "cord", "object",
-        "daytime", "nighttime", "light",
-        // present in most styled food photos (a plate on a table) and so useless for finding one
-        "utensil", "tableware", "wood processed", "textile", "plate", "spoon", "fork", "knife", "cutlery", "furniture", "table",
-    ]
+    /// Root-of-the-taxonomy labels that carry no information in any kind of library. Everything domain-specific
+    /// ("plate" is noise in a food library and a real tag in a decor one) is learned per library instead: see
+    /// `AutoTagger.learnCommonTags`.
+    public static let defaultDenylist: Set<String> = ["structure", "material", "object"]
 
     /// 0 (fewer, only the obvious) … 1 (more, including tentative guesses).
     public static func sensitivity(_ s: Double) -> ImageTaggerOptions {

@@ -9,9 +9,9 @@ final class AutoTagTests: XCTestCase {
         let dir = "/private/tmp/stash-ui-tests/\(UUID().uuidString)"
         let app = XCUIApplication()
         app.launchEnvironment["STASH_LIBRARY"] = dir + "/Lib.stash"
-        app.launchEnvironment["STASH_SEED"] = "40"
+        app.launchEnvironment["STASH_SEED"] = "30"      // under the 40-item minimum for learning "too common" tags, so the stub's tags stay
         app.launchEnvironment["STASH_SEED_PLAIN"] = "1"
-        app.launchEnvironment["STASH_SEED_PEOPLE"] = people          // alternating: 20 items each
+        app.launchEnvironment["STASH_SEED_PEOPLE"] = people          // alternating: 15 items each
         app.launchEnvironment["STASH_INDEX_PATH"] = dir + "/index.sqlite"
         app.launchEnvironment["STASH_AUTOTAG_STUB"] = "stubfruit,stubleaf"
         app.launchEnvironment["STASH_SHOW_INFO"] = "1"
@@ -30,14 +30,14 @@ final class AutoTagTests: XCTestCase {
     @MainActor
     func testYourOwnItemsAreTaggedInTheBackgroundAndTeammatesAreLeftAlone() throws {
         let app = launch()
-        XCTAssertTrue(app.staticTexts["40 items"].waitForExistence(timeout: 30))
+        XCTAssertTrue(app.staticTexts["30 items"].waitForExistence(timeout: 30))
 
-        // the sidebar gains the tags, with a count of only your own 20
+        // the sidebar gains the tags, with a count of only your own 15
         let tag = app.staticTexts["stubfruit"]
         XCTAssertTrue(tag.waitForExistence(timeout: 30), "auto tags appear in the sidebar")
         XCTAssertTrue(app.staticTexts["stubleaf"].exists)
         tag.click()
-        XCTAssertTrue(app.staticTexts["20 items"].waitForExistence(timeout: 10), "only the 20 items you added")
+        XCTAssertTrue(app.staticTexts["15 items"].waitForExistence(timeout: 10), "only the 15 items you added")
 
         // the info panel marks them as automatic
         let grid = app.collectionViews["grid"]
@@ -57,9 +57,9 @@ final class AutoTagTests: XCTestCase {
         XCTAssertTrue(field.waitForExistence(timeout: 5))
         type("auto-tag all", in: app)
         app.typeKey(.return, modifierFlags: [])
-        XCTAssertTrue(app.staticTexts["Added 40 tags to 20 items"].waitForExistence(timeout: 30), "teammates' 20 items get the 2 tags each")
+        XCTAssertTrue(app.staticTexts["Added 30 tags to 15 items"].waitForExistence(timeout: 30), "teammates' 15 items get the 2 tags each")
         tag.click()
-        XCTAssertTrue(app.staticTexts["40 items"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["30 items"].waitForExistence(timeout: 10))
     }
 
     @MainActor

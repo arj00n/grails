@@ -6,6 +6,16 @@ public struct AutoTagSummary: Sendable, Equatable {
     public var tagsAdded = 0
     public var skipped = 0         // no usable picture on this Mac (e.g. a placeholder not downloaded)
     public var failed = 0
+    public var learned: [String] = []   // tags found too common to be useful here; removed from machine-tagged items
+    public var pruned = 0               // how many item tags that removed
+}
+
+/// When a tag stops being informative: it sits on more than `maxShare` of the library (and at least `minCount` items).
+/// Small libraries are left alone: with a few dozen items, a frequent tag is more likely a real theme than noise.
+public struct CommonTagPolicy: Sendable {
+    public var minLibrary = 40, minCount = 12
+    public var maxShare = 0.25
+    public init(minLibrary: Int = 40, minCount: Int = 12, maxShare: Double = 0.25) { self.minLibrary = minLibrary; self.minCount = minCount; self.maxShare = maxShare }
 }
 
 public typealias TagClassifier = @Sendable (URL, ImageTaggerOptions) throws -> [TagSuggestion]
@@ -16,7 +26,9 @@ public typealias TagClassifier = @Sendable (URL, ImageTaggerOptions) throws -> [
 public actor AutoTagger {
     private let store: LibraryStore
     private let classify: TagClassifier
+    private var ignored: Set<String> = []
     public var options: ImageTaggerOptions
+    public var policy = CommonTagPolicy()
 
     public init(
         store: LibraryStore, options: ImageTaggerOptions = .init(),
@@ -43,6 +55,7 @@ public actor AutoTagger {
         progress: @Sendable (Int, Int) -> Void = { _, _ in }
     ) async -> AutoTagSummary {
         var summary = AutoTagSummary()
+        ignored = await store.autoTagIgnored()
         var targets: [String]
         if let ids { targets = ids } else {
             var q = ItemQuery()
@@ -65,7 +78,34 @@ public actor AutoTagger {
             }
             progress(i + 1, total)
         }
+        // A bulk run over the whole library (not a forced redo of chosen items) is when "too common" becomes clear.
+        if ids == nil, !Task.isCancelled {
+            let (learned, pruned) = await learnCommonTags()
+            summary.learned = learned; summary.pruned = pruned
+        }
         return summary
+    }
+
+    /// Tags the classifier keeps putting on a big share of this library say nothing about any one item. Remember not to
+    /// suggest them here, and take them off the items the machine tagged. A person's own tags are never touched.
+    func learnCommonTags() async -> (learned: [String], pruned: Int) {
+        guard let total = try? await store.index.count(ItemQuery()), total >= policy.minLibrary,
+              let counts = try? await store.index.tagCounts() else { return ([], 0) }
+        let skip = await store.autoTagIgnored()
+        let common = counts.filter { $0.count >= policy.minCount && Double($0.count) / Double(total) > policy.maxShare && !skip.contains($0.tag.lowercased()) }
+        var learned: [String] = [], pruned = 0
+        for c in common {
+            if Task.isCancelled { break }
+            var removed = 0
+            for id in (try? await store.index.itemIds(withTag: c.tag)) ?? [] {
+                if Task.isCancelled { break }
+                if await (try? store.dropAutoTag(id: id, tag: c.tag)) == true { removed += 1 }
+            }
+            // only worth remembering if the machine was the one putting it there
+            if removed > 0 { learned.append(c.tag.lowercased()); pruned += removed }
+        }
+        if !learned.isEmpty { try? await store.setAutoTagIgnored(learned, true) }
+        return (learned, pruned)
     }
 
     enum Outcome { case tagged(Int), nothingFound, skipped, failed }
@@ -74,7 +114,8 @@ public actor AutoTagger {
         guard let item = try? await store.item(id: id), item.deletedAt == nil else { return .skipped }
         if !force, item.extras["autoTagged"] != nil { return .nothingFound }
         guard let source = pictureURL(for: item) else { return .skipped }
-        let options = self.options
+        var options = self.options
+        options.denylist.formUnion(ignored)          // learned noise doesn't take up one of the tag slots
         let classify = self.classify
         // Vision work happens off the actor so reads and writes on the library stay responsive.
         let result: Result<[TagSuggestion], Error> = await Task.detached(priority: .utility) {
@@ -112,6 +153,40 @@ extension Item {
 }
 
 extension LibraryStore {
+    /// Tags (lowercased) that auto-tagging must not suggest in this library.
+    public func autoTagIgnored() -> Set<String> {
+        Set(tagMetadata().filter { $0.value.noAuto == true }.keys)
+    }
+
+    public func setAutoTagIgnored(_ tags: [String], _ on: Bool) throws {
+        var meta = tagMetadata()
+        for t in tags {
+            var m = meta[t.lowercased()] ?? TagMeta()
+            m.noAuto = on ? true : nil
+            meta[t.lowercased()] = m.isEmpty ? nil : m
+        }
+        try writeTagMetadata(meta)
+    }
+
+    /// Forgets everything learned about which tags are too common.
+    public func resetAutoTagIgnored() throws {
+        try setAutoTagIgnored(Array(autoTagIgnored()), false)
+    }
+
+    /// Removes `tag` from an item if (and only if) the machine added it. Returns whether it did.
+    @discardableResult
+    func dropAutoTag(id: String, tag: String) async throws -> Bool {
+        guard var item = try item(id: id), item.autoTags.contains(where: { $0.lowercased() == tag.lowercased() }) else { return false }
+        item.tags.removeAll { $0.lowercased() == tag.lowercased() }
+        if case .array(let a)? = item.extras["autoTags"] {
+            item.extras["autoTags"] = .array(a.filter { if case .string(let s) = $0 { s.lowercased() != tag.lowercased() } else { true } })
+        }
+        item.updatedAt = .stashNow
+        item.updatedBy = userHandle
+        try await persist(item, record: false)
+        return true
+    }
+
     /// Adds the suggested tags that the item doesn't already have, and records that this item has been auto-tagged
     /// (even when nothing was added, so it isn't looked at again). Not part of undo: it's background housekeeping.
     /// Returns how many tags were added.

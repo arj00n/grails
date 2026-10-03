@@ -68,7 +68,11 @@ public struct SmartFolder: Codable, Hashable, Sendable, Identifiable {
 public struct TagMeta: Codable, Hashable, Sendable {
     public var color: String?
     public var order: String?
-    public init(color: String? = nil, order: String? = nil) { self.color = color; self.order = order }
+    /// True when auto-tagging must not suggest this tag in this library (set when it proved too common to be useful,
+    /// or when a person deleted the tag).
+    public var noAuto: Bool?
+    public init(color: String? = nil, order: String? = nil, noAuto: Bool? = nil) { self.color = color; self.order = order; self.noAuto = noAuto }
+    var isEmpty: Bool { color == nil && order == nil && noAuto != true }
 }
 
 struct TagsFile: Codable {

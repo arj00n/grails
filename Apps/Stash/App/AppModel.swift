@@ -155,6 +155,8 @@ final class AppModel {
     var errorMessage: String?
     var importProgress: (done: Int, total: Int)?
     var autoTagProgress: (done: Int, total: Int)?
+    /// Tags auto-tagging has learned not to suggest in this library (too common to be useful).
+    var autoTagSkipped: [String] = []
     @ObservationIgnored var autoTagTask: Task<Void, Never>?
     @ObservationIgnored var autoTagGeneration = 0
     @ObservationIgnored var autoTagSeenTotal = -1

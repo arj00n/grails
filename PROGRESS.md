@@ -8,7 +8,11 @@
 - **Canvas** (Atlas model): per-board (library / collection / tag / smart folder) infinite pan/zoom, placements in
   `canvas/<boardKey>.json`, merged per placement across Macs, undoable, culled + pooled layers (20k items: 0–2 slow frames).
 - **Auto-tag**: Apple Vision `VNClassifyImageRequest` on the 512 px thumbnail, on-device, no model download, ~150 ms/image.
-  Filter = confidence floor (0.5), generic-root denylist, word-overlap dedupe, cap 5; Settings has a "Tags per item" slider.
+  Filter = confidence floor (0.5), a tiny fixed denylist (structure/material/object), word-overlap dedupe, cap 5; Settings has a
+  "Tags per item" slider. **Domain noise is learned per library, not hard-coded** (assets are food, decor, creatives, motion…):
+  after a bulk run, a tag on >25% of a library of ≥40 items (and ≥12 items) is removed from machine-tagged items only and recorded
+  as `noAuto` in `tags.json`, so it isn't suggested again; deleting a tag in the sidebar sets the same flag. Settings shows what was
+  skipped and has a reset button. Constants: `CommonTagPolicy`.
   Tags are ordinary tags (sync, search, filter). `autoTags` records which ones the machine added (sparkle chip in the info
   panel); `autoTagged` stops re-runs, so a removed tag is never re-added. Only the user's own items run automatically
   (teammates' items are tagged by their owner); ⌘K "Auto-tag All Untagged Items" does everyone's, "Auto-tag N selected" redoes.
@@ -19,10 +23,10 @@
   (incl. 3 `AutoTagTests`); headless app run with the stub; Release strict benchmarks: grid square + masonry pass, canvas zoom/pan
   got 1–3 slow frames in 3 runs (budget 2; worst frame 43–50 ms while our own code peaked at 8 ms; machine load average was 8 with
   Spotlight at 119% CPU), so treat it as load noise, re-run on a quiet Mac.
-- **Tried on 197 Swish SKU photos** (`assets/sku`, webp, 6 s total): the stock labels were mostly noise (utensil on 141, tableware on 134),
-  so the denylist now drops tableware/surface labels. After that: bowl/food/drinking glass/baked goods/soup/rice… are right but coarse;
-  Vision has no dish vocabulary (gulab jamun → nothing, paratha → "baked goods, pancake"). At 0.5 confidence 55/197 get no tags
-  (avg 1.6); at the slider's max 14/197 (avg 3.5). Dish-level tags need a CLIP-style model with a custom food vocabulary (PLAN M7).
+- **Tried on 197 Swish SKU photos** (webp, `stash-tags --simulate <folder>` imports into a throwaway library and runs the real pipeline,
+  1.5 s): learned on its own to skip utensil, tableware, bowl, wood processed, food; 165/190 items get tags (avg ≈3.6 before pruning).
+  What's left is coarse (plate, spoon, drinking glass, burrito, hamburger…): Vision has no dish vocabulary (gulab jamun → nothing).
+  Dish-level tags need a CLIP-style model with a custom vocabulary (PLAN M7). Untested on decor, graphics, motion (no such assets here).
 - **NOT verified**: pinch-free tag quality beyond the above; pinch gestures (tests drive ⌘-scroll,
   same code path).
 

@@ -9,18 +9,21 @@ import Testing
         ("sky", 0.71), ("blue_sky", 0.70), ("liquid", 0.68), ("water", 0.68), ("water_body", 0.68), ("lake", 0.68), ("cloudy", 0.12),
     ]
 
-    @Test func dropsGenericRootsAndRepeatedWords() {
+    @Test func dropsRootsAndRepeatedWords() {
+        // the built-in list is only the classifier's meaningless roots; domain noise is learned per library instead
         let tags = ImageTagger.select(aerial, options: .init(minConfidence: 0.5, maxTags: 8)).map(\.tag)
-        #expect(!tags.contains("structure") && !tags.contains("outdoor") && !tags.contains("land") && !tags.contains("liquid"))
-        #expect(tags.contains("rocks") && tags.contains("bridge") && tags.contains("hill") && tags.contains("lake"))
-        #expect(tags.contains("sky") && !tags.contains("blue sky"))             // one sky tag, not two
-        #expect(tags.contains("water") && !tags.contains("water body"))
-        #expect(!tags.contains("cloudy"))                                       // under the floor
+        #expect(!tags.contains("structure"))
+        #expect(tags.contains("outdoor") && tags.contains("land"))               // not meaningless in every library
+        let narrowed = ImageTagger.select(aerial, options: .init(minConfidence: 0.5, maxTags: 8, denylist: ImageTaggerOptions.defaultDenylist.union(["outdoor", "land", "liquid"]))).map(\.tag)
+        #expect(narrowed.contains("rocks") && narrowed.contains("bridge") && narrowed.contains("hill") && narrowed.contains("lake"))
+        #expect(narrowed.contains("sky") && !narrowed.contains("blue sky"))     // one sky tag, not two
+        #expect(narrowed.contains("water") && !narrowed.contains("water body"))
+        #expect(!narrowed.contains("cloudy"))                                    // under the floor
     }
 
     @Test func bestFirstAndCapped() {
         let tags = ImageTagger.select(aerial, options: .init(minConfidence: 0.5, maxTags: 3))
-        #expect(tags.map(\.tag) == ["rocks", "bridge", "hill"])
+        #expect(tags.map(\.tag) == ["rocks", "bridge", "outdoor"])
         #expect(tags.map(\.confidence) == tags.map(\.confidence).sorted(by: >))
         #expect(ImageTagger.select(aerial, options: .init(minConfidence: 0.99, maxTags: 5)).isEmpty)
         #expect(ImageTagger.select([], options: .init()).isEmpty)
@@ -165,6 +168,99 @@ import Testing
         #expect(s.tagged == 1 && s.skipped == 1)
         #expect(try await store.item(id: linkItem.id)?.tags == ["poster"])
         #expect(try await store.item(id: bare.id)?.isAutoTagged == false)
+    }
+}
+
+@Suite struct LearnedNoiseTests {
+    /// 50 items, each classified as "plate" plus its own unique tag.
+    func library(_ n: Int = 50) async throws -> (LibraryStore, [Item], AutoTagger) {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<n { items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "p\(i)", rgb: (Double(i % 7) / 7, Double(i / 7) / 8, 0.6))).item) }
+        let own = Dictionary(uniqueKeysWithValues: items.enumerated().map { ($1.id, "thing\($0)") })
+        let tagger = AutoTagger(store: store, classify: { url, options in
+            let id = url.deletingLastPathComponent().lastPathComponent
+            // like the real classifier: raw labels go through the same selection (floor, denylist, cap)
+            return ImageTagger.select([("plate", 0.9), (own[id] ?? "other", 0.8)], options: options)
+        })
+        return (store, items, tagger)
+    }
+
+    @Test func aTagOnMostOfTheLibraryIsRemovedAndRemembered() async throws {
+        let (store, items, tagger) = try await library()
+        try await store.addTags(["Plate"], to: [items[0].id])                    // a person's own, same tag
+        let s = await tagger.run()
+        #expect(s.learned == ["plate"])
+        #expect(s.pruned == 49)                                                  // every machine-added one; not the person's
+        #expect(try await store.item(id: items[0].id)?.tags.contains("Plate") == true)
+        #expect(try await store.item(id: items[0].id)?.autoTags.contains("plate") == false)
+        #expect(try await store.item(id: items[1].id)?.tags == ["thing1"])       // the specific tag stays
+        #expect(try await store.item(id: items[1].id)?.autoTags == ["thing1"])
+        let ig = await store.autoTagIgnored()
+        #expect(ig == ["plate"])
+        #expect(try await store.index.tagCounts().first { $0.tag.lowercased() == "plate" }?.count == 1)
+    }
+
+    @Test func newItemsDontGetTheLearnedNoiseBack() async throws {
+        let (store, _, tagger) = try await library()
+        await tagger.run()
+        let more = try await store.addItem(fileAt: TestSupport.makePNG(in: TestSupport.tempDir(), name: "late", rgb: (0.2, 0.9, 0.2))).item
+        let s = await tagger.run()
+        #expect(s.checked == 1 && s.learned.isEmpty)
+        #expect(try await store.item(id: more.id)?.tags == ["other"])            // "plate" skipped, and didn't use up a slot
+    }
+
+    @Test func smallLibrariesAreLeftAlone() async throws {
+        let (store, items, tagger) = try await library(12)
+        let s = await tagger.run()
+        #expect(s.learned.isEmpty && s.pruned == 0)
+        #expect(try await store.item(id: items[3].id)?.tags == ["plate", "thing3"])
+    }
+
+    @Test func aForcedRedoOfChosenItemsNeverLearns() async throws {
+        let (store, items, _) = try await library()
+        let first = AutoTagger(store: store, classify: { _, _ in [TagSuggestion(tag: "plate", confidence: 1)] })
+        await first.run(ids: items.map(\.id))
+        let ig = await store.autoTagIgnored()
+        #expect(ig.isEmpty)                             // only a bulk run learns
+        #expect(try await store.item(id: items[2].id)?.tags == ["plate"])
+    }
+
+    @Test func differentLibrariesLearnDifferentNoise() async throws {
+        // the same classifier output is noise in one library and a real theme in a smaller, more varied one
+        let (food, _, foodTagger) = try await library()
+        await foodTagger.run()
+        let ig = await food.autoTagIgnored()
+        #expect(ig == ["plate"])
+        let (decor, items, decorTagger) = try await library(30)
+        let s = await decorTagger.run()                                          // under 40 items: "plate" stays a tag
+        let none = await decor.autoTagIgnored()
+        #expect(s.learned.isEmpty && none.isEmpty)
+        #expect(try await decor.item(id: items[0].id)?.tags.contains("plate") == true)
+    }
+
+    @Test func deletingATagMeansTheMachineWontBringItBack() async throws {
+        let (store, _, tagger) = try await library(12)
+        await tagger.run()
+        try await store.deleteTag("thing4")
+        let ig = await store.autoTagIgnored()
+        #expect(ig == ["thing4"])
+        #expect(try await store.index.itemIds(withTag: "thing4").isEmpty)
+    }
+
+    @Test func resetForgetsWhatWasLearned() async throws {
+        let (store, _, tagger) = try await library()
+        await tagger.run()
+        let learned = await store.autoTagIgnored()
+        #expect(!learned.isEmpty)
+        try await store.resetAutoTagIgnored()
+        let ig = await store.autoTagIgnored()
+        #expect(ig.isEmpty)
+        try await store.setTagColor("#FF0000", for: "keepme")
+        try await store.setAutoTagIgnored(["keepme"], true); try await store.setAutoTagIgnored(["keepme"], false)
+        let meta = await store.tagMetadata()
+        #expect(meta["keepme"]?.color == "#FF0000")        // colour survives toggling the flag
     }
 }
 

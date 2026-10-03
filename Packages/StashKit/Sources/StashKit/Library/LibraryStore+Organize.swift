@@ -148,7 +148,9 @@ extension LibraryStore {
         let ids = try await index.itemIds(withTag: tag)
         try await removeTags([tag], from: ids)
         var meta = tagMetadata()
-        if meta.removeValue(forKey: tag.lowercased()) != nil { try writeTagMetadata(meta) }
+        // someone removed this tag everywhere on purpose: the machine shouldn't bring it back
+        meta[tag.lowercased()] = TagMeta(noAuto: true)
+        try writeTagMetadata(meta)
         return ids.count
     }
 
@@ -166,7 +168,7 @@ extension LibraryStore {
         var meta = tagMetadata()
         var m = meta[tag.lowercased()] ?? TagMeta()
         m.color = hex
-        meta[tag.lowercased()] = (m.color == nil && m.order == nil) ? nil : m
+        meta[tag.lowercased()] = m.isEmpty ? nil : m
         try writeTagMetadata(meta)
     }
 
