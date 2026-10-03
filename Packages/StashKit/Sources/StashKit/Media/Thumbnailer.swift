@@ -55,6 +55,19 @@ public enum Thumbnailer {
         return encodeJPEG(flattened(cg), quality: quality)
     }
 
+    /// JPEG thumbnail from in-memory image bytes (a downloaded preview image, a screenshot).
+    public static func jpegThumbnail(forData data: Data, maxPixel: Int = Thumbnailer.maxPixel, quality: Double = 0.8) -> Data? {
+        guard let src = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+        let opts: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+            kCGImageSourceShouldCacheImmediately: true,
+        ]
+        guard let cg = CGImageSourceCreateThumbnailAtIndex(src, 0, opts as CFDictionary) else { return nil }
+        return encodeJPEG(flattened(cg), quality: quality)
+    }
+
     static func flattened(_ image: CGImage) -> CGImage {
         switch image.alphaInfo {
         case .none, .noneSkipFirst, .noneSkipLast: return image

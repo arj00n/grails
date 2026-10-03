@@ -1,0 +1,62 @@
+import Foundation
+
+public struct SaveRequest: Codable, Sendable {
+    /// Direct URL of an image or video file.
+    public var mediaUrl: String?
+    /// The page the media (or the link itself) came from.
+    public var pageUrl: String?
+    public var title: String?
+    /// Raw file bytes, when the extension already has them (blob:/data: images, canvas, screenshots).
+    public var dataBase64: String?
+    /// A screenshot of the page (JPEG/PNG), used as the link's snapshot.
+    public var snapshotBase64: String?
+    public var collectionId: String?
+    public var tags: [String]?
+    public var author: String?
+
+    public init(mediaUrl: String? = nil, pageUrl: String? = nil, title: String? = nil, dataBase64: String? = nil,
+                snapshotBase64: String? = nil, collectionId: String? = nil, tags: [String]? = nil, author: String? = nil) {
+        self.mediaUrl = mediaUrl; self.pageUrl = pageUrl; self.title = title; self.dataBase64 = dataBase64
+        self.snapshotBase64 = snapshotBase64; self.collectionId = collectionId; self.tags = tags; self.author = author
+    }
+}
+
+public struct SaveResult: Codable, Sendable, Equatable {
+    public var ok = true
+    public var id: String
+    public var kind: String
+    public var duplicate: Bool
+    public var name: String
+}
+
+public struct CollectionInfo: Codable, Sendable, Equatable {
+    public var id: String
+    public var name: String
+    public var kind: String
+    public var parentId: String?
+}
+
+public enum CaptureError: Error, Equatable, LocalizedError {
+    case nothingToSave
+    case badURL(String)
+    case downloadFailed(String)
+    case unsupported(String)
+    case noLibrary
+
+    public var errorDescription: String? {
+        switch self {
+        case .nothingToSave: "Nothing to save: send a mediaUrl, dataBase64, or pageUrl."
+        case .badURL(let s): "Not a valid URL: \(s)"
+        case .downloadFailed(let s): "Couldn't download the file: \(s)"
+        case .unsupported(let s): "Unsupported content: \(s)"
+        case .noLibrary: "No library is open in Stash."
+        }
+    }
+}
+
+/// What the local API (and the paste / menu bar paths) call to save things.
+public protocol CaptureService: Sendable {
+    func save(_ request: SaveRequest) async throws -> SaveResult
+    func collections() async -> [CollectionInfo]
+    var libraryName: String { get async }
+}

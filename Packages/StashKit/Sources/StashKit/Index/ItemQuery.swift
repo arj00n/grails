@@ -46,4 +46,10 @@ public struct ItemSummary: Sendable, Hashable, Identifiable {
     public var addedAt: Date
     public var addedBy: String
     public var deletedAt: Date?
+    /// Source site (links show it as a badge)
+    public var site: String?
+    /// Links: "image", "snapshot" or "title"
+    public var linkDisplay: String?
+    /// Links: a badge such as "figma"
+    public var badge: String?
 }

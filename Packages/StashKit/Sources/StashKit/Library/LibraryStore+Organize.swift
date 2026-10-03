@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 // Tags, collections, smart folders, likes, notes, and undo support.
@@ -332,4 +333,54 @@ extension LibraryStore {
     }
 
     public func deleteSmartFolder(id: String) throws { try removeSmartFile(id: id) }
+}
+
+// MARK: Links
+extension LibraryStore {
+    public func snapshotURL(for id: String) -> URL { layout.itemDir(id).appendingPathComponent("snapshot.jpg") }
+
+    /// Adds a web link as a card. Links are deduplicated by URL (the item's `sha256` is the hash of the URL).
+    @discardableResult
+    public func addLink(
+        url: URL, title: String?, site: String?, author: String? = nil, summary: String? = nil, previewImage: Data? = nil,
+        snapshot: Data? = nil, badge: String? = nil, tags: [String] = [], collectionIds: [String] = []
+    ) async throws -> AddResult {
+        let key = "link:" + url.absoluteString
+        let hash = SHA256.hash(data: Data(key.utf8)).map { String(format: "%02x", $0) }.joined()
+        if let existingId = try await index.itemId(withSHA256: hash), let existing = try item(id: existingId) { return .duplicate(existing) }
+
+        let id = ULID().string
+        try FileManager.default.createDirectory(at: layout.itemDir(id), withIntermediateDirectories: true)
+        var thumb: Data?
+        if let previewImage { thumb = Thumbnailer.jpegThumbnail(forData: previewImage) }
+        if let thumb { try AtomicFile.write(thumb, to: layout.thumbURL(id)) }
+        var snap: Data?
+        if let snapshot, let jpeg = Thumbnailer.jpegThumbnail(forData: snapshot, maxPixel: 1280) {
+            snap = jpeg
+            try AtomicFile.write(jpeg, to: snapshotURL(for: id))
+        }
+        var orders: [String: String] = [:]
+        for cid in collectionIds { orders[cid] = FractionalIndex.after(try await index.maxOrderKey(collectionId: cid)) }
+        var extras: [String: JSONValue] = ["linkDisplay": .string(thumb != nil ? "image" : (snap != nil ? "snapshot" : "title"))]
+        if let summary, !summary.isEmpty { extras["summary"] = .string(summary) }
+        if let badge { extras["badge"] = .string(badge) }
+        let item = Item(
+            id: id, kind: .link, file: nil, name: (title?.isEmpty == false ? title! : (CaptureClassifier.siteName(for: url) ?? url.absoluteString)),
+            sha256: hash, source: ItemSource(url: nil, pageUrl: url.absoluteString, site: site, author: author, title: title),
+            tags: Self.dedupeTags(tags), collections: orders, addedBy: userHandle, extras: extras
+        )
+        try await persist(item)
+        return .added(item)
+    }
+
+    /// Replaces a link's page snapshot (and switches the card to show it).
+    public func setSnapshot(_ jpeg: Data, for id: String, show: Bool = true) async throws {
+        guard let item = try item(id: id), item.kind == .link else { throw StashError.itemNotFound(id) }
+        try AtomicFile.write(jpeg, to: snapshotURL(for: id))
+        if show { try await updateItem(id: id) { $0.extras["linkDisplay"] = .string("snapshot") } }
+    }
+
+    public func setLinkDisplay(_ mode: String, for id: String) async throws {
+        try await updateItem(id: id) { $0.extras["linkDisplay"] = .string(mode) }
+    }
 }

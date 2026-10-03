@@ -78,6 +78,12 @@ public final class LibraryIndex: Sendable {
             );
             """)
         }
+        m.registerMigration("v2-link-display") { db in
+            try db.execute(sql: """
+            ALTER TABLE items ADD COLUMN linkDisplay TEXT;
+            ALTER TABLE items ADD COLUMN badge TEXT;
+            """)
+        }
         return m
     }
 
@@ -244,7 +250,8 @@ public final class LibraryIndex: Sendable {
             id: r["id"], kind: ItemKind(rawValue: r["kind"]), name: r["name"], ext: r["ext"], width: r["width"],
             height: r["height"], bytes: r["bytes"], liked: r["liked"],
             addedAt: Date(timeIntervalSince1970: r["addedAt"]), addedBy: r["addedBy"],
-            deletedAt: (r["deletedAt"] as Double?).map { Date(timeIntervalSince1970: $0) }
+            deletedAt: (r["deletedAt"] as Double?).map { Date(timeIntervalSince1970: $0) },
+            site: r["sourceSite"], linkDisplay: r["linkDisplay"], badge: r["badge"]
         )
     }
 
@@ -301,7 +308,7 @@ public final class LibraryIndex: Sendable {
         }
         args += [q.limit, q.offset]
         return ("""
-        SELECT i.id, i.kind, i.name, i.ext, i.width, i.height, i.bytes, i.liked, i.addedAt, i.addedBy, i.deletedAt
+        SELECT i.id, i.kind, i.name, i.ext, i.width, i.height, i.bytes, i.liked, i.addedAt, i.addedBy, i.deletedAt, i.sourceSite, i.linkDisplay, i.badge
         FROM \(from) WHERE \(whereSQL) ORDER BY \(order) LIMIT ? OFFSET ?
         """, args)
     }
@@ -309,7 +316,7 @@ public final class LibraryIndex: Sendable {
     private static let itemColumns = [
         "id", "kind", "name", "ext", "bytes", "width", "height", "durationSec", "sha256", "sourceUrl", "sourcePageUrl",
         "sourceSite", "sourceAuthor", "sourceTitle", "liked", "note", "ocrText", "addedAt", "addedBy", "updatedAt",
-        "updatedBy", "deletedAt", "mtime",
+        "updatedBy", "deletedAt", "mtime", "linkDisplay", "badge",
     ]
     private static let upsertSQL: String = {
         let cols = itemColumns.joined(separator: ", ")
@@ -324,7 +331,7 @@ public final class LibraryIndex: Sendable {
             item.id, item.kind.rawValue, item.name, item.ext, item.bytes, item.width, item.height, item.durationSec,
             item.sha256, s?.url, s?.pageUrl, s?.site, s?.author, s?.title, item.liked, item.note, item.ocrText,
             item.addedAt.timeIntervalSince1970, item.addedBy, item.updatedAt.timeIntervalSince1970, item.updatedBy,
-            item.deletedAt?.timeIntervalSince1970, mtime,
+            item.deletedAt?.timeIntervalSince1970, mtime, item.extras["linkDisplay"].flatMap(Self.string), item.extras["badge"].flatMap(Self.string),
         ])
         let rowid = try Int64.fetchOne(db, sql: "SELECT rowid FROM items WHERE id = ?", arguments: [item.id])!
         if !fresh {
@@ -346,6 +353,8 @@ public final class LibraryIndex: Sendable {
         try db.cachedStatement(sql: "INSERT INTO items_fts (rowid, name, tags, note, ocrText, source) VALUES (?,?,?,?,?,?)")
             .execute(arguments: [rowid, item.name, item.tags.joined(separator: " "), item.note, item.ocrText, source])
     }
+
+    private static func string(_ v: JSONValue) -> String? { if case .string(let s) = v { s } else { nil } }
 
     private static func delete(id: String, in db: Database) throws {
         if let rowid = try Int64.fetchOne(db, sql: "SELECT rowid FROM items WHERE id = ?", arguments: [id]) {
