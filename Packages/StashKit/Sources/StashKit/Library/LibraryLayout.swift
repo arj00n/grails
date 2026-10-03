@@ -1,0 +1,42 @@
+import Foundation
+
+/// Every path inside a `.stash` package, in one place.
+public struct LibraryLayout: Sendable, Hashable {
+    public let root: URL
+    public init(root: URL) { self.root = root }
+
+    public var manifestURL: URL { root.appendingPathComponent("library.json") }
+    public var itemsDir: URL { root.appendingPathComponent("items", isDirectory: true) }
+    public var collectionsDir: URL { root.appendingPathComponent("collections", isDirectory: true) }
+    public var canvasDir: URL { root.appendingPathComponent("canvas", isDirectory: true) }
+    public var smartDir: URL { root.appendingPathComponent("smart", isDirectory: true) }
+    public var tagsURL: URL { root.appendingPathComponent("tags.json") }
+    public var trashDir: URL { root.appendingPathComponent(".trash", isDirectory: true) }
+    public var snapshotsDir: URL { root.appendingPathComponent(".snapshots", isDirectory: true) }
+
+    public func itemDir(_ id: String) -> URL { itemsDir.appendingPathComponent(id, isDirectory: true) }
+    public func itemJSON(_ id: String) -> URL { itemDir(id).appendingPathComponent("item.json") }
+    public func thumbURL(_ id: String) -> URL { itemDir(id).appendingPathComponent("thumb.jpg") }
+    public func collectionURL(_ id: String) -> URL { collectionsDir.appendingPathComponent("\(id).json") }
+}
+
+/// Machine-local locations. Nothing here is ever written inside a library.
+public enum StashPaths {
+    public static var appSupport: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Stash", isDirectory: true)
+    }
+    public static func indexURL(libraryId: String) -> URL {
+        appSupport.appendingPathComponent("index/\(libraryId).sqlite")
+    }
+    public static var defaultUserHandle: String { NSUserName() }
+}
+
+enum FileStat {
+    /// Modification time as seconds since 1970 (nanosecond precision), nil if the file doesn't exist.
+    static func mtime(_ url: URL) -> Double? {
+        var st = stat()
+        guard stat(url.path, &st) == 0 else { return nil }
+        return Double(st.st_mtimespec.tv_sec) + Double(st.st_mtimespec.tv_nsec) / 1_000_000_000
+    }
+}

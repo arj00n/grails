@@ -6,9 +6,14 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "StashKit", targets: ["StashKit"]),
+        .executable(name: "stash-fixture", targets: ["stash-fixture"]),
+    ],
+    dependencies: [
+        .package(url: "https://github.com/groue/GRDB.swift", from: "7.0.0"),
     ],
     targets: [
-        .target(name: "StashKit"),
+        .target(name: "StashKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
+        .executableTarget(name: "stash-fixture", dependencies: ["StashKit"]),
         .testTarget(name: "StashKitTests", dependencies: ["StashKit"]),
     ]
 )
