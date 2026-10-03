@@ -17,7 +17,7 @@ final class TeamTests: XCTestCase {
         if let people { app.launchEnvironment["STASH_SEED_PEOPLE"] = people }
         if let remoteAfter { app.launchEnvironment["STASH_SIMULATE_REMOTE"] = "\(remoteAfter)" }
         for (k, v) in extra { app.launchEnvironment[k] = v }
-        app.launchArguments += ["-tileWidth", "\(zoom)", "-layoutMode", "square", "-appearance", "light", "-showAddedBy", "1",
+        app.launchArguments += ["-viewMode", "grid", "-tileWidth", "\(zoom)", "-layoutMode", "square", "-appearance", "light", "-showAddedBy", "1",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()

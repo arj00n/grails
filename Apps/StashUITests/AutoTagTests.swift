@@ -15,7 +15,7 @@ final class AutoTagTests: XCTestCase {
         app.launchEnvironment["STASH_INDEX_PATH"] = dir + "/index.sqlite"
         app.launchEnvironment["STASH_AUTOTAG_STUB"] = "stubfruit,stubleaf"
         app.launchEnvironment["STASH_SHOW_INFO"] = "1"
-        app.launchArguments += ["-tileWidth", "90", "-layoutMode", "square", "-appearance", "light", "-userHandle", "fixture",
+        app.launchArguments += ["-tileWidth", "90", "-layoutMode", "square", "-appearance", "light", "-userHandle", "fixture", "-viewMode", "grid",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()
@@ -55,7 +55,7 @@ final class AutoTagTests: XCTestCase {
         app.typeKey("k", modifierFlags: .command)
         let field = app.textFields["palette-field"]
         XCTAssertTrue(field.waitForExistence(timeout: 5))
-        type("untagged", in: app)
+        type("auto-tag all", in: app)
         app.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["Added 40 tags to 20 items"].waitForExistence(timeout: 30), "teammates' 20 items get the 2 tags each")
         tag.click()
@@ -68,6 +68,7 @@ final class AutoTagTests: XCTestCase {
         let tag = app.staticTexts["stubfruit"]
         XCTAssertTrue(tag.waitForExistence(timeout: 30))
         // select everything and strip the tag with the tag panel's toggle
+        XCTAssertTrue(app.collectionViews["grid"].waitForExistence(timeout: 20))
         app.collectionViews["grid"].coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: 50, dy: 50)).click()
         app.typeKey("a", modifierFlags: .command)
         app.typeKey("t", modifierFlags: [])
@@ -79,7 +80,7 @@ final class AutoTagTests: XCTestCase {
         // ⌘K "Auto-tag all" must not resurrect it: those items were already auto-tagged once
         app.typeKey("k", modifierFlags: .command)
         XCTAssertTrue(app.textFields["palette-field"].waitForExistence(timeout: 5))
-        type("untagged", in: app)
+        type("auto-tag all", in: app)
         app.typeKey(.return, modifierFlags: [])
         XCTAssertTrue(app.staticTexts["No new tags found"].waitForExistence(timeout: 30))
         XCTAssertFalse(app.staticTexts["stubfruit"].exists)

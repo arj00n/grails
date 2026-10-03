@@ -15,8 +15,8 @@ final class CaptureTests: XCTestCase {
         app.launchEnvironment["STASH_INDEX_PATH"] = dir + "/index.sqlite"
         app.launchEnvironment["STASH_API_TOKEN"] = token
         app.launchEnvironment["STASH_NO_MENUBAR"] = "1"
-        if let port { app.launchEnvironment["STASH_API_PORT"] = port }
-        app.launchArguments += ["-tileWidth", "90", "-layoutMode", "square", "-appearance", "light",
+        app.launchEnvironment["STASH_API_PORT"] = port ?? "47871"   // never the default 47823: an installed Stash on this Mac would answer instead
+        app.launchArguments += ["-viewMode", "grid", "-tileWidth", "90", "-layoutMode", "square", "-appearance", "light",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()
@@ -50,7 +50,7 @@ final class CaptureTests: XCTestCase {
     func testLocalAPIRejectsBadTokenAndSavesImage() async throws {
         let app = launch()
         XCTAssertTrue(app.staticTexts["6 items"].waitForExistence(timeout: 30))
-        let base = "http://127.0.0.1:47823"
+        let base = "http://127.0.0.1:47871"
 
         var bad = URLRequest(url: URL(string: base + "/api/v1/ping")!)
         bad.setValue("Bearer nope", forHTTPHeaderField: "Authorization")
@@ -75,7 +75,7 @@ final class CaptureTests: XCTestCase {
         let app = launch()
         XCTAssertTrue(app.staticTexts["6 items"].waitForExistence(timeout: 30))
         func post(_ body: [String: Any]) async throws {
-            var r = URLRequest(url: URL(string: "http://127.0.0.1:47823/api/v1/items")!)
+            var r = URLRequest(url: URL(string: "http://127.0.0.1:47871/api/v1/items")!)
             r.httpMethod = "POST"
             r.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
             r.httpBody = try JSONSerialization.data(withJSONObject: body)

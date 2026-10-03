@@ -15,10 +15,12 @@
   Auto-tagging bypasses undo. Dev: `STASH_AUTOTAG_STUB=a,b` fakes the classifier; with `STASH_LIBRARY` set it is off unless that
   (or `STASH_AUTOTAG=1`) is set.
 - **Try it on your photos**: `cd Packages/StashKit && swift run -c release stash-tags --raw ~/Pictures/food/`.
-- **Verified**: kit tests 107/107 (incl. real Vision on a system wallpaper), headless app run with the stub (own 20 of 40 items tagged,
-  teammate's untouched, existing tags kept). Grid/canvas UI suites and benchmarks passed at the canvas commit.
-- **NOT verified**: `AutoTagTests` (UI) were written but not run (screen was locked: "Timed out while enabling automation mode");
-  tag quality on food/Swish photos (thresholds tuned on wallpapers only); pinch gestures (tests drive ⌘-scroll, same path).
+- **Verified**: kit tests 107/107 (incl. real Vision on a system wallpaper); Node 10/10; full UI suite 36/36 on the 20k fixture
+  (incl. 3 `AutoTagTests`); headless app run with the stub; Release strict benchmarks: grid square + masonry pass, canvas zoom/pan
+  got 1–3 slow frames in 3 runs (budget 2; worst frame 43–50 ms while our own code peaked at 8 ms; machine load average was 8 with
+  Spotlight at 119% CPU), so treat it as load noise, re-run on a quiet Mac.
+- **NOT verified**: tag quality on food/Swish photos (thresholds tuned on wallpapers only); pinch gestures (tests drive ⌘-scroll,
+  same code path).
 
 ## M5 team sharing — done 2026-10-03 (v0.1.0)
 Works (79 kit tests incl. the two-Mac harness, 5 team UI tests; DMG builds and launches):
@@ -197,6 +199,8 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 - Tag matching is case-insensitive (index uses NOCASE); tags keep the casing of the first writer.
 
 ## Testing notes (learned the hard way)
+- Every grid-assuming UI test must pass `-viewMode grid`: `viewMode` persists in UserDefaults, so a canvas test leaves the next launch in Canvas.
+  CaptureTests use API port 47871 because an installed /Applications/Stash.app owns the default 47823 (401s otherwise).
 - UI tests need an unlocked, awake screen. "Timed out while enabling automation mode" + `screencapture` failing with
   "could not create image from display" means the Mac is locked: nothing to fix in the code.
 - **Never use `typeText` in UI tests.** On this OS it can leave a stuck ⌘ flag on later key events: letters stop

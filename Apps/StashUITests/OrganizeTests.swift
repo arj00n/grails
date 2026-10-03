@@ -17,7 +17,7 @@ final class OrganizeTests: XCTestCase {
         app.launchEnvironment["STASH_INDEX_PATH"] = dir + "/index.sqlite"
         if let panel { app.launchEnvironment["STASH_PANEL"] = panel }
         // Pin persisted UI state: a previous run's click on a sidebar header can leave a section collapsed.
-        app.launchArguments += ["-tileWidth", "90", "-layoutMode", "square", "-appearance", "light",
+        app.launchArguments += ["-viewMode", "grid", "-tileWidth", "90", "-layoutMode", "square", "-appearance", "light",
                                 "-sidebar.expandCollections", "1", "-sidebar.expandTags", "1", "-sidebar.expandSmart", "1"]
         app.launch()
         app.activate()
