@@ -1,6 +1,47 @@
 # Progress
 
-## Status: M0–M4 done → next M5 (team sharing: library picker, file watcher, Drive-safe browsing, v0.1)
+## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
+
+## M5 team sharing — done 2026-10-03 (v0.1.0)
+Works (79 kit tests incl. the two-Mac harness, 5 team UI tests; DMG builds and launches):
+- **First run**: welcome screen — *Join the team library*, *Create a new library*, *Keep one on this Mac*. Nothing is ever
+  created silently; if the saved library's folder is gone (Drive not mounted / signed out) the welcome screen shows
+  instead of an empty new library. "Open" refuses folders that aren't libraries.
+- **Library switcher** at the top of the sidebar: recents (6), Open…, New…, Refresh, Show in Finder.
+- **Live updates**: FSEvents watcher on the library folder (batched 300 ms) → `applyExternalChanges` re-reads only the
+  affected items (own writes cost one stat and are ignored), plus a 60 s rescan safety net and ⌘R. The grid keeps its
+  scroll position and selection on a refresh and jumps to the top only when the view itself changes (new source,
+  filter, search, sort). Toast: "N new items from your team".
+- **Streamed (Drive) files**: files macOS marks `SF_DATALESS` (File Provider placeholders) or iCloud-not-downloaded are
+  never read while browsing — tiles use the shared thumbnail and show a cloud badge; Space downloads the original with
+  a "Downloading from your shared drive…" note. (Detection is unit-tested on the flag; I could not create a real
+  placeholder here, so the badge/preview path is untested against a live Drive.)
+- **Who added what**: "Added by" filter chip (appears when 2+ people contributed) and optional initials on tiles
+  (Settings ▸ Appearance ▸ Show who added each item).
+- **Move / copy a collection to another library** (right-click ▸ Move to Library / Copy to Library): rebuilds the folder
+  structure with fresh ids, copies media + thumbnail + snapshot, reuses items the destination already has (same content
+  hash); a move trashes items that lived only in that collection.
+- **Two Macs, one folder** (`TwoMacHarnessTests`): two stores on the same directory, ~200 adds plus ~300 tag / collection /
+  like edits each, concurrently, with periodic rescans → afterwards both indexes are identical, every `item.json` parses,
+  no temp files or conflict copies remain, nothing missing. Plain local files can't make sync-conflict copies, so
+  concurrent edits to the *same* item may lose one update here (conflict-copy merging is covered separately).
+- `docs/TEAM_SETUP.md` (shared drive setup, Mirror vs Stream, how sync/conflicts behave, troubleshooting).
+- `Scripts/make-dmg.sh` → `dist/Stash-0.1.0.dmg` (6.3 MB, ad-hoc signed so it launches on Apple Silicon; set
+  `DEVELOPER_ID` and `NOTARY_PROFILE` to sign + notarize). Verified: mounts, version 0.1.0, launches from the image.
+- Tile accessibility labels (VoiceOver reads item names).
+
+Perf at v0.1.0 (Release, 20k fixture, M-series): square 0 frames over 33 ms of ~2,225; masonry 1–2 (worst 40–65 ms);
+launch to populated grid 0.59–0.66 s; memory ~197 MB; index rebuild 2.0 s; FTS ≤ 5 ms.
+
+### v0.1 definition of done (PLAN §8)
+1. 3+ teammates see each other's saves within ~1 min: **verified with the harness and a simulated teammate; NOT yet verified
+   with real Google Drive on real Macs** (needs you and two teammates; steps in docs/TEAM_SETUP.md).
+2. One-click save from Chrome → Inbox with source URL and added-by: verified (real Chrome, `Extensions/e2e/run.sh`).
+3. Collections, tags, likes, notes, smart folders, ⌘K, search, undo: verified (UI + kit tests).
+4. 20k library scrolls smoothly: verified (numbers above).
+5. Delete the local index and relaunch restores everything: verified (`rebuildFromDiskReproducesIdenticalResults`,
+   corrupt-index recovery test).
+6. `swift test` and `xcodebuild` green, PROGRESS current: yes.
 
 ## M4 capture — done 2026-10-03
 Works (71 kit tests, 10 Node tests, 3 UI tests, plus a real-Chrome end-to-end script):
@@ -159,6 +200,14 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 - Launch arguments reach UserDefaults as strings: use `integer(forKey:)`, not `as? Int`.
 - Window screenshots: the UI test `testScreenshots` writes PNGs to the runner container
   (`~/Library/Containers/in.justswish.StashUITests.xctrunner/Data/tmp/`); `screencapture` is blocked here.
+
+## Known gaps (M5)
+- Real Google Drive behaviour (event latency, Stream placeholders, `item (1).json` conflict naming) is modelled, not
+  observed. First real-world run may need tweaks to `ConflictMerger.isItemConflictCopy` naming patterns.
+- The app isn't notarized: first launch needs right-click ▸ Open. Needs a Developer ID from Swish to fix.
+- No in-app "Rebuild index" button yet (the index rebuilds itself when it can't be opened; deleting
+  `~/Library/Application Support/Stash/index/<id>.sqlite` forces it).
+- Folder-level moves of the library while the app is open aren't detected until the next launch.
 
 ## Known gaps (M4)
 - Safari / Firefox extension builds are Phase 3. Chrome Web Store listing is a human step; until then it's Load unpacked.

@@ -98,6 +98,7 @@ final class AppModel {
     var source: Source = .all {
         didSet {
             guard oldValue != source else { return }
+            scrollResetTick += 1
             selection = []
             if !searchText.isEmpty { searchText = "" } else { reloadSoon() }
         }
@@ -113,10 +114,10 @@ final class AppModel {
     private(set) var tagColors: [String: String] = [:]
     private(set) var totalCount = 0
 
-    var searchText = "" { didSet { if oldValue != searchText { reloadSoon() } } }
+    var searchText = "" { didSet { if oldValue != searchText { scrollResetTick += 1; reloadSoon() } } }
     private(set) var recentSearches: [String] = UserDefaults.standard.stringArray(forKey: "recentSearches") ?? []
-    var filters = ViewFilters() { didSet { if oldValue != filters { reloadSoon() } } }
-    var sort: SortChoice = .newest { didSet { if oldValue != sort { reloadSoon() } } }
+    var filters = ViewFilters() { didSet { if oldValue != filters { scrollResetTick += 1; reloadSoon() } } }
+    var sort: SortChoice = .newest { didSet { if oldValue != sort { scrollResetTick += 1; reloadSoon() } } }
     private var shuffleSeed: UInt64 = 1
 
     var showInfo = false
@@ -146,6 +147,19 @@ final class AppModel {
     /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
     private var reloadGeneration = 0
     private var toastTask: Task<Void, Never>?
+    // Team: libraries, watching, who added what
+    var needsLibrary = false
+    private(set) var recentLibraries: [RecentLibrary] = RecentLibrary.load()
+    private(set) var contributors: [(who: String, count: Int)] = []
+    var addedByFilter: String? { didSet { if oldValue != addedByFilter { scrollResetTick += 1; reloadSoon() } } }
+    /// Bumped when the visible set changes meaning (new view, filter, search) so the grid jumps to the top; plain data
+    /// refreshes (a teammate's save arriving) keep the scroll position.
+    private(set) var scrollResetTick = 0
+    @ObservationIgnored var watcher: LibraryWatcher?
+    @ObservationIgnored var pendingPaths = Set<String>()
+    @ObservationIgnored var watchTask: Task<Void, Never>?
+    @ObservationIgnored var rescanLoop: Task<Void, Never>?
+
     // Capture: paste, menu bar, browser extension
     @ObservationIgnored var captureService: LibraryCaptureService?
     @ObservationIgnored var apiServer: LocalAPIServer?
@@ -173,16 +187,21 @@ final class AppModel {
         let url: URL
         if let p = env["STASH_LIBRARY"] {
             url = URL(fileURLWithPath: p)
-        } else if let saved = UserDefaults.standard.string(forKey: "libraryPath") {
+        } else if let saved = UserDefaults.standard.string(forKey: "libraryPath"), FileManager.default.fileExists(atPath: saved) {
             url = URL(fileURLWithPath: saved)
         } else {
-            url = Self.defaultLibraryURL
+            // First run (or the last library's folder is gone, e.g. a drive that isn't mounted): never create anything
+            // silently; let the person choose between the team's shared library and a new one.
+            needsLibrary = true
+            await startCapture()
+            return
         }
         // Dev/UI tests: STASH_SEED=<n> fills a library that doesn't exist yet with n synthetic items.
         if let seed = env["STASH_SEED"].flatMap(Int.init), !FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path) {
             // STASH_SEED_PLAIN=1: no collections and no liked items, for predictable UI tests
             let plain = env["STASH_SEED_PLAIN"] != nil
-            _ = try? FixtureLibrary.generate(at: url, count: seed, collections: plain ? 0 : 20, likedOneIn: plain ? 0 : 10)
+            let people = env["STASH_SEED_PEOPLE"].map { $0.split(separator: ",").map(String.init) } ?? ["fixture"]
+            _ = try? FixtureLibrary.generate(at: url, count: seed, collections: plain ? 0 : 20, likedOneIn: plain ? 0 : 10, contributors: people)
         }
         await openOrCreate(at: url, remember: env["STASH_LIBRARY"] == nil)
     }
@@ -203,15 +222,26 @@ final class AppModel {
                 store = try LibraryStore.create(at: url, name: url.deletingPathExtension().lastPathComponent, index: index, userHandle: userHandle)
             }
             self.store = store
+            needsLibrary = false
             layout = store.layout
             libraryName = await store.manifest.name
             if remember { UserDefaults.standard.set(url.path, forKey: "libraryPath") }
+            if remember { RecentLibrary.remember(path: url.path, name: libraryName); recentLibraries = RecentLibrary.load() }
+            addedByFilter = nil
+            startWatching()
             selection = []
             undoStack = []
             redoStack = []
             await reload()
             Self.logLaunchTime()
             await startCapture()
+            if let delay = ProcessInfo.processInfo.environment["STASH_SIMULATE_REMOTE"].flatMap(Double.init), let layout {
+                // Dev/UI tests: write an item straight into the folder, like another Mac's sync client would.
+                Task {
+                    try? await Task.sleep(for: .seconds(delay))
+                    try? FixtureLibrary.writeRemoteItem(into: layout, name: "Remote item", addedBy: "ben")
+                }
+            }
             if ProcessInfo.processInfo.environment["STASH_AUTOLIKE"] != nil, let first = items.first {
                 toggleLike(ids: [first.id])
             }
@@ -281,6 +311,7 @@ final class AppModel {
         q.kinds = filters.kinds
         if filters.liked { q.likedOnly = true }
         q.squareOnly = filters.square
+        q.addedBy = addedByFilter
         if sort != .newest || !isSearching { q.sort = sort.itemSort }
         return q
     }
@@ -299,6 +330,7 @@ final class AppModel {
             let tagList = try await store.index.tagCounts().map { (tag: $0.tag, count: $0.count) }
             let colors = await store.tagMetadata().compactMapValues(\.color)
             let total = try await store.index.count(ItemQuery())
+            let people = try await store.index.addedByCounts()
             guard !Task.isCancelled, generation == reloadGeneration else { return }
             if sort == .random { result = Self.shuffled(result, seed: shuffleSeed) }
             smartFolders = smart
@@ -309,6 +341,7 @@ final class AppModel {
             tags = tagList
             tagColors = colors
             totalCount = total
+            contributors = people.map { (who: $0.who, count: $0.count) }
         } catch {
             errorMessage = "Couldn't load items: \(error.localizedDescription)"
         }

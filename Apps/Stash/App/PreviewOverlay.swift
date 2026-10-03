@@ -8,6 +8,7 @@ struct PreviewOverlay: View {
     let id: String
     @State private var image: NSImage?
     @FocusState private var focused: Bool
+    @State private var downloading = false
 
     private var summary: ItemSummary? { model.items.first { $0.id == id } }
 
@@ -20,6 +21,11 @@ struct PreviewOverlay: View {
                     .shadow(radius: 20)
             } else {
                 ProgressView().controlSize(.large)
+            }
+            if downloading {
+                VStack { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Downloading the original from your shared drive…").font(.callout) }
+                    .padding(.horizontal, 14).padding(.vertical, 8).background(.regularMaterial, in: Capsule()); Spacer() }
+                    .padding(.top, 24)
             }
             VStack(spacing: 10) {
                 Spacer()
@@ -54,6 +60,11 @@ struct PreviewOverlay: View {
         let thumb = s.kind == .link && s.linkDisplay == "snapshot" ? layout.snapshotURL(s.id) : layout.thumbURL(s.id)
         let original = s.kind == .link ? nil : model.originalURL(for: s)
         image = s.kind == .link ? nil : ThumbnailLoader.shared.cached(id: s.id, pixels: 2048).map { NSImage(cgImage: $0, size: .zero) }
+        // Reading a File Provider placeholder makes the sync client download it; show the thumbnail and a note meanwhile.
+        let placeholder = original.map { FileAvailability.of($0) == .cloudOnly } ?? false
+        if let original, placeholder { FileAvailability.requestDownload(original) }
+        downloading = placeholder
+        defer { downloading = false }
         let cg: CGImage? = await Task.detached(priority: .userInitiated) {
             if let original, let hi = ThumbnailLoader.decode(original, maxPixel: 2400) { return hi }
             return ThumbnailLoader.decode(thumb, maxPixel: thumb.lastPathComponent == "snapshot.jpg" ? 1600 : 512)

@@ -37,6 +37,7 @@ struct StashApp: App {
                     .keyboardShortcut("z", modifiers: [.command, .shift]).disabled(model.redoTitle == nil)
             }
             CommandGroup(after: .toolbar) {
+                Button("Refresh Library") { Task { await model.refreshLibrary() } }.keyboardShortcut("r")
                 Button("Command Palette…") { model.run(.commandPalette) }.shortcut(.commandPalette)
                 Button("Toggle Info Panel") { model.run(.toggleInfo) }
                 Divider()

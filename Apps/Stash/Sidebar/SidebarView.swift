@@ -17,6 +17,7 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: Binding(get: { model.source }, set: { model.source = $0 ?? .all })) {
+            Section { LibrarySwitcher(model: model) }
             Section {
                 SidebarRow(title: "Inbox", symbol: "tray").tag(Source.inbox)
                 SidebarRow(title: "All", symbol: "square.grid.2x2", count: model.totalCount).tag(Source.all)
@@ -141,6 +142,22 @@ private struct CollectionNode: View {
         }
     }
 
+    @ViewBuilder private var libraryTransferMenu: some View {
+        Menu("Move to Library") {
+            ForEach(model.recentLibraries.filter { $0.path != model.layout?.root.path }) { lib in
+                Button(lib.name) { model.confirmMoveCollection(collection, to: lib) }
+            }
+            Button("Choose…") { model.chooseLibrary { url in model.confirmMoveCollection(collection, to: RecentLibrary(path: url.path, name: url.deletingPathExtension().lastPathComponent)) } }
+        }
+        Menu("Copy to Library") {
+            ForEach(model.recentLibraries.filter { $0.path != model.layout?.root.path }) { lib in
+                Button(lib.name) { model.transferCollection(collection, to: URL(fileURLWithPath: lib.path), move: false) }
+            }
+            Button("Choose…") { model.chooseLibrary { model.transferCollection(collection, to: $0, move: false) } }
+        }
+        Divider()
+    }
+
     private var label: some View {
         SidebarRow(title: collection.name, symbol: collection.kind == "folder" ? "folder" : "rectangle.stack")
             .tag(Source.collection(collection.id))
@@ -149,6 +166,7 @@ private struct CollectionNode: View {
             }
             .collectionDropTarget(model: model, collection: collection, targeted: $targeted)
             .contextMenu {
+                libraryTransferMenu
                 Button("Rename…") { model.promptRenameCollection(collection) }
                 if collection.kind == "folder" {
                     Button("New Collection Inside…") { model.promptNewCollection(kind: "collection", parent: collection.id) }
@@ -195,5 +213,39 @@ extension View {
             return true
         }
         .listRowBackground(targeted.wrappedValue == id ? Color.accentColor.opacity(0.25) : nil)
+    }
+}
+
+/// Top of the sidebar: which library this is, and a menu to switch, open or create another.
+struct LibrarySwitcher: View {
+    var model: AppModel
+
+    var body: some View {
+        Menu {
+            ForEach(model.recentLibraries) { lib in
+                Button {
+                    model.openLibrary(at: URL(fileURLWithPath: lib.path))
+                } label: {
+                    if lib.path == model.layout?.root.path { Label(lib.name, systemImage: "checkmark") } else { Text(lib.name) }
+                }
+            }
+            if !model.recentLibraries.isEmpty { Divider() }
+            Button("Open Library…") { LibraryPicker.openExisting(model) }
+            Button("New Library…") { LibraryPicker.createNew(model) }
+            Divider()
+            Button("Refresh") { Task { await model.refreshLibrary() } }
+            Button("Show in Finder") { if let u = model.layout?.root { NSWorkspace.shared.activateFileViewerSelecting([u]) } }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "books.vertical.fill").foregroundStyle(Color.accentColor)
+                Text(model.libraryName).fontWeight(.semibold).lineLimit(1)
+                Spacer()
+                Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .accessibilityIdentifier("library-switcher")
     }
 }

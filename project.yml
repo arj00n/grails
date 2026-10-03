@@ -6,6 +6,8 @@ options:
   createIntermediateGroups: true
 settings:
   base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "6.0"
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -27,6 +29,8 @@ targets:
       path: Config/Stash-Info.plist
       properties:
         CFBundleDisplayName: Stash
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.graphics-design
         NSHumanReadableCopyright: MIT licensed
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"

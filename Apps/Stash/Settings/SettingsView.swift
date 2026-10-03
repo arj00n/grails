@@ -11,6 +11,7 @@ struct SettingsView: View {
     @AppStorage("sidebar.showTags") private var showTags = true
     @AppStorage("sidebar.showSmart") private var showSmart = true
     @AppStorage("hideDockIcon") private var hideDockIcon = false
+    @AppStorage("showAddedBy") private var showAddedBy = false
     @AppStorage("autoSnapshotLinks") private var autoSnapshotLinks = true
 
     var body: some View {
@@ -22,6 +23,7 @@ struct SettingsView: View {
                 Picker("Grid background", selection: $background) {
                     Text("Default").tag("default"); Text("Black").tag("black"); Text("White").tag("white"); Text("Grey").tag("grey")
                 }
+                Toggle("Show who added each item (initials on tiles)", isOn: $showAddedBy)
                 Slider(value: $spacing, in: 0...32, step: 1) { Text("Tile spacing") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("32") }
                 Slider(value: $cornerRadius, in: 0...24, step: 1) { Text("Corner radius") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("24") }
                 Section("Capture") {
@@ -73,7 +75,7 @@ enum LibraryPicker {
         p.canChooseFiles = false
         p.treatsFilePackagesAsDirectories = false
         p.message = "Choose a Stash library (a folder ending in .stash)"
-        if p.runModal() == .OK, let url = p.url { Task { await model.openOrCreate(at: url) } }
+        if p.runModal() == .OK, let url = p.url { model.openLibrary(at: url) }
     }
 
     static func createNew(_ model: AppModel) {

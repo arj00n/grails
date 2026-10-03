@@ -7,6 +7,7 @@ struct GridView: NSViewRepresentable {
     var model: AppModel
     @AppStorage("tileSpacing") private var spacing: Double = 8
     @AppStorage("cornerRadius") private var cornerRadius: Double = 8
+    @AppStorage("showAddedBy") private var showAddedBy = false
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
 
@@ -63,7 +64,7 @@ struct GridView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {
-        context.coordinator.update(model: model, spacing: spacing, cornerRadius: cornerRadius)
+        context.coordinator.update(model: model, spacing: spacing, cornerRadius: cornerRadius, showAddedBy: showAddedBy)
     }
 
     @MainActor
@@ -83,6 +84,8 @@ struct GridView: NSViewRepresentable {
         private var mode: GridLayoutMode = .square
         private var cornerRadius: CGFloat = 8
         private var focusTick = 0
+        private var scrollTick = 0
+        private var showAddedBy = false
         /// Item index + its offset from the viewport top, restored after the layout changes size.
         private var anchor: (index: Int, offsetY: CGFloat)?
 
@@ -96,7 +99,7 @@ struct GridView: NSViewRepresentable {
 
         // MARK: SwiftUI → AppKit
 
-        func update(model: AppModel, spacing: Double, cornerRadius: Double) {
+        func update(model: AppModel, spacing: Double, cornerRadius: Double, showAddedBy: Bool) {
             self.model = model
             guard let cv = collectionView else { return }
             let needsData = version != model.itemsVersion || layout != model.layout
@@ -104,6 +107,11 @@ struct GridView: NSViewRepresentable {
             let radiusChanged = self.cornerRadius != CGFloat(cornerRadius)
             let zoomChanged = zoomStep != model.zoomStep
             let modeChanged = mode != model.layoutMode
+            let avatarsChanged = self.showAddedBy != showAddedBy
+            self.showAddedBy = showAddedBy
+            let resetScroll = scrollTick != model.scrollResetTick
+            scrollTick = model.scrollResetTick
+            let keptOrigin = cv.enclosingScrollView?.contentView.bounds.origin
 
             self.cornerRadius = CGFloat(cornerRadius)
             layout = model.layout
@@ -127,6 +135,17 @@ struct GridView: NSViewRepresentable {
                 }
                 masonryLayout.dataVersion = version
                 masonryLayout.invalidateLayout()
+                cv.reloadData()
+                applySelection()
+                // A refresh (a teammate's save arriving, an edit) keeps you where you were; a new view starts at the top.
+                if let scroll = cv.enclosingScrollView {
+                    activeLayout.prepare()
+                    let maxY = max(0, activeLayout.collectionViewContentSize.height - scroll.contentView.bounds.height)
+                    let y = resetScroll ? 0 : min(keptOrigin?.y ?? 0, maxY)
+                    scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
+                    scroll.reflectScrolledClipView(scroll.contentView)
+                }
+            } else if avatarsChanged {
                 cv.reloadData()
                 applySelection()
             } else if zoomChanged || spacingChanged || modeChanged || radiusChanged {
@@ -262,9 +281,12 @@ struct GridView: NSViewRepresentable {
             let cell = cv.makeItem(withIdentifier: ThumbCell.identifier, for: indexPath) as! ThumbCell
             guard let layout, let s = items[safe: indexPath.item] else { return cell }
             cell.view.frame.size = activeLayout.layoutAttributesForItem(at: indexPath)?.frame.size ?? cell.view.frame.size
+            // Files that only exist as sync placeholders must never be read while browsing (it would force a download).
+            let original = model.originalURL(for: s)
+            let cloudOnly = s.kind != .link && original.map { FileAvailability.of($0) == .cloudOnly } ?? false
             cell.configure(
-                s, loader: .shared, layout: layout, original: model.originalURL(for: s), cornerRadius: cornerRadius,
-                gravity: mode == .square ? .resizeAspect : .resizeAspectFill, scale: scale
+                s, loader: .shared, layout: layout, original: cloudOnly ? nil : original, cornerRadius: cornerRadius,
+                gravity: mode == .square ? .resizeAspect : .resizeAspectFill, scale: scale, cloudOnly: cloudOnly, showAddedBy: showAddedBy
             )
             return cell
         }

@@ -17,6 +17,11 @@ final class PassthroughLabel: NSTextField {
 }
 
 final class TileView: NSView {
+    /// What VoiceOver reads (and UI tests find): the item's name.
+    var axLabel: String?
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityLabel() -> String? { axLabel }
+    override func accessibilityRole() -> NSAccessibility.Role? { .image }
     override var wantsUpdateLayer: Bool { true }
     override var isFlipped: Bool { true }
     override func updateLayer() {}
@@ -43,6 +48,8 @@ final class ThumbCell: NSCollectionViewItem {
     private let titleLabel = PassthroughLabel.make(wrapping: true)
     private let siteLabel = PassthroughLabel.make()
     private let badge = PassthroughLabel.make()
+    private let cloud = NSImageView()
+    private let avatar = PassthroughLabel.make()
 
     override func loadView() {
         let v = TileView()
@@ -127,6 +134,30 @@ final class ThumbCell: NSCollectionViewItem {
             badge.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
             badge.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
         ])
+        cloud.image = NSImage(systemSymbolName: "icloud.and.arrow.down", accessibilityDescription: "Not downloaded yet")
+        cloud.contentTintColor = .white
+        cloud.shadow = heart.shadow
+        cloud.translatesAutoresizingMaskIntoConstraints = false
+        cloud.isHidden = true
+        v.addSubview(cloud)
+        avatar.font = .systemFont(ofSize: 9, weight: .bold)
+        avatar.textColor = .white
+        avatar.alignment = .center
+        avatar.wantsLayer = true
+        avatar.layer?.cornerRadius = 9
+        avatar.translatesAutoresizingMaskIntoConstraints = false
+        avatar.isHidden = true
+        v.addSubview(avatar)
+        NSLayoutConstraint.activate([
+            cloud.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
+            cloud.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
+            cloud.widthAnchor.constraint(equalToConstant: 16),
+            cloud.heightAnchor.constraint(equalToConstant: 16),
+            avatar.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
+            avatar.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
+            avatar.widthAnchor.constraint(equalToConstant: 20),
+            avatar.heightAnchor.constraint(equalToConstant: 18),
+        ])
         view = v
     }
 
@@ -137,9 +168,17 @@ final class ThumbCell: NSCollectionViewItem {
         view.layer?.borderColor = NSColor.controlAccentColor.cgColor
     }
 
-    func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat) {
+    func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false) {
         op?.cancel()
         itemID = s.id
+        cloud.isHidden = !cloudOnly
+        avatar.isHidden = !showAddedBy || s.addedBy.isEmpty
+        if showAddedBy {
+            avatar.stringValue = AppModel.initials(s.addedBy)
+            let hue = CGFloat(abs(s.addedBy.hashValue % 360)) / 360
+            avatar.layer?.backgroundColor = NSColor(hue: hue, saturation: 0.55, brightness: 0.62, alpha: 0.95).cgColor
+            avatar.toolTip = s.addedBy
+        }
         heart.isHidden = !s.liked
         view.layer?.cornerRadius = cornerRadius
         let isLink = s.kind == .link
@@ -155,8 +194,7 @@ final class ThumbCell: NSCollectionViewItem {
         if let b = s.badge { badge.stringValue = " \(b.capitalized) " }
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         placeholder.image = NSImage(systemSymbolName: Self.symbol(for: s.kind), accessibilityDescription: nil)
-        view.setAccessibilityLabel(s.name)
-        view.setAccessibilityRole(.image)
+        (view as? TileView)?.axLabel = s.name
         guard showsPicture else {
             view.layer?.contents = nil
             placeholder.isHidden = true
@@ -190,6 +228,8 @@ final class ThumbCell: NSCollectionViewItem {
         op = nil
         itemID = nil
         view.layer?.contents = nil
+        cloud.isHidden = true
+        avatar.isHidden = true
         captionBar.isHidden = true
         titleLabel.isHidden = true
         siteLabel.isHidden = true

@@ -15,6 +15,21 @@ struct FilterBar: View {
                     chip("GIFs", "livephoto", $model.filters.gifs, "filter-gifs")
                     chip("Square", "square", $model.filters.square, "filter-square")
                     chip("Liked", "heart", $model.filters.liked, "filter-liked")
+                    if model.contributors.count > 1 {
+                        Menu {
+                            Button("Everyone") { model.addedByFilter = nil }
+                            Divider()
+                            ForEach(model.contributors, id: \.who) { c in
+                                Button("\(c.who) (\(c.count.formatted()))") { model.addedByFilter = c.who }
+                            }
+                        } label: {
+                            Label(model.addedByFilter ?? "Added by", systemImage: "person.2").font(.caption)
+                        }
+                        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                        .padding(.horizontal, 9).padding(.vertical, 4)
+                        .background(model.addedByFilter != nil ? Color.accentColor.opacity(0.25) : Color.primary.opacity(0.07), in: Capsule())
+                        .accessibilityIdentifier("filter-added-by")
+                    }
                     if model.filters.isActive {
                         Button("Clear") { model.filters = ViewFilters() }.buttonStyle(.borderless).font(.caption)
                     }
