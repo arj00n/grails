@@ -6,8 +6,10 @@ public struct ExternalChangeSummary: Sendable, Equatable {
     public var removed = 0
     public var conflictsMerged = 0
     public var collectionsChanged = false
+    /// Canvas boards (by key) that changed on disk
+    public var canvasBoards: Set<String> = []
     public var failures: [ScanFailure] = []
-    public var isEmpty: Bool { added + updated + removed + conflictsMerged == 0 && !collectionsChanged }
+    public var isEmpty: Bool { added + updated + removed + conflictsMerged == 0 && !collectionsChanged && canvasBoards.isEmpty }
 }
 
 extension LibraryStore {
@@ -18,6 +20,7 @@ extension LibraryStore {
         var summary = ExternalChangeSummary()
         let itemsPrefix = layout.itemsDir.path + "/"
         let collectionsPrefix = layout.collectionsDir.path + "/"
+        let canvasPrefix = layout.canvasDir.path + "/"
         var ids = Set<String>()
         var collectionsTouched = false
         for path in paths {
@@ -27,10 +30,14 @@ extension LibraryStore {
                 if let first, !first.hasPrefix(".") { ids.insert(first) }
             } else if path.hasPrefix(collectionsPrefix) || path == layout.collectionsDir.path {
                 collectionsTouched = true
+            } else if path.hasPrefix(canvasPrefix) {
+                let file = String(path.dropFirst(canvasPrefix.count))
+                if file.hasSuffix(".json") { summary.canvasBoards.insert(String(file.prefix { $0 != " " && $0 != "." })) }
             }
         }
 
         let fm = FileManager.default
+        if !summary.canvasBoards.isEmpty { summary.conflictsMerged += (try? ConflictMerger.mergeCanvasConflicts(in: layout.canvasDir)) ?? 0 }
         let known = try await index.mtimes(for: Array(ids))
         var toRead: [URL] = []
         var gone: [String] = []

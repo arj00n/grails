@@ -19,6 +19,7 @@ public struct LibraryLayout: Sendable, Hashable {
     public func thumbURL(_ id: String) -> URL { itemDir(id).appendingPathComponent("thumb.jpg") }
     public func snapshotURL(_ id: String) -> URL { itemDir(id).appendingPathComponent("snapshot.jpg") }
     public func collectionURL(_ id: String) -> URL { collectionsDir.appendingPathComponent("\(id).json") }
+    public func canvasURL(_ key: String) -> URL { canvasDir.appendingPathComponent("\(key).json") }
     public func smartURL(_ id: String) -> URL { smartDir.appendingPathComponent("\(id).json") }
 }
 

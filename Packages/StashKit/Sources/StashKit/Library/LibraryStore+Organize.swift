@@ -13,7 +13,7 @@ extension LibraryStore {
     public func endRecording(label: String) -> ChangeSet {
         let r = recorder ?? ChangeRecorder()
         recorder = nil
-        return ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders)
+        return ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders, canvases: r.canvases)
     }
 
     /// Runs `body` and returns the "before" state of everything it changed, ready to hand to `apply(_:)`.
@@ -52,6 +52,12 @@ extension LibraryStore {
                 } else {
                     try await removeCollectionFile(id: id)
                 }
+            }
+            for (key, placements) in changes.canvases {
+                var restore: [String: CanvasPlacement] = [:]
+                var remove = Set<String>()
+                for (id, before) in placements { if let p = before { restore[id] = p } else { remove.insert(id) } }
+                try await updatePlacements(boardKey: key, restore, removing: remove)
             }
             for (id, before) in changes.smartFolders {
                 if var f = before {

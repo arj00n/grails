@@ -80,4 +80,26 @@ public enum ConflictMerger {
         }
         return merged
     }
+
+    /// `library (1).json` → merged into `library.json`, placement by placement (newest edit wins). Returns copies merged.
+    @discardableResult
+    public static func mergeCanvasConflicts(in dir: URL) throws -> Int {
+        let fm = FileManager.default
+        guard let names = try? fm.contentsOfDirectory(atPath: dir.path) else { return 0 }
+        var merged = 0
+        for name in names where name.hasSuffix(".json") && !AtomicFile.isTemp(name) && name.contains(" ") {
+            let key = String(name.prefix { $0 != " " })
+            guard !key.isEmpty else { continue }
+            let canonicalURL = dir.appendingPathComponent("\(key).json")
+            let copyURL = dir.appendingPathComponent(name)
+            guard let copy = try? StashJSON.decode(CanvasBoard.self, from: Data(contentsOf: copyURL)) else { continue }
+            var board = copy
+            board.key = key
+            if let current = try? StashJSON.decode(CanvasBoard.self, from: Data(contentsOf: canonicalURL)) { board = CanvasBoard.merge(current, board); board.key = key }
+            try AtomicFile.write(StashJSON.encodeCompact(board), to: canonicalURL)
+            try? fm.removeItem(at: copyURL)
+            merged += 1
+        }
+        return merged
+    }
 }

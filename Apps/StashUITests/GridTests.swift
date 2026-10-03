@@ -119,4 +119,32 @@ final class GridTests: XCTestCase {
             app.terminate()
         }
     }
+
+    /// The canvas at 20,000 items: zooming in and out, then panning in circles, must hold the same frame budget.
+    @MainActor
+    func testCanvasZoomAndPanStayWithinFrameBudget() throws {
+        try XCTSkipIf(fixture.isEmpty, "Set STASH_FIXTURE to a generated fixture library")
+        let app = XCUIApplication()
+        app.launchEnvironment["STASH_LIBRARY"] = fixture
+        app.launchEnvironment["STASH_INDEX_PATH"] = indexPath
+        app.launchEnvironment["STASH_HITCH_REPORT"] = "1"
+        app.launchEnvironment["STASH_BENCH"] = "1"
+        app.launchEnvironment["STASH_NO_MENUBAR"] = "1"
+        app.launchEnvironment["STASH_API_PORT"] = "47864"
+        app.launchArguments += ["-viewMode", "canvas", "-appearance", "light", "-sidebar.expandCollections", "1", "-sidebar.expandTags", "0"]
+        app.launch()
+        app.activate()
+        let probe = app.staticTexts["hitch-report"]
+        XCTAssertTrue(probe.waitForExistence(timeout: 90))
+        Thread.sleep(forTimeInterval: 30)
+        var label = probe.label
+        for _ in 0..<12 where !label.contains("\"done\":true") { Thread.sleep(forTimeInterval: 5); label = probe.label }
+        print("HITCH REPORT (canvas):", label)
+        let json = try JSONSerialization.jsonObject(with: Data(label.utf8)) as! [String: Any]
+        XCTAssertEqual(json["done"] as? Bool, true, label)
+        let frames = json["frames"] as! Int, hitches = json["hitches"] as! Int
+        let strict = ProcessInfo.processInfo.environment["TEST_RUNNER_STASH_BENCH_STRICT"] != nil || ProcessInfo.processInfo.environment["STASH_BENCH_STRICT"] != nil
+        XCTAssertGreaterThan(frames, 300, label)
+        XCTAssertLessThanOrEqual(hitches, strict ? 2 : frames / 100, "frames over 33 ms on the canvas: \(label)")
+    }
 }

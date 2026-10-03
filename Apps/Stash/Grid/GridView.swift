@@ -421,44 +421,7 @@ struct GridView: NSViewRepresentable {
                 applying = false
                 model.selection = [s.id]
             }
-            let selected = model.selectedSummaries
-            let ids = selected.map(\.id)
-            let links = selected.filter { $0.kind == .link }
-            let menu = NSMenu()
-            func add(_ title: String, _ symbol: String? = nil, _ action: @escaping @MainActor () -> Void) {
-                let item = ClosureMenuItem(title: title, handler: action)
-                if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
-                menu.addItem(item)
-            }
-            let model = self.model
-            add(selected.count == 1 ? "Open Preview" : "Preview", "eye") { model.openPreview(s.id) }
-            if selected.count == 1, s.kind == .link { add("Open Link in Browser", "safari") { model.openLinkInBrowser(s.id) } }
-            if !links.isEmpty {
-                let sub = NSMenu()
-                for (title, mode) in [("Preview Image", "image"), ("Page Snapshot", "snapshot"), ("Title Only", "title")] {
-                    let item = ClosureMenuItem(title: title) { model.setLinkDisplay(mode, ids: links.map(\.id)) }
-                    if links.count == 1, links[0].linkDisplay == mode { item.state = .on }
-                    sub.addItem(item)
-                }
-                let parent = NSMenuItem(title: "Show Link As", action: nil, keyEquivalent: "")
-                parent.submenu = sub
-                menu.addItem(parent)
-                if links.count == 1 { add("Retake Snapshot", "camera.viewfinder") { model.retakeSnapshot(id: links[0].id) } }
-            }
-            menu.addItem(.separator())
-            let allLiked = selected.allSatisfy(\.liked)
-            add(allLiked ? "Unlike" : "Like", allLiked ? "heart.slash" : "heart") { model.run(.like) }
-            add("Edit Tags…", "tag") { model.run(.tag) }
-            add("Move to Collection…", "rectangle.stack") { model.run(.move) }
-            add("Add Note…", "note.text") { model.run(.note) }
-            add("Copy Source URL", "link") { model.run(.copyURL) }
-            if selected.count == 1, s.kind != .link, let url = model.originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {
-                add("Reveal in Finder", "folder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }
-            }
-            menu.addItem(.separator())
-            if model.source == .trash { add("Restore", "arrow.uturn.backward") { model.restoreSelection() } }
-            else { add("Move to Trash", "trash") { _ = ids; model.run(.trash) } }
-            return menu
+            return model.itemContextMenu(anchor: s, canvas: false)
         }
 
         // MARK: Drag out

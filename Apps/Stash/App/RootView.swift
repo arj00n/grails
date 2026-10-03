@@ -29,7 +29,7 @@ struct RootView: View {
             if model.items.isEmpty && model.store != nil { emptyState }
             switch model.viewMode {
             case .grid: GridView(model: model)
-            case .canvas: CanvasPlaceholder(model: model)
+            case .canvas: CanvasView(model: model)
             }
         }
         // Overlays must not take part in layout: a fixed-width panel inside the ZStack would raise the detail pane's
@@ -164,10 +164,4 @@ struct FilterMenu: View {
         .accessibilityLabel("Filter and sort")
         .accessibilityIdentifier("filter-menu")
     }
-}
-
-/// Stand-in until the canvas lands.
-struct CanvasPlaceholder: View {
-    var model: AppModel
-    var body: some View { ContentUnavailableView("Canvas", systemImage: "rectangle.on.rectangle.angled") }
 }

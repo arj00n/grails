@@ -26,6 +26,17 @@ public enum StashJSON {
         return String(base.dropLast()) + String(format: ".%03dZ", Int(frac))
     }
 
+    /// Compact (no pretty-printing) for big, machine-edited files such as canvas boards.
+    public static func encodeCompact<T: Encodable>(_ value: T) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        encoder.dateEncodingStrategy = .custom { date, encoder in
+            var c = encoder.singleValueContainer()
+            try c.encode(isoString(date))
+        }
+        return try encoder.encode(value)
+    }
+
     public static func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in

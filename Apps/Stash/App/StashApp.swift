@@ -43,6 +43,8 @@ struct StashApp: App {
                 Divider()
                 Button("Zoom In") { model.run(.zoomIn) }.shortcut(.zoomIn)
                 Button("Zoom Out") { model.run(.zoomOut) }.shortcut(.zoomOut)
+                Button("Zoom to Fit") { model.canvasRequest = CanvasRequest(kind: .fit) }.keyboardShortcut("0")
+                Button("Arrange Canvas") { model.arrangeCanvas(selectionOnly: !model.selection.isEmpty) }.keyboardShortcut("a", modifiers: [.command, .option])
                 Button("Grid") { model.viewMode = .grid }.keyboardShortcut("1")
                 Button("Canvas") { model.viewMode = .canvas }.keyboardShortcut("2")
                 Divider()

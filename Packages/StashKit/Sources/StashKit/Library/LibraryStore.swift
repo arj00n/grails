@@ -193,6 +193,7 @@ public actor LibraryStore {
         var result = RescanResult()
         let fm = FileManager.default
         result.conflictsMerged += (try? ConflictMerger.mergeCollectionConflicts(in: layout.collectionsDir)) ?? 0
+        result.conflictsMerged += (try? ConflictMerger.mergeCanvasConflicts(in: layout.canvasDir)) ?? 0
 
         let known = try await index.allMtimes()
         var onDisk = Set<String>()

@@ -69,7 +69,7 @@ struct ViewFilters: Equatable {
 }
 
 struct CanvasRequest: Equatable {
-    enum Kind: Equatable { case fit, fitSelection, arrangeAll, arrangeSelection, zoom(CGFloat), bringToFront, sendToBack }
+    enum Kind: Equatable { case fit, fitSelection, zoom(CGFloat), reveal([String]) }
     let id = UUID()
     var kind: Kind
 }
@@ -165,12 +165,18 @@ final class AppModel {
     var tileWidth: CGFloat { didSet { UserDefaults.standard.set(Double(tileWidth), forKey: "tileWidth") } }
     /// Grid tile shape: squares, or each image's own proportions.
     var layoutMode: GridLayoutMode { didSet { UserDefaults.standard.set(layoutMode.rawValue, forKey: "layoutMode") } }
-    var viewMode: ViewMode { didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: "viewMode") } }
+    var viewMode: ViewMode { didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: "viewMode"); if viewMode == .canvas { Task { await syncCanvas() } } } }
 
     private var reloadTask: Task<Void, Never>?
     /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
     private var reloadGeneration = 0
     private var toastTask: Task<Void, Never>?
+    // Canvas: free-form boards (see CanvasModel.swift)
+    @ObservationIgnored var canvasPlacements: [String: CanvasPlacement] = [:]
+    /// Bumped when the grid-of-record for the canvas changes from outside the canvas (board loaded, undo, teammate, arrange).
+    private(set) var canvasVersion = 0
+    @ObservationIgnored var canvasLoadedKey: String?
+
     // Team: libraries, watching, who added what
     var needsLibrary = false
     private(set) var recentLibraries: [RecentLibrary] = RecentLibrary.load()
@@ -367,6 +373,7 @@ final class AppModel {
             tagColors = colors
             totalCount = total
             contributors = people.map { (who: $0.who, count: $0.count) }
+            if viewMode == .canvas { await syncCanvas() }
         } catch {
             errorMessage = "Couldn't load items: \(error.localizedDescription)"
         }
@@ -404,6 +411,7 @@ final class AppModel {
     }
 
     func summary(_ id: String) -> ItemSummary? { items.first { $0.id == id } }
+    func bumpCanvasVersion() { canvasVersion += 1 }
     var selectedSummaries: [ItemSummary] { items.filter { selection.contains($0.id) } }
 
     func rememberSearch() {
@@ -460,6 +468,7 @@ final class AppModel {
             let inverse = try await store.apply(cs)
             redoStack.append(inverse)
             await reload()
+            if viewMode == .canvas { await loadBoard() }
             showToast(cs.label.isEmpty ? "Undone" : "Undid \(cs.label.lowercased())")
         } catch { errorMessage = "Undo failed: \(error.localizedDescription)" }
     }
@@ -470,6 +479,7 @@ final class AppModel {
             let inverse = try await store.apply(cs)
             undoStack.append(inverse)
             await reload()
+            if viewMode == .canvas { await loadBoard() }
             showToast("Redid \(cs.label.lowercased())")
         } catch { errorMessage = "Redo failed: \(error.localizedDescription)" }
     }
