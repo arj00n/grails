@@ -22,23 +22,24 @@ final class ThumbnailLoader: @unchecked Sendable {
         return 4096
     }
 
-    private func key(_ id: String, _ bucket: Int) -> NSString { "\(id)@\(bucket)" as NSString }
+    private func key(_ id: String, _ bucket: Int, _ variant: String = "") -> NSString { "\(id)\(variant)@\(bucket)" as NSString }
 
-    func cached(id: String, pixels: CGFloat) -> CGImage? {
+    /// `variant` separates different pictures for one item (a link's snapshot vs its preview image).
+    func cached(id: String, pixels: CGFloat, variant: String = "") -> CGImage? {
         let b = Self.bucket(forPixels: pixels)
-        if let hit = cache.object(forKey: key(id, b)) { return hit }
+        if let hit = cache.object(forKey: key(id, b, variant)) { return hit }
         // A larger decode already in cache is fine to show while a sharper/smaller one is wanted.
         for larger in [256, 512, 1024, 2048, 4096] where larger > b {
-            if let hit = cache.object(forKey: key(id, larger)) { return hit }
+            if let hit = cache.object(forKey: key(id, larger, variant)) { return hit }
         }
         return nil
     }
 
     /// Calls `completion` on the main thread. Cancel the returned operation when the cell is reused.
     @discardableResult
-    func load(id: String, thumb: URL, original: URL?, pixels: CGFloat, completion: @escaping @Sendable (CGImage?) -> Void) -> Operation {
+    func load(id: String, thumb: URL, original: URL?, pixels: CGFloat, variant: String = "", completion: @escaping @Sendable (CGImage?) -> Void) -> Operation {
         let b = Self.bucket(forPixels: pixels)
-        let k = key(id, b)
+        let k = key(id, b, variant)
         let op = BlockOperation()
         op.addExecutionBlock { [weak op, weak self] in
             guard let self, let op, !op.isCancelled else { return }

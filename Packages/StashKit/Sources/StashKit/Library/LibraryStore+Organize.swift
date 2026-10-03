@@ -374,8 +374,10 @@ extension LibraryStore {
     }
 
     /// Replaces a link's page snapshot (and switches the card to show it).
-    public func setSnapshot(_ jpeg: Data, for id: String, show: Bool = true) async throws {
+    /// Accepts any image bytes (PNG from WebKit, JPEG from a browser tab) and stores a JPEG of at most 1280 px.
+    public func setSnapshot(_ imageData: Data, for id: String, show: Bool = true) async throws {
         guard let item = try item(id: id), item.kind == .link else { throw StashError.itemNotFound(id) }
+        guard let jpeg = Thumbnailer.jpegThumbnail(forData: imageData, maxPixel: 1280) else { throw CaptureError.unsupported("snapshot isn't an image") }
         try AtomicFile.write(jpeg, to: snapshotURL(for: id))
         if show { try await updateItem(id: id) { $0.extras["linkDisplay"] = .string("snapshot") } }
     }

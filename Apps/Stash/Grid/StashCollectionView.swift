@@ -13,9 +13,22 @@ final class StashCollectionView: NSCollectionView {
     var keyHandler: ((NSEvent) -> Bool)?
     /// ⌥-click on a tile (like / unlike without changing the selection)
     var onOptionClick: ((Int) -> Void)?
+    var onPaste: (() -> Void)?
+    /// Builds the right-click menu for the tile at an index (also makes that tile the selection if it wasn't).
+    var contextMenuProvider: ((Int) -> NSMenu?)?
     private var magnifyAccumulator: CGFloat = 0
 
     override var acceptsFirstResponder: Bool { true }
+
+    /// Edit ▸ Paste while the grid has focus (text fields keep their own paste).
+    @objc func paste(_ sender: Any?) { onPaste?() }
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let p = convert(event.locationInWindow, from: nil)
+        guard let ip = indexPathForItem(at: p) else { return nil }
+        window?.makeFirstResponder(self)
+        return contextMenuProvider?(ip.item)
+    }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()

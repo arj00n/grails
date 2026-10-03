@@ -26,6 +26,10 @@ struct StashApp: App {
                 Button("New Library…") { LibraryPicker.createNew(model) }
                 Button("Open Library…") { LibraryPicker.openExisting(model) }.keyboardShortcut("o")
             }
+            CommandGroup(after: .pasteboard) {
+                Button("Paste as Link") { model.paste(forceLink: true) }.keyboardShortcut("v", modifiers: [.command, .option])
+                Button("Save Clipboard to Inbox") { model.paste(toInbox: true) }.keyboardShortcut("v", modifiers: [.command, .shift])
+            }
             CommandGroup(replacing: .undoRedo) {
                 Button(model.undoTitle ?? "Undo") { Task { await model.undo() } }
                     .keyboardShortcut("z").disabled(model.undoTitle == nil)

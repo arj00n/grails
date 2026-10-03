@@ -1,6 +1,34 @@
 # Progress
 
-## Status: M0–M3 done → next M4 (capture: paste, menu bar, links, Chrome extension)
+## Status: M0–M4 done → next M5 (team sharing: library picker, file watcher, Drive-safe browsing, v0.1)
+
+## M4 capture — done 2026-10-03
+Works (71 kit tests, 10 Node tests, 3 UI tests, plus a real-Chrome end-to-end script):
+- **Paste** `⌘V` in the grid: files, folders, image data (screenshots), or web URLs. A URL to an image/video file
+  is downloaded as media (with the page as Referer); any other URL becomes a **link card**. `⌥⌘V` forces a link;
+  `⇧⌘V` sends the clipboard to the Inbox regardless of the current view. Undoable as one action.
+- **Menu bar item** (drop zone): drop files, images or links on it → Inbox. Menu: Open Stash, Save Clipboard to Inbox,
+  Hide Dock Icon, Quit. Dock icon can be hidden in Settings (the menu bar item then restores the window).
+- **Link cards**: title + site + preview image from Open Graph / Twitter card / `<title>` metadata (regex parser,
+  entities, relative image URLs). Three looks per link (right-click ▸ Show Link As): preview image, page snapshot,
+  title only. **Retake Snapshot** renders the page offscreen in WKWebView (1280×960, stored as ≤1280 px JPEG);
+  links without a preview image get one automatically (Settings toggle). Links dedupe by URL.
+- **Figma links**: Figma's public oEmbed for title + thumbnail, falling back to page metadata; the card shows a Figma
+  badge. (oEmbed is covered by a mocked test; not checked against a live private file.)
+- **Local API** on `127.0.0.1:47823` (falls back to …47832): `GET /api/v1/ping`, `GET /api/v1/collections`,
+  `POST /api/v1/items`. Bearer token from the Keychain (shown in Settings ▸ Extensions, regenerate any time).
+  401 without a token, 403 for web-page origins (only chrome/moz/safari-web-extension origins pass CORS), 413 over
+  64 MB, 502/503 for download/library failures. Listener is bound to loopback only; test checks the LAN address refuses.
+- **Chrome extension** (`Extensions/chrome`, MV3, bundled into the app so Settings can reveal it): context menu on
+  image / video / link / page with recent collections, ⌥-click any image, `⌥⇧S` saves the page, popup with pairing
+  code, status and collection picker. Blob/data images are fetched inside the page; streaming video saves the current
+  frame or poster plus the page link.
+- Verified end to end with a real Chrome 149 (`Extensions/e2e/run.sh`): extension loaded via DevTools
+  `Extensions.loadUnpacked`, image/link/page saves and a real ⌥-click all landed in the app; a wrong token is refused.
+
+Run it: `cd Extensions/chrome-tests && node --test *.test.mjs`; `Extensions/e2e/run.sh` (needs Chrome + a Debug build).
+Link tests need `/private/tmp/stash-e2e/{page.html,page2.html,hero.png}`; `run.sh` recreates hero.png, the HTML files are in
+`Extensions/e2e/` (copy them to /private/tmp/stash-e2e/).
 
 ## M3 organize — done 2026-10-03
 Works (49 kit tests, 17 UI tests; the plan's scenario "create collection → add 3 items → tag them → ⌘Z ×2" is
@@ -131,6 +159,14 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 - Launch arguments reach UserDefaults as strings: use `integer(forKey:)`, not `as? Int`.
 - Window screenshots: the UI test `testScreenshots` writes PNGs to the runner container
   (`~/Library/Containers/in.justswish.StashUITests.xctrunner/Data/tmp/`); `screencapture` is blocked here.
+
+## Known gaps (M4)
+- Safari / Firefox extension builds are Phase 3. Chrome Web Store listing is a human step; until then it's Load unpacked.
+- Menu bar drop target and the Settings ▸ Extensions pane are exercised only by launching the app (no UI assertions).
+- Auto page snapshots skip `file://` pages by design; http(s) pages are snapshotted but not covered by an automated test
+  (the retake path is, using a local file).
+- `captureVisibleTab` page screenshots only work where Chrome grants `activeTab` (user gesture); headless runs save the
+  link without one.
 
 ## Known gaps
 - Drag and drop onto sidebar rows, the cheat sheet, and tag colours/rename dialogs are implemented but not covered by UI tests.

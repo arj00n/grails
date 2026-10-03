@@ -1,0 +1,15 @@
+import { targets, connect } from "./cdp.mjs";
+const page = (await targets()).find((t) => t.type === "page" && t.url.startsWith("http://127.0.0.1:8765"));
+const p = await connect(page.webSocketDebuggerUrl);
+const sw = (await targets()).find((t) => t.type === "service_worker" && t.url.includes("/background.js"));
+const w = await connect(sw.webSocketDebuggerUrl);
+await w.eval(`chrome.storage.local.set({ token: "e2e-token" })`);
+await p.send("Page.enable"); await p.send("Page.reload"); await new Promise((r) => setTimeout(r, 2000));
+await p.eval(`document.getElementById("pic").src = "hero2.png"; new Promise(r => setTimeout(r, 400))`);
+const r = JSON.parse(await p.eval(`JSON.stringify(document.getElementById("pic").getBoundingClientRect())`));
+const x = r.x + r.width / 2, y = r.y + r.height / 2;
+for (const type of ["mousePressed", "mouseReleased"]) await p.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1, modifiers: 1 /* Alt */ });
+console.log("alt-click sent at", Math.round(x), Math.round(y));
+await new Promise((r) => setTimeout(r, 1500));
+console.log("toast:", await p.eval(`document.getElementById("__stash_toast")?.textContent ?? "(toast already gone)"`));
+p.close();

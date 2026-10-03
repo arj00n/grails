@@ -10,6 +10,8 @@ struct SettingsView: View {
     @AppStorage("sidebar.showCollections") private var showCollections = true
     @AppStorage("sidebar.showTags") private var showTags = true
     @AppStorage("sidebar.showSmart") private var showSmart = true
+    @AppStorage("hideDockIcon") private var hideDockIcon = false
+    @AppStorage("autoSnapshotLinks") private var autoSnapshotLinks = true
 
     var body: some View {
         TabView {
@@ -22,6 +24,11 @@ struct SettingsView: View {
                 }
                 Slider(value: $spacing, in: 0...32, step: 1) { Text("Tile spacing") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("32") }
                 Slider(value: $cornerRadius, in: 0...24, step: 1) { Text("Corner radius") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("24") }
+                Section("Capture") {
+                    Toggle("Take a page snapshot for links without a preview image", isOn: $autoSnapshotLinks)
+                    Toggle("Hide Dock icon (use the menu bar item)", isOn: $hideDockIcon)
+                        .onChange(of: hideDockIcon) { model.applyDockPolicy() }
+                }
                 Section("Sidebar sections") {
                     Toggle("Collections", isOn: $showCollections)
                     Toggle("Smart Folders", isOn: $showSmart)
@@ -47,6 +54,9 @@ struct SettingsView: View {
 
             ShortcutsSettings()
                 .tabItem { Label("Shortcuts", systemImage: "keyboard") }
+
+            ExtensionsSettings(model: model)
+                .tabItem { Label("Extensions", systemImage: "puzzlepiece.extension") }
         }
         .formStyle(.grouped)
         .frame(width: 560, height: 520)
@@ -130,5 +140,60 @@ struct ShortcutsSettings: View {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = nil
+    }
+}
+
+struct ExtensionsSettings: View {
+    var model: AppModel
+    @State private var token = ""
+    @State private var reveal = false
+    @State private var confirmRegenerate = false
+
+    private var extensionFolder: URL? { Bundle.main.resourceURL?.appendingPathComponent("chrome", isDirectory: true) }
+
+    var body: some View {
+        Form {
+            Section("Browser extension") {
+                LabeledContent("Status") { Text(model.apiStatus).textSelection(.enabled) }
+                LabeledContent("Library") { Text(model.libraryName) }
+                LabeledContent("Pairing code") {
+                    HStack {
+                        Text(reveal ? token : String(repeating: "•", count: 24)).font(.system(.callout, design: .monospaced)).lineLimit(1).truncationMode(.middle)
+                        Button(reveal ? "Hide" : "Show") { reveal.toggle() }
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(token, forType: .string)
+                        }
+                        .accessibilityIdentifier("copy-pairing-code")
+                    }
+                }
+                Button("Generate a new code…") { confirmRegenerate = true }
+            }
+            Section("Install the Chrome extension") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("1. Open chrome://extensions and turn on Developer mode.")
+                    Text("2. Click Load unpacked and choose the folder below.")
+                    Text("3. Click the Stash toolbar button, paste the pairing code, and you're set.")
+                    HStack {
+                        Button("Show extension folder") {
+                            if let u = extensionFolder { NSWorkspace.shared.activateFileViewerSelecting([u]) }
+                        }
+                        .disabled(extensionFolder.map { !FileManager.default.fileExists(atPath: $0.path) } ?? true)
+                        Button("Copy folder path") {
+                            if let u = extensionFolder { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(u.path, forType: .string) }
+                        }
+                    }
+                }
+                .font(.callout)
+            }
+            Section("Safe by design") {
+                Text("The extension talks to Stash over 127.0.0.1 only, and every request must carry the pairing code. Web pages can't call it.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
+        }
+        .onAppear { token = model.tokens.token() }
+        .confirmationDialog("Generate a new pairing code?", isPresented: $confirmRegenerate) {
+            Button("Generate", role: .destructive) { token = model.tokens.regenerate() }
+        } message: { Text("Extensions using the old code will stop working until you paste the new one.") }
     }
 }

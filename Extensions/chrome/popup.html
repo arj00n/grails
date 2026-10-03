@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="popup.css"><title>Stash</title></head>
+<body>
+  <header><span id="dot" class="dot"></span><strong>Stash</strong><span id="status">Checking…</span></header>
+  <section id="pair">
+    <label for="token">Pairing code</label>
+    <input id="token" type="password" placeholder="Paste from Stash ▸ Settings ▸ Extensions" autocomplete="off">
+    <button id="connect">Connect</button>
+    <p id="error" class="error"></p>
+  </section>
+  <section id="actions" hidden>
+    <button id="savePage" class="primary">Save this page</button>
+    <label for="collection">to</label>
+    <select id="collection"><option value="">Inbox</option></select>
+    <p class="hint">Right-click any image, video or link for “Save to Stash”, or hold ⌥ and click an image.</p>
+    <h3>Recently saved</h3>
+    <ul id="recent"></ul>
+  </section>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

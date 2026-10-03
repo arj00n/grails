@@ -172,8 +172,14 @@ final class Recorder: @unchecked Sendable {
         #expect(try await store.item(id: plain.id)?.extras["linkDisplay"] == "title")
         try await store.setLinkDisplay("title", for: withSnap.id)
         #expect(try await store.index.query(ItemQuery()).first { $0.id == withSnap.id }?.linkDisplay == "title")
-        try await store.setSnapshot(tinyPNG(), for: plain.id)
+        let big = try Data(contentsOf: TestSupport.makePNG(in: TestSupport.tempDir(), name: "big", width: 2560, height: 1920))
+        try await store.setSnapshot(big, for: plain.id)
         #expect(try await store.item(id: plain.id)?.extras["linkDisplay"] == "snapshot")
+        let stored = try Data(contentsOf: root.appendingPathComponent("items/\(plain.id)/snapshot.jpg"))
+        #expect(stored.starts(with: [0xFF, 0xD8]))                                       // a real JPEG, whatever came in
+        let dims = Thumbnailer.imageInfo(at: root.appendingPathComponent("items/\(plain.id)/snapshot.jpg"))
+        #expect(dims?.width == 1280 && dims?.height == 960)
+        await #expect(throws: CaptureError.self) { try await store.setSnapshot(Data("not an image".utf8), for: plain.id) }
     }
 
     @Test func figmaLinkUsesOEmbedAndGetsBadge() async throws {

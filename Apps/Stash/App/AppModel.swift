@@ -146,6 +146,14 @@ final class AppModel {
     /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
     private var reloadGeneration = 0
     private var toastTask: Task<Void, Never>?
+    // Capture: paste, menu bar, browser extension
+    @ObservationIgnored var captureService: LibraryCaptureService?
+    @ObservationIgnored var apiServer: LocalAPIServer?
+    @ObservationIgnored var menuBar: MenuBarController?
+    /// STASH_API_TOKEN lets UI tests use a known token; otherwise the pairing token lives in the Keychain.
+    @ObservationIgnored let tokens: TokenStorage = ProcessInfo.processInfo.environment["STASH_API_TOKEN"].map { InMemoryTokenStorage($0) as TokenStorage } ?? KeychainTokenStorage()
+    var apiStatus = "Starting…"
+    var apiPort: UInt16 = 0
     @ObservationIgnored private var cheatMonitor: Any?
     @ObservationIgnored private var cheatTask: Task<Void, Never>?
 
@@ -203,6 +211,7 @@ final class AppModel {
             redoStack = []
             await reload()
             Self.logLaunchTime()
+            await startCapture()
             if ProcessInfo.processInfo.environment["STASH_AUTOLIKE"] != nil, let first = items.first {
                 toggleLike(ids: [first.id])
             }
@@ -349,7 +358,7 @@ final class AppModel {
     // MARK: Undoable operations
 
     /// Runs `body` while the store notes the state it overwrites; returns the result and the undo change set.
-    private func recorded<T>(_ label: String, in store: LibraryStore, _ body: () async throws -> T) async throws -> (T, ChangeSet) {
+    func recorded<T>(_ label: String, in store: LibraryStore, _ body: () async throws -> T) async throws -> (T, ChangeSet) {
         await store.beginRecording()
         do {
             let value = try await body()
@@ -377,6 +386,14 @@ final class AppModel {
             errorMessage = "\(label) failed: \(error.localizedDescription)"
             return nil
         }
+    }
+
+    /// Records an undoable action's change set (used by files that extend AppModel).
+    func pushUndo(_ cs: ChangeSet) {
+        guard !cs.isEmpty else { return }
+        undoStack.append(cs)
+        if undoStack.count > 100 { undoStack.removeFirst() }
+        redoStack = []
     }
 
     func undo() async {
@@ -410,7 +427,8 @@ final class AppModel {
 
     // MARK: Import
 
-    func importFiles(_ urls: [URL], collectionId: String? = nil, tag: String? = nil) async {
+    /// Imports files or folders. `recordUndo: false` is for callers that already wrap the work in their own recording.
+    func importFiles(_ urls: [URL], collectionId: String? = nil, tag: String? = nil, recordUndo: Bool = true) async {
         guard let store else { return }
         let files = FolderScanner.expandFiles(urls)
         guard !files.isEmpty else { return }
@@ -421,22 +439,29 @@ final class AppModel {
         let finalCollections = collectionIds, finalTags = tagList
         importProgress = (0, files.count)
         var done = 0
-        do {
-            let (_, undo) = try await recorded("Add \(files.count) \(files.count == 1 ? "Item" : "Items")", in: store) {
-                for chunk in stride(from: 0, to: files.count, by: 4).map({ Array(files[$0..<min($0 + 4, files.count)]) }) {
-                    await withTaskGroup(of: Void.self) { group in
-                        for file in chunk {
-                            group.addTask { _ = try? await store.addItem(fileAt: file, tags: finalTags, collectionIds: finalCollections) }
-                        }
+
+        func addAll() async {
+            for chunk in stride(from: 0, to: files.count, by: 4).map({ Array(files[$0..<min($0 + 4, files.count)]) }) {
+                await withTaskGroup(of: Void.self) { group in
+                    for file in chunk {
+                        group.addTask { _ = try? await store.addItem(fileAt: file, tags: finalTags, collectionIds: finalCollections) }
                     }
-                    done += chunk.count
-                    importProgress = (done, files.count)
                 }
+                done += chunk.count
+                importProgress = (done, files.count)
             }
-            if !undo.isEmpty { undoStack.append(undo); redoStack = [] }
+        }
+
+        do {
+            if recordUndo {
+                let (_, undo) = try await recorded("Add \(files.count) \(files.count == 1 ? "Item" : "Items")", in: store) { await addAll() }
+                if !undo.isEmpty { undoStack.append(undo); redoStack = [] }
+            } else {
+                await addAll()
+            }
         } catch { errorMessage = "Import failed: \(error.localizedDescription)" }
         importProgress = nil
-        await reload()
+        if recordUndo { await reload() }
     }
 
     // MARK: Actions (menu items, grid shortcuts, ⌘K)

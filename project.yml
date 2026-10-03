@@ -16,7 +16,11 @@ targets:
   Stash:
     type: application
     platform: macOS
-    sources: [Apps/Stash]
+    sources:
+      - Apps/Stash
+      - path: Extensions/chrome
+        type: folder
+        buildPhase: resources
     dependencies:
       - package: StashKit
     info:

@@ -1,10 +1,35 @@
 import AppKit
 import StashKit
 
+/// Text label that ignores the mouse, so clicks and right-clicks reach the tile (and the grid's menu) underneath.
+final class PassthroughLabel: NSTextField {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    static func make(wrapping: Bool = false) -> PassthroughLabel {
+        let l = PassthroughLabel(frame: .zero)
+        l.isEditable = false
+        l.isSelectable = false
+        l.isBordered = false
+        l.drawsBackground = false
+        if wrapping { l.cell?.wraps = true; l.cell?.isScrollable = false } else { l.cell?.usesSingleLineMode = true }
+        return l
+    }
+}
+
 final class TileView: NSView {
     override var wantsUpdateLayer: Bool { true }
     override var isFlipped: Bool { true }
     override func updateLayer() {}
+
+    /// A right-click lands on the tile first; let the grid build the context menu.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        var v: NSView? = superview
+        while let view = v {
+            if let grid = view as? StashCollectionView { return grid.menu(for: event) }
+            v = view.superview
+        }
+        return super.menu(for: event)
+    }
 }
 
 final class ThumbCell: NSCollectionViewItem {
@@ -13,6 +38,11 @@ final class ThumbCell: NSCollectionViewItem {
     private(set) var itemID: String?
     private let placeholder = NSImageView()
     private let heart = NSImageView()
+    private let captionBar = NSView()
+    private let caption = PassthroughLabel.make()
+    private let titleLabel = PassthroughLabel.make(wrapping: true)
+    private let siteLabel = PassthroughLabel.make()
+    private let badge = PassthroughLabel.make()
 
     override func loadView() {
         let v = TileView()
@@ -47,6 +77,56 @@ final class ThumbCell: NSCollectionViewItem {
             heart.widthAnchor.constraint(equalToConstant: 16),
             heart.heightAnchor.constraint(equalToConstant: 16),
         ])
+        // Link cards: caption over the picture, or a big title when there's no picture
+        captionBar.wantsLayer = true
+        captionBar.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.58).cgColor
+        captionBar.translatesAutoresizingMaskIntoConstraints = false
+        captionBar.isHidden = true
+        caption.font = .systemFont(ofSize: 11, weight: .medium)
+        caption.textColor = .white
+        caption.lineBreakMode = .byTruncatingTail
+        caption.translatesAutoresizingMaskIntoConstraints = false
+        captionBar.addSubview(caption)
+        v.addSubview(captionBar)
+        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.textColor = .labelColor
+        titleLabel.alignment = .center
+        titleLabel.maximumNumberOfLines = 4
+        titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.isHidden = true
+        siteLabel.font = .systemFont(ofSize: 10)
+        siteLabel.textColor = .secondaryLabelColor
+        siteLabel.alignment = .center
+        siteLabel.translatesAutoresizingMaskIntoConstraints = false
+        siteLabel.isHidden = true
+        v.addSubview(titleLabel)
+        v.addSubview(siteLabel)
+        badge.font = .systemFont(ofSize: 9, weight: .bold)
+        badge.textColor = .white
+        badge.wantsLayer = true
+        badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
+        badge.layer?.cornerRadius = 4
+        badge.translatesAutoresizingMaskIntoConstraints = false
+        badge.isHidden = true
+        v.addSubview(badge)
+        NSLayoutConstraint.activate([
+            captionBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
+            captionBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            captionBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
+            captionBar.heightAnchor.constraint(equalToConstant: 24),
+            caption.leadingAnchor.constraint(equalTo: captionBar.leadingAnchor, constant: 8),
+            caption.trailingAnchor.constraint(equalTo: captionBar.trailingAnchor, constant: -8),
+            caption.centerYAnchor.constraint(equalTo: captionBar.centerYAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 10),
+            titleLabel.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -10),
+            titleLabel.centerYAnchor.constraint(equalTo: v.centerYAnchor, constant: -8),
+            siteLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 10),
+            siteLabel.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -10),
+            siteLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
+            badge.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
+            badge.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
+        ])
         view = v
     }
 
@@ -62,19 +142,37 @@ final class ThumbCell: NSCollectionViewItem {
         itemID = s.id
         heart.isHidden = !s.liked
         view.layer?.cornerRadius = cornerRadius
-        view.layer?.contentsGravity = gravity
+        let isLink = s.kind == .link
+        let mode = s.linkDisplay ?? "title"
+        let showsPicture = !isLink || mode != "title"
+        view.layer?.contentsGravity = isLink ? .resizeAspectFill : gravity
+        captionBar.isHidden = !(isLink && showsPicture)
+        caption.stringValue = isLink ? s.name : ""
+        titleLabel.isHidden = !(isLink && !showsPicture)
+        siteLabel.isHidden = titleLabel.isHidden
+        if isLink && !showsPicture { titleLabel.stringValue = s.name; siteLabel.stringValue = s.site ?? "" }
+        badge.isHidden = s.badge == nil
+        if let b = s.badge { badge.stringValue = " \(b.capitalized) " }
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         placeholder.image = NSImage(systemSymbolName: Self.symbol(for: s.kind), accessibilityDescription: nil)
         view.setAccessibilityLabel(s.name)
         view.setAccessibilityRole(.image)
-        if let hit = loader.cached(id: s.id, pixels: pixels) {
+        guard showsPicture else {
+            view.layer?.contents = nil
+            placeholder.isHidden = true
+            applySelection()
+            return
+        }
+        let variant = isLink ? mode : ""
+        let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(s.id) : layout.thumbURL(s.id)
+        if let hit = loader.cached(id: s.id, pixels: pixels, variant: variant) {
             show(hit)
         } else {
             view.layer?.contents = nil
-            placeholder.isHidden = false
+            placeholder.isHidden = isLink
         }
         let id = s.id
-        op = loader.load(id: id, thumb: layout.thumbURL(id), original: original, pixels: pixels) { [weak self] image in
+        op = loader.load(id: id, thumb: pictureURL, original: isLink ? nil : original, pixels: pixels, variant: variant) { [weak self] image in
             guard let self, self.itemID == id, let image else { return }
             self.show(image)
         }
@@ -92,6 +190,10 @@ final class ThumbCell: NSCollectionViewItem {
         op = nil
         itemID = nil
         view.layer?.contents = nil
+        captionBar.isHidden = true
+        titleLabel.isHidden = true
+        siteLabel.isHidden = true
+        badge.isHidden = true
     }
 
     static func symbol(for kind: ItemKind) -> String {
