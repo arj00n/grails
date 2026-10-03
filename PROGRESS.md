@@ -19,7 +19,11 @@
   (incl. 3 `AutoTagTests`); headless app run with the stub; Release strict benchmarks: grid square + masonry pass, canvas zoom/pan
   got 1–3 slow frames in 3 runs (budget 2; worst frame 43–50 ms while our own code peaked at 8 ms; machine load average was 8 with
   Spotlight at 119% CPU), so treat it as load noise, re-run on a quiet Mac.
-- **NOT verified**: tag quality on food/Swish photos (thresholds tuned on wallpapers only); pinch gestures (tests drive ⌘-scroll,
+- **Tried on 197 Swish SKU photos** (`assets/sku`, webp, 6 s total): the stock labels were mostly noise (utensil on 141, tableware on 134),
+  so the denylist now drops tableware/surface labels. After that: bowl/food/drinking glass/baked goods/soup/rice… are right but coarse;
+  Vision has no dish vocabulary (gulab jamun → nothing, paratha → "baked goods, pancake"). At 0.5 confidence 55/197 get no tags
+  (avg 1.6); at the slider's max 14/197 (avg 3.5). Dish-level tags need a CLIP-style model with a custom food vocabulary (PLAN M7).
+- **NOT verified**: pinch-free tag quality beyond the above; pinch gestures (tests drive ⌘-scroll,
   same code path).
 
 ## M5 team sharing — done 2026-10-03 (v0.1.0)

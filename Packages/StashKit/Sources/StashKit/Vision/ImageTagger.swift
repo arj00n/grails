@@ -21,6 +21,8 @@ public struct ImageTaggerOptions: Sendable, Equatable {
     public static let defaultDenylist: Set<String> = [
         "structure", "material", "land", "liquid", "outdoor", "indoor", "adult", "occupation", "cord", "object",
         "daytime", "nighttime", "light",
+        // present in most styled food photos (a plate on a table) and so useless for finding one
+        "utensil", "tableware", "wood processed", "textile", "plate", "spoon", "fork", "knife", "cutlery", "furniture", "table",
     ]
 
     /// 0 (fewer, only the obvious) … 1 (more, including tentative guesses).
