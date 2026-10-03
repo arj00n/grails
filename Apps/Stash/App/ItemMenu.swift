@@ -39,6 +39,7 @@ extension AppModel {
         add("Edit Tags…", "tag") { [self] in run(.tag) }
         add("Move to Collection…", "rectangle.stack") { [self] in run(.move) }
         add("Add Note…", "note.text") { [self] in run(.note) }
+        add("Auto-tag", "sparkles") { [self] in autoTagSelection() }
         add("Copy Source URL", "link") { [self] in run(.copyURL) }
         if selected.count == 1, s.kind != .link, let url = originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {
             add("Reveal in Finder", "folder") { NSWorkspace.shared.activateFileViewerSelecting([url]) }

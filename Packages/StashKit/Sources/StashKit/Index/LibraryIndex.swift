@@ -84,6 +84,9 @@ public final class LibraryIndex: Sendable {
             ALTER TABLE items ADD COLUMN badge TEXT;
             """)
         }
+        m.registerMigration("v3-autotag") { db in
+            try db.execute(sql: "ALTER TABLE items ADD COLUMN autoTaggedAt REAL")
+        }
         return m
     }
 
@@ -302,6 +305,7 @@ public final class LibraryIndex: Sendable {
             wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId IN (\(q.collectionIds.map { _ in "?" }.joined(separator: ","))))")
             for id in q.collectionIds.sorted() { args += [id] }
         }
+        if q.needsAutoTags { wheres.append("i.autoTaggedAt IS NULL AND i.kind IN ('image', 'gif', 'raw', 'link')") }
         if let who = q.addedBy { wheres.append("i.addedBy = ?"); args += [who] }
         if q.squareOnly { wheres.append("i.width > 0 AND i.height > 0 AND ABS(i.width * 1.0 / i.height - 1.0) <= 0.05") }
         if let smart = q.smart {
@@ -333,7 +337,7 @@ public final class LibraryIndex: Sendable {
     private static let itemColumns = [
         "id", "kind", "name", "ext", "bytes", "width", "height", "durationSec", "sha256", "sourceUrl", "sourcePageUrl",
         "sourceSite", "sourceAuthor", "sourceTitle", "liked", "note", "ocrText", "addedAt", "addedBy", "updatedAt",
-        "updatedBy", "deletedAt", "mtime", "linkDisplay", "badge",
+        "updatedBy", "deletedAt", "mtime", "linkDisplay", "badge", "autoTaggedAt",
     ]
     private static let upsertSQL: String = {
         let cols = itemColumns.joined(separator: ", ")
@@ -349,6 +353,7 @@ public final class LibraryIndex: Sendable {
             item.sha256, s?.url, s?.pageUrl, s?.site, s?.author, s?.title, item.liked, item.note, item.ocrText,
             item.addedAt.timeIntervalSince1970, item.addedBy, item.updatedAt.timeIntervalSince1970, item.updatedBy,
             item.deletedAt?.timeIntervalSince1970, mtime, item.extras["linkDisplay"].flatMap(Self.string), item.extras["badge"].flatMap(Self.string),
+            Self.autoTaggedAt(item),
         ])
         let rowid = try Int64.fetchOne(db, sql: "SELECT rowid FROM items WHERE id = ?", arguments: [item.id])!
         if !fresh {
@@ -369,6 +374,13 @@ public final class LibraryIndex: Sendable {
         let source = [s?.site, s?.title, s?.author].compactMap { $0 }.joined(separator: " ")
         try db.cachedStatement(sql: "INSERT INTO items_fts (rowid, name, tags, note, ocrText, source) VALUES (?,?,?,?,?,?)")
             .execute(arguments: [rowid, item.name, item.tags.joined(separator: " "), item.note, item.ocrText, source])
+    }
+
+    private static func autoTaggedAt(_ item: Item) -> Double? {
+        guard case .object(let o)? = item.extras["autoTagged"] else { return nil }
+        if case .double(let d)? = o["at"] { return d }
+        if case .int(let i)? = o["at"] { return Double(i) }
+        return 0      // marked, time unknown
     }
 
     private static func string(_ v: JSONValue) -> String? { if case .string(let s) = v { s } else { nil } }

@@ -51,7 +51,24 @@ struct InfoPanel: View {
                 }
             }
         }
-        if !item.tags.isEmpty { section("Tags") { chips(item.tags.map { "#\($0)" }) } }
+        if !item.tags.isEmpty {
+            let auto = Set(item.autoTags.map { $0.lowercased() })
+            section("Tags") {
+                FlowLayout(spacing: 6) {
+                    ForEach(item.tags, id: \.self) { t in
+                        let isAuto = auto.contains(t.lowercased())
+                        HStack(spacing: 3) {
+                            if isAuto { Image(systemName: "sparkle").font(.system(size: 8)) }
+                            Text("#\(t)")
+                        }
+                        .font(.caption).padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(.quaternary, in: Capsule())
+                        .help(isAuto ? "Added automatically" : "")
+                        .accessibilityLabel(isAuto ? "#\(t), automatic" : "#\(t)")
+                    }
+                }
+            }
+        }
         let names = item.collections.keys.compactMap { id in model.collections.first { $0.id == id }?.name }.sorted()
         if !names.isEmpty { section("Collections") { chips(names) } }
 

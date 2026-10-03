@@ -1,6 +1,24 @@
 # Progress
 
-## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
+## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
+
+## UI simplification, canvas, auto-tagging — 2026-10-03 (post v0.1.0)
+- **Toolbar**: view switcher (Grid / Canvas), one Filter menu, info toggle. No zoom slider: pinch or ⌘-scroll zooms
+  continuously (grid tiles 56–720 pt, settles to a filled row; ⌘+/⌘− step columns). ⌘1 Grid, ⌘2 Canvas, ⌘0 fit.
+- **Canvas** (Atlas model): per-board (library / collection / tag / smart folder) infinite pan/zoom, placements in
+  `canvas/<boardKey>.json`, merged per placement across Macs, undoable, culled + pooled layers (20k items: 0–2 slow frames).
+- **Auto-tag**: Apple Vision `VNClassifyImageRequest` on the 512 px thumbnail, on-device, no model download, ~150 ms/image.
+  Filter = confidence floor (0.5), generic-root denylist, word-overlap dedupe, cap 5; Settings has a "Tags per item" slider.
+  Tags are ordinary tags (sync, search, filter). `autoTags` records which ones the machine added (sparkle chip in the info
+  panel); `autoTagged` stops re-runs, so a removed tag is never re-added. Only the user's own items run automatically
+  (teammates' items are tagged by their owner); ⌘K "Auto-tag All Untagged Items" does everyone's, "Auto-tag N selected" redoes.
+  Auto-tagging bypasses undo. Dev: `STASH_AUTOTAG_STUB=a,b` fakes the classifier; with `STASH_LIBRARY` set it is off unless that
+  (or `STASH_AUTOTAG=1`) is set.
+- **Try it on your photos**: `cd Packages/StashKit && swift run -c release stash-tags --raw ~/Pictures/food/`.
+- **Verified**: kit tests 107/107 (incl. real Vision on a system wallpaper), headless app run with the stub (own 20 of 40 items tagged,
+  teammate's untouched, existing tags kept). Grid/canvas UI suites and benchmarks passed at the canvas commit.
+- **NOT verified**: `AutoTagTests` (UI) were written but not run (screen was locked: "Timed out while enabling automation mode");
+  tag quality on food/Swish photos (thresholds tuned on wallpapers only); pinch gestures (tests drive ⌘-scroll, same path).
 
 ## M5 team sharing — done 2026-10-03 (v0.1.0)
 Works (79 kit tests incl. the two-Mac harness, 5 team UI tests; DMG builds and launches):
@@ -179,6 +197,8 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 - Tag matching is case-insensitive (index uses NOCASE); tags keep the casing of the first writer.
 
 ## Testing notes (learned the hard way)
+- UI tests need an unlocked, awake screen. "Timed out while enabling automation mode" + `screencapture` failing with
+  "could not create image from display" means the Mac is locked: nothing to fix in the code.
 - **Never use `typeText` in UI tests.** On this OS it can leave a stuck ⌘ flag on later key events: letters stop
   inserting, and a "q" becomes ⌘Q and quits the app (it looked like a crash with no crash report). Type with
   `app.typeKey(String(ch), modifierFlags: [])` per character; see `OrganizeTests.type(_:in:)`.

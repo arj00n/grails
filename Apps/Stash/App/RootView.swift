@@ -87,6 +87,11 @@ struct RootView: View {
                 ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Importing \(p.done) of \(p.total)…") }
                     .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)
             }
+            if let p = model.autoTagProgress {
+                ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Auto-tagging \(p.done) of \(p.total)…") }
+                    .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)
+                    .accessibilityIdentifier("autotag-progress")
+            }
             if let p = model.renameProgress {
                 ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Updating tags… \(p.done) of \(p.total)") }
                     .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)

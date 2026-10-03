@@ -21,6 +21,7 @@ extension AppModel {
             add(.init(id: "cmd-tag", title: "Edit Tags…", symbol: "tag", accessory: key(.tag)) { [self] in run(.tag) }, boost: 2)
             add(.init(id: "cmd-move", title: "Move to Collection…", symbol: "rectangle.stack", accessory: key(.move)) { [self] in run(.move) }, boost: 2)
             add(.init(id: "cmd-note", title: "Add Note…", symbol: "note.text", accessory: key(.note)) { [self] in run(.note) }, boost: 2)
+            add(.init(id: "cmd-autotag", title: "Auto-tag \(n) selected", symbol: "sparkles") { [self] in autoTagSelection() })
             add(.init(id: "cmd-url", title: "Copy Source URL", symbol: "link", accessory: key(.copyURL)) { [self] in run(.copyURL) })
             if source == .trash {
                 add(.init(id: "cmd-restore", title: "Restore \(n) from Trash", symbol: "arrow.uturn.backward") { [self] in restoreSelection() })
@@ -31,6 +32,7 @@ extension AppModel {
         add(.init(id: "cmd-newc", title: "New Collection…", symbol: "plus.rectangle.on.rectangle", accessory: key(.newCollection)) { [self] in run(.newCollection) })
         add(.init(id: "cmd-newf", title: "New Folder…", symbol: "folder.badge.plus") { [self] in promptNewCollection(kind: "folder", parent: nil) })
         add(.init(id: "cmd-news", title: "New Smart Folder…", symbol: "gearshape.2", accessory: key(.newSmartFolder)) { [self] in run(.newSmartFolder) })
+        add(.init(id: "cmd-autotag-all", title: "Auto-tag All Untagged Items", symbol: "sparkles") { [self] in autoTagEverything() })
         add(.init(id: "cmd-info", title: "Toggle Info Panel", symbol: "sidebar.right", accessory: key(.toggleInfo)) { [self] in run(.toggleInfo) })
         add(.init(id: "cmd-shuffle", title: "Shuffle", symbol: "shuffle", accessory: key(.shuffle)) { [self] in run(.shuffle) })
         add(.init(id: "cmd-zin", title: "Zoom In", symbol: "plus.magnifyingglass", accessory: key(.zoomIn)) { [self] in run(.zoomIn) })

@@ -1,0 +1,216 @@
+import Foundation
+import Testing
+@testable import StashKit
+
+@Suite struct TagSelectionTests {
+    /// What Vision returned for an aerial photo of a bridge over a lake (real output, abridged).
+    let aerial: [(String, Float)] = [
+        ("structure", 0.97), ("rocks", 0.95), ("outdoor", 0.84), ("bridge", 0.84), ("land", 0.77), ("hill", 0.76),
+        ("sky", 0.71), ("blue_sky", 0.70), ("liquid", 0.68), ("water", 0.68), ("water_body", 0.68), ("lake", 0.68), ("cloudy", 0.12),
+    ]
+
+    @Test func dropsGenericRootsAndRepeatedWords() {
+        let tags = ImageTagger.select(aerial, options: .init(minConfidence: 0.5, maxTags: 8)).map(\.tag)
+        #expect(!tags.contains("structure") && !tags.contains("outdoor") && !tags.contains("land") && !tags.contains("liquid"))
+        #expect(tags.contains("rocks") && tags.contains("bridge") && tags.contains("hill") && tags.contains("lake"))
+        #expect(tags.contains("sky") && !tags.contains("blue sky"))             // one sky tag, not two
+        #expect(tags.contains("water") && !tags.contains("water body"))
+        #expect(!tags.contains("cloudy"))                                       // under the floor
+    }
+
+    @Test func bestFirstAndCapped() {
+        let tags = ImageTagger.select(aerial, options: .init(minConfidence: 0.5, maxTags: 3))
+        #expect(tags.map(\.tag) == ["rocks", "bridge", "hill"])
+        #expect(tags.map(\.confidence) == tags.map(\.confidence).sorted(by: >))
+        #expect(ImageTagger.select(aerial, options: .init(minConfidence: 0.99, maxTags: 5)).isEmpty)
+        #expect(ImageTagger.select([], options: .init()).isEmpty)
+        #expect(ImageTagger.select(aerial, options: .init(minConfidence: 0.5, maxTags: 0)).isEmpty)
+    }
+
+    @Test func normalisationAndTies() {
+        #expect(ImageTagger.normalize("Hot_Dog") == "hot dog")
+        let tied = ImageTagger.select([("zebra", 0.8), ("apple", 0.8), ("mango", 0.8)], options: .init(minConfidence: 0.5, maxTags: 5)).map(\.tag)
+        #expect(tied == ["apple", "mango", "zebra"])                            // same confidence ⇒ alphabetical, always
+        // a multi-word label blocks a later label that shares one of its words
+        #expect(ImageTagger.select([("ice_cream", 0.9), ("cream", 0.8), ("cone", 0.7)], options: .init()).map(\.tag) == ["ice cream", "cone"])
+    }
+
+    @Test func customDenylistAndSensitivity() {
+        let opts = ImageTaggerOptions(minConfidence: 0.5, maxTags: 5, denylist: ["rocks"])
+        #expect(!ImageTagger.select(aerial, options: opts).map(\.tag).contains("rocks"))
+        let few = ImageTaggerOptions.sensitivity(0), many = ImageTaggerOptions.sensitivity(1), mid = ImageTaggerOptions.sensitivity(0.5)
+        #expect(few.minConfidence > mid.minConfidence && mid.minConfidence > many.minConfidence)
+        #expect(few.maxTags < mid.maxTags && mid.maxTags < many.maxTags)
+        #expect(ImageTaggerOptions.sensitivity(-4) == few && ImageTaggerOptions.sensitivity(9) == many)
+        #expect(ImageTagger.select(aerial, options: few).count <= ImageTagger.select(aerial, options: many).count)
+    }
+}
+
+@Suite struct AutoTaggerTests {
+    func stub(_ map: [String: [String]]) -> TagClassifier {
+        { url, _ in
+            let name = url.deletingLastPathComponent().lastPathComponent        // …/items/<id>/thumb.jpg
+            return (map[name] ?? ["generic"]).map { TagSuggestion(tag: $0, confidence: 0.9) }
+        }
+    }
+
+    func library(_ n: Int, handle: String = "ana") async throws -> (LibraryStore, [Item]) {
+        let (store, _) = try TestSupport.newStore(handle: handle)
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<n {
+            items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "p\(i)", rgb: (Double(i) / Double(max(n, 1)), 0.3, 0.6))).item)
+            try await Task.sleep(for: .milliseconds(3))
+        }
+        return (store, items)
+    }
+
+    @Test func tagsPendingItemsNewestFirstAndRemembersIt() async throws {
+        let (store, items) = try await library(4)
+        let tagger = AutoTagger(store: store, classify: stub([items[0].id: ["old"], items[3].id: ["new", "shiny"]]))
+        #expect(await tagger.pendingCount() == 4)
+        final class Order: @unchecked Sendable { var ids: [Int] = []; let lock = NSLock() }
+        let progress = Order()
+        let s = await tagger.run { done, total in progress.lock.lock(); progress.ids.append(done * 100 + total); progress.lock.unlock() }
+        #expect(s.checked == 4 && s.tagged == 4 && s.tagsAdded == 5 && s.skipped == 0 && s.failed == 0)
+        #expect(progress.ids == [4, 104, 204, 304, 404])                         // 0/4 … 4/4
+        #expect(try await store.item(id: items[3].id)?.tags == ["new", "shiny"])
+        #expect(try await store.item(id: items[3].id)?.autoTags == ["new", "shiny"])
+        #expect(try await store.item(id: items[3].id)?.isAutoTagged == true)
+        #expect(await tagger.pendingCount() == 0)
+        #expect(await tagger.run().checked == 0)                                 // nothing left; a re-run does nothing
+    }
+
+    @Test func neverTouchesWhatAPersonDidAndNeverReAddsRemovedTags() async throws {
+        let (store, items) = try await library(1)
+        let id = items[0].id
+        try await store.addTags(["mine"], to: [id])
+        let tagger = AutoTagger(store: store, classify: stub([id: ["mine", "robot"]]))
+        #expect(await tagger.run().tagsAdded == 1)                               // "mine" already there (any case) → only "robot"
+        #expect(try await store.item(id: id)?.tags == ["mine", "robot"])
+        #expect(try await store.item(id: id)?.autoTags == ["robot"])             // "mine" was the person's, not the machine's
+        try await store.removeTags(["robot"], from: [id])
+        #expect(try await store.item(id: id)?.autoTags == [])                    // removed tags stop counting as automatic
+        #expect(await tagger.run().checked == 0)                                 // and the next run doesn't put it back
+        #expect(try await store.item(id: id)?.tags == ["mine"])
+        // an explicit "tag these again" does re-run
+        #expect(await tagger.run(ids: [id]).tagsAdded == 1)
+        #expect(try await store.item(id: id)?.tags == ["mine", "robot"])
+    }
+
+    @Test func onlyYourOwnItemsWhenAsked() async throws {
+        let (store, mine) = try await library(2, handle: "ana")
+        await store.setUserHandle("ben")
+        let bens = try await store.addItem(fileAt: TestSupport.makePNG(in: TestSupport.tempDir(), name: "ben", rgb: (0.9, 0.1, 0.1))).item
+        let tagger = AutoTagger(store: store, classify: stub([:]))
+        let (ana, ben, all) = (await tagger.pendingCount(addedBy: "ana"), await tagger.pendingCount(addedBy: "ben"), await tagger.pendingCount())
+        #expect(ana == 2 && ben == 1 && all == 3)
+        let s = await tagger.run(addedBy: "ben")
+        #expect(s.checked == 1)
+        #expect(try await store.item(id: bens.id)?.isAutoTagged == true)
+        #expect(try await store.item(id: mine[0].id)?.isAutoTagged == false)
+    }
+
+    @Test func itemsWithoutALocalPictureAreSkippedNotFailed() async throws {
+        let (store, items) = try await library(2)
+        try FileManager.default.removeItem(at: store.layout.thumbURL(items[0].id))
+        try FileManager.default.removeItem(at: store.layout.itemDir(items[0].id).appendingPathComponent("original.png"))
+        let s = await AutoTagger(store: store, classify: stub([:])).run()
+        #expect(s.skipped == 1 && s.tagged == 1 && s.failed == 0)
+        #expect(try await store.item(id: items[0].id)?.isAutoTagged == false)    // stays pending until a picture exists
+    }
+
+    @Test func classifierFailuresAreCountedAndRetriedLater() async throws {
+        let (store, items) = try await library(2)
+        struct Boom: Error {}
+        let tagger = AutoTagger(store: store, classify: { url, _ in
+            if url.deletingLastPathComponent().lastPathComponent == items[0].id { throw Boom() }
+            return [TagSuggestion(tag: "ok", confidence: 1)]
+        })
+        let s = await tagger.run()
+        #expect(s.failed == 1 && s.tagged == 1)
+        #expect(await tagger.pendingCount() == 1)                                // the failed one is still pending
+    }
+
+    @Test func autoTaggingIsNotPartOfUndoAndSyncsAsAnOrdinaryEdit() async throws {
+        let (store, items) = try await library(1)
+        let tagger = AutoTagger(store: store, classify: stub([:]))
+        let (_, undo) = try await store.recording(label: "Something else") { await tagger.run() }
+        #expect(undo.isEmpty)                                                    // background work never lands in someone's undo stack
+        let item = try #require(try await store.item(id: items[0].id))
+        #expect(item.tags == ["generic"])
+        #expect(item.updatedBy == "ana")
+        // another Mac reads it through the normal path: the tags are in the index
+        #expect(try await store.index.query(ItemQuery(text: "generic")).map(\.id) == [items[0].id])
+        var q = ItemQuery(); q.tag = "generic"
+        #expect(try await store.index.count(q) == 1)
+    }
+
+    @Test func cancellationStopsPromptly() async throws {
+        let (store, _) = try await library(30)
+        let tagger = AutoTagger(store: store, classify: { _, _ in Thread.sleep(forTimeInterval: 0.02); return [TagSuggestion(tag: "t", confidence: 1)] })
+        let task = Task { await tagger.run() }
+        try await Task.sleep(for: .milliseconds(150))
+        task.cancel()
+        let s = await task.value
+        #expect(s.checked < 30 && s.checked > 0)
+    }
+
+    @Test func linksWithPreviewImagesAreTaggedFromTheirThumbnail() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let preview = try Data(contentsOf: TestSupport.makePNG(in: TestSupport.tempDir(), name: "og", width: 200, height: 120))
+        let linkItem = try await store.addLink(url: URL(string: "https://x.test/a")!, title: "A", site: "x.test", previewImage: preview).item
+        let bare = try await store.addLink(url: URL(string: "https://x.test/b")!, title: "B", site: "x.test").item     // no picture at all
+        let s = await AutoTagger(store: store, classify: { _, _ in [TagSuggestion(tag: "poster", confidence: 1)] }).run()
+        #expect(s.tagged == 1 && s.skipped == 1)
+        #expect(try await store.item(id: linkItem.id)?.tags == ["poster"])
+        #expect(try await store.item(id: bare.id)?.isAutoTagged == false)
+    }
+}
+
+/// The real model, on whatever real photo this Mac has (system wallpapers). Skipped where there isn't one.
+@Suite(.serialized) struct VisionIntegrationTests {
+    static let candidates = [
+        "/System/Library/Wallpapers/.default/DefaultAerial.jpg",
+        "/System/Library/Desktop Pictures/.wallpapers/Sonoma Horizon/Sonoma Horizon.heic",
+        "/System/Library/PrivateFrameworks/SystemDesktopAppearance.framework/Versions/A/Resources/DefaultBackground.jpg",
+    ]
+    static var photo: URL? { candidates.map(URL.init(fileURLWithPath:)).first { FileManager.default.isReadableFile(atPath: $0.path) } }
+
+    @Test(.enabled(if: VisionIntegrationTests.photo != nil))
+    func classifiesARealPhotoOnDevice() throws {
+        let url = try #require(Self.photo)
+        let t0 = Date()
+        let tags = try ImageTagger.suggestions(forImageAt: url, options: .init(minConfidence: 0.4, maxTags: 6))
+        print("Vision on \(url.lastPathComponent): \(tags.map { "\($0.tag) \(String(format: "%.2f", $0.confidence))" }) in \(Int(Date().timeIntervalSince(t0) * 1000)) ms")
+        #expect(!tags.isEmpty)
+        #expect(tags.count <= 6)
+        #expect(tags.allSatisfy { !$0.tag.contains("_") && $0.tag == $0.tag.lowercased() && $0.confidence >= 0.4 })
+        #expect(Set(tags.map(\.tag)).isDisjoint(with: ImageTaggerOptions.defaultDenylist))
+    }
+
+    @Test(.enabled(if: VisionIntegrationTests.photo != nil))
+    func endToEndThroughTheLibrary() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let item = try await store.addItem(fileAt: try #require(Self.photo)).item
+        #expect(item.tags.isEmpty)
+        let summary = await AutoTagger(store: store).run()
+        #expect(summary.checked == 1 && summary.failed == 0)
+        let tagged = try #require(try await store.item(id: item.id))
+        #expect(tagged.isAutoTagged)
+        #expect(tagged.tags == tagged.autoTags)
+        if case .object(let o)? = tagged.extras["autoTagged"], case .string(let m)? = o["model"] { #expect(m == ImageTagger.modelName) } else { Issue.record("model not recorded") }
+    }
+
+    @Test func aBlankImageDoesNotCrashOrInventTags() throws {
+        let url = TestSupport.makePNG(in: TestSupport.tempDir(), name: "blank", width: 300, height: 300, rgb: (1, 1, 1))
+        let tags = try ImageTagger.suggestions(forImageAt: url, options: .init(minConfidence: 0.8, maxTags: 5))
+        #expect(tags.count <= 5)
+    }
+
+    @Test func aNonImageFileThrows() throws {
+        let url = TestSupport.tempDir().appendingPathComponent("x.jpg")
+        try Data("not an image".utf8).write(to: url)
+        #expect(throws: (any Error).self) { _ = try ImageTagger.suggestions(forImageAt: url) }
+    }
+}

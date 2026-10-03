@@ -13,6 +13,8 @@ struct SettingsView: View {
     @AppStorage("hideDockIcon") private var hideDockIcon = false
     @AppStorage("showAddedBy") private var showAddedBy = false
     @AppStorage("autoSnapshotLinks") private var autoSnapshotLinks = true
+    @AppStorage("autoTagNew") private var autoTagNew = true
+    @AppStorage("autoTagSensitivity") private var autoTagSensitivity = 0.5
 
     var body: some View {
         TabView {
@@ -33,6 +35,17 @@ struct SettingsView: View {
                     Toggle("Take a page snapshot for links without a preview image", isOn: $autoSnapshotLinks)
                     Toggle("Hide Dock icon (use the menu bar item)", isOn: $hideDockIcon)
                         .onChange(of: hideDockIcon) { model.applyDockPolicy() }
+                }
+                Section("Auto-tagging") {
+                    Toggle("Tag my new items automatically", isOn: $autoTagNew)
+                        .onChange(of: autoTagNew) { if autoTagNew { model.kickAutoTag() } else { model.cancelAutoTag() } }
+                    Slider(value: $autoTagSensitivity, in: 0...1) { Text("Tags per item") } minimumValueLabel: { Text("Fewer") } maximumValueLabel: { Text("More") }
+                    HStack {
+                        Button("Tag existing items now") { model.autoTagEverything() }
+                        if let p = model.autoTagProgress { Text("\(p.done) of \(p.total)").foregroundStyle(.secondary).monospacedDigit() }
+                    }
+                    Text("Uses Apple's on-device image recognition. Nothing leaves this Mac. Tags are ordinary tags: edit or remove any of them and they stay gone.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Sidebar sections") {
                     Toggle("Collections", isOn: $showCollections)

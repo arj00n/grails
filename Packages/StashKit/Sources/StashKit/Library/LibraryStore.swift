@@ -259,8 +259,8 @@ public actor LibraryStore {
 
     // MARK: Internals
 
-    func persist(_ item: Item) async throws {
-        noteBefore(item: item.id)
+    func persist(_ item: Item, record: Bool = true) async throws {
+        if record { noteBefore(item: item.id) }
         let url = layout.itemJSON(item.id)
         try AtomicFile.writeJSON(item, to: url)
         try await index.upsert(item, mtime: FileStat.mtime(url) ?? 0)

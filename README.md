@@ -7,7 +7,9 @@ synced folder (Google Drive, Dropbox, iCloud). No server, no accounts.
 ![Stash](docs/screenshots/m3-light.png)
 
 ## What it does
-- **Fast grid** (square or masonry) that stays smooth at 20,000+ items; zoom with pinch or ⌘-scroll, space to preview.
+- **Fast grid** (square or masonry) that stays smooth at 20,000+ items; pinch or ⌘-scroll to zoom smoothly, space to preview.
+- **Infinite canvas** next to the grid (⌘2): arrange items freely, per collection or tag, shared with the team.
+- **Auto-tags**, on-device: Apple's image recognition tags your new saves in the background. Nothing leaves the Mac.
 - **Organize**: collections and folders, tags with colours, likes, notes, smart folders (rule-based), filters and sort.
 - **Find**: ⌘K command palette, ⌘F full-text search (names, tags, notes, sources), "added by" filter.
 - **Capture**: paste (⌘V), drop on the menu bar item, a Chrome extension (right-click or ⌥-click any image), link cards

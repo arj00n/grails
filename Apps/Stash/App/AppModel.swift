@@ -154,6 +154,10 @@ final class AppModel {
     var searchFocusTick = 0
     var errorMessage: String?
     var importProgress: (done: Int, total: Int)?
+    var autoTagProgress: (done: Int, total: Int)?
+    @ObservationIgnored var autoTagTask: Task<Void, Never>?
+    @ObservationIgnored var autoTagGeneration = 0
+    @ObservationIgnored var autoTagSeenTotal = -1
     var renameProgress: (done: Int, total: Int)?
 
     private(set) var undoStack: [ChangeSet] = []
@@ -252,6 +256,8 @@ final class AppModel {
             } else {
                 store = try LibraryStore.create(at: url, name: url.deletingPathExtension().lastPathComponent, index: index, userHandle: userHandle)
             }
+            cancelAutoTag()
+            autoTagSeenTotal = -1
             self.store = store
             needsLibrary = false
             layout = store.layout
@@ -264,6 +270,7 @@ final class AppModel {
             undoStack = []
             redoStack = []
             await reload()
+            kickAutoTag()
             Self.logLaunchTime()
             await startCapture()
             if let delay = ProcessInfo.processInfo.environment["STASH_SIMULATE_REMOTE"].flatMap(Double.init), let layout {
@@ -372,6 +379,7 @@ final class AppModel {
             tags = tagList
             tagColors = colors
             totalCount = total
+            if autoTagSeenTotal >= 0, total > autoTagSeenTotal { kickAutoTag() }
             contributors = people.map { (who: $0.who, count: $0.count) }
             if viewMode == .canvas { await syncCanvas() }
         } catch {
@@ -530,6 +538,7 @@ final class AppModel {
         } catch { errorMessage = "Import failed: \(error.localizedDescription)" }
         importProgress = nil
         if recordUndo { await reload() }
+        kickAutoTag()
     }
 
     // MARK: Actions (menu items, grid shortcuts, ⌘K)
