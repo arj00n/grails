@@ -1,5 +1,8 @@
+import CoreGraphics
 import Foundation
+import ImageIO
 import Testing
+import UniformTypeIdentifiers
 @testable import StashKit
 
 @Suite struct StoreTests {
@@ -96,5 +99,33 @@ import Testing
         }
         var q = ItemQuery(); q.sort = .nameAsc
         #expect(try await store.index.query(q).map(\.name) == ["shot 1", "Shot 2", "Shot 10"])
+    }
+
+    @Test func cameraExifIsCapturedOnImport() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let png = TestSupport.makePNG(in: TestSupport.tempDir(), name: "src")
+        let jpg = png.deletingLastPathComponent().appendingPathComponent("shot.jpg")
+        let image = CGImageSourceCreateImageAtIndex(CGImageSourceCreateWithURL(png as CFURL, nil)!, 0, nil)!
+        let dest = CGImageDestinationCreateWithURL(jpg as CFURL, UTType.jpeg.identifier as CFString, 1, nil)!
+        CGImageDestinationAddImage(dest, image, [
+            kCGImagePropertyTIFFDictionary: [kCGImagePropertyTIFFMake: "Canon", kCGImagePropertyTIFFModel: "EOS R5"],
+            kCGImagePropertyExifDictionary: [kCGImagePropertyExifFNumber: 1.8, kCGImagePropertyExifISOSpeedRatings: [400]],
+        ] as CFDictionary)
+        #expect(CGImageDestinationFinalize(dest))
+        let item = try await store.addItem(fileAt: jpg).item
+        guard case .object(let cam)? = item.camera else { Issue.record("no camera info"); return }
+        #expect(cam["make"] == .string("Canon") && cam["model"] == .string("EOS R5"))
+        #expect(cam["iso"] == .int(400) && cam["aperture"] == .double(1.8))
+        #expect(try await store.item(id: item.id)?.camera == item.camera)
+    }
+
+    @Test func inboxIsItemsInNoCollection() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let c = try await store.createCollection(name: "C")
+        let dir = TestSupport.tempDir()
+        _ = try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "a", rgb: (1, 0, 0)), collectionIds: [c.id])
+        let loose = try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "b", rgb: (0, 1, 0))).item
+        var q = ItemQuery(); q.unfiled = true
+        #expect(try await store.index.query(q).map(\.id) == [loose.id])
     }
 }

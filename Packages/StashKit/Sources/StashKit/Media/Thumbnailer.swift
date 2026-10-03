@@ -21,6 +21,27 @@ public enum Thumbnailer {
         return orientation >= 5 ? ImageInfo(width: h, height: w) : ImageInfo(width: w, height: h)
     }
 
+    /// Camera, lens and exposure settings from EXIF/TIFF, as a JSON object. nil when the file has none.
+    public static func cameraInfo(at url: URL) -> JSONValue? {
+        guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] else { return nil }
+        let exif = props[kCGImagePropertyExifDictionary] as? [CFString: Any] ?? [:]
+        let tiff = props[kCGImagePropertyTIFFDictionary] as? [CFString: Any] ?? [:]
+        var out: [String: JSONValue] = [:]
+        func str(_ v: Any?) -> JSONValue? { (v as? String).map(JSONValue.string) }
+        func num(_ v: Any?) -> JSONValue? { (v as? NSNumber).map { .double($0.doubleValue) } }
+        if let v = str(tiff[kCGImagePropertyTIFFMake]) { out["make"] = v }
+        if let v = str(tiff[kCGImagePropertyTIFFModel]) { out["model"] = v }
+        if let v = str(exif[kCGImagePropertyExifLensModel]) { out["lens"] = v }
+        if let v = num(exif[kCGImagePropertyExifFocalLength]) { out["focalLength"] = v }
+        if let iso = (exif[kCGImagePropertyExifISOSpeedRatings] as? [NSNumber])?.first { out["iso"] = .int(iso.intValue) }
+        if let v = num(exif[kCGImagePropertyExifFNumber]) { out["aperture"] = v }
+        if let v = num(exif[kCGImagePropertyExifExposureTime]) { out["shutter"] = v }
+        if let v = num(exif[kCGImagePropertyExifExposureBiasValue]) { out["exposureBias"] = v }
+        if let v = str(exif[kCGImagePropertyExifDateTimeOriginal]) { out["capturedAt"] = v }
+        return out.isEmpty ? nil : .object(out)
+    }
+
     /// JPEG thumbnail (long edge `maxPixel`). Transparent images are flattened onto white.
     public static func jpegThumbnail(for url: URL, maxPixel: Int = Thumbnailer.maxPixel, quality: Double = 0.8) -> Data? {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }

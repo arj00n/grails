@@ -243,6 +243,7 @@ public final class LibraryIndex: Sendable {
             wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId = ?)")
             args += [c]
         }
+        if q.unfiled { wheres.append("NOT EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id)") }
         let whereSQL = wheres.joined(separator: " AND ")
         if count { return ("SELECT COUNT(*) FROM \(from) WHERE \(whereSQL)", args) }
 

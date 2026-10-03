@@ -24,6 +24,15 @@ import Testing
         #expect(back.addedAt == item.addedAt)
     }
 
+    @Test func manyRandomDatesRoundTripExactly() throws {
+        for _ in 0..<2000 {
+            let d = Date(timeIntervalSince1970: Double.random(in: 1_500_000_000...2_000_000_000)).roundedToMilliseconds
+            let item = Item(kind: .image, name: "n", addedAt: d, addedBy: "a")
+            let back = try StashJSON.decode(Item.self, from: StashJSON.encode(item))
+            #expect(back.addedAt == d && back.updatedAt == d)
+        }
+    }
+
     @Test func ulidsSortByTime() {
         let early = ULID(date: Date(timeIntervalSince1970: 1_700_000_000))
         let late = ULID(date: Date(timeIntervalSince1970: 1_800_000_000))

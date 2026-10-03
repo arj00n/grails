@@ -25,9 +25,9 @@ public struct RescanResult: Sendable, Equatable {
 /// Owns a library folder. All writes go through here: the files are the source of truth and the SQLite
 /// index is updated right after each write.
 public actor LibraryStore {
-    public let layout: LibraryLayout
+    public nonisolated let layout: LibraryLayout
     public private(set) var manifest: LibraryManifest
-    public let index: LibraryIndex
+    public nonisolated let index: LibraryIndex
     public var userHandle: String
 
     private init(layout: LibraryLayout, manifest: LibraryManifest, index: LibraryIndex, userHandle: String) {
@@ -51,16 +51,23 @@ public actor LibraryStore {
         return LibraryStore(layout: layout, manifest: manifest, index: idx, userHandle: userHandle)
     }
 
-    /// Opens a library and brings the index up to date with what is on disk.
+    /// Opens a library. With `rescan: true` (default) the index is brought up to date with disk before returning;
+    /// pass false to show the existing index immediately and call `rescan()` yourself in the background.
+    /// A discarded or empty index is always rebuilt first.
     public static func open(
-        at root: URL, index: LibraryIndex? = nil, userHandle: String = StashPaths.defaultUserHandle
+        at root: URL, index: LibraryIndex? = nil, userHandle: String = StashPaths.defaultUserHandle, rescan: Bool = true
     ) async throws -> LibraryStore {
         let layout = LibraryLayout(root: root)
         guard let data = try? Data(contentsOf: layout.manifestURL),
               let manifest = try? StashJSON.decode(LibraryManifest.self, from: data) else { throw StashError.notALibrary(root) }
         let idx = try index ?? LibraryIndex(path: StashPaths.indexURL(libraryId: manifest.id))
         let store = LibraryStore(layout: layout, manifest: manifest, index: idx, userHandle: userHandle)
-        if idx.wasReset { try await idx.rebuild(from: layout) } else { try await store.rescan() }
+        if idx.wasReset {
+            try await idx.rebuild(from: layout)
+        } else {
+            let empty = try await idx.stats().items == 0
+            if rescan || empty { try await store.rescan() }
+        }
         return store
     }
 
@@ -108,7 +115,7 @@ public actor LibraryStore {
             id: id, kind: prepared.kind, file: fileName, name: name ?? prepared.baseName,
             ext: prepared.ext.isEmpty ? nil : prepared.ext, bytes: prepared.bytes, width: prepared.width,
             height: prepared.height, sha256: prepared.sha256, source: source, tags: Self.dedupeTags(tags),
-            collections: orders, addedBy: userHandle
+            collections: orders, camera: prepared.camera, addedBy: userHandle
         )
         try await persist(item)
         return .added(item)
@@ -274,6 +281,7 @@ struct PreparedFile: Sendable {
     var width: Int?
     var height: Int?
     var thumbnail: Data?
+    var camera: JSONValue?
 
     init(url: URL) throws {
         guard FileManager.default.isReadableFile(atPath: url.path) else { throw StashError.unreadableFile(url) }
@@ -287,6 +295,7 @@ struct PreparedFile: Sendable {
             width = info?.width
             height = info?.height
             thumbnail = Thumbnailer.jpegThumbnail(for: url)
+            camera = Thumbnailer.cameraInfo(at: url)
         }
     }
 }

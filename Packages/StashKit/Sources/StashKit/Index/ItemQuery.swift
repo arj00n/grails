@@ -11,6 +11,8 @@ public struct ItemQuery: Sendable {
     public var tag: String?
     public var untagged = false
     public var collectionId: String?
+    /// Inbox: items that are in no collection
+    public var unfiled = false
     /// true = the Trash view
     public var deleted = false
     public var sort: ItemSort?
