@@ -155,6 +155,9 @@ final class AppModel {
     var errorMessage: String?
     var importProgress: (done: Int, total: Int)?
     var autoTagProgress: (done: Int, total: Int)?
+    /// A board import in progress: what it's doing, and how far (total 0 = still reading the board).
+    var boardImport: (label: String, done: Int, total: Int)?
+    @ObservationIgnored var boardImportTask: Task<Void, Never>?
     /// Tags auto-tagging has learned not to suggest in this library (too common to be useful).
     var autoTagSkipped: [String] = []
     @ObservationIgnored var autoTagTask: Task<Void, Never>?
@@ -494,11 +497,11 @@ final class AppModel {
         } catch { errorMessage = "Redo failed: \(error.localizedDescription)" }
     }
 
-    func showToast(_ text: String) {
+    func showToast(_ text: String, seconds: Double = 2.2) {
         toast = text
         toastTask?.cancel()
         toastTask = Task {
-            try? await Task.sleep(for: .seconds(2.2))
+            try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { toast = nil }
         }
     }

@@ -87,6 +87,14 @@ struct RootView: View {
                 ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Importing \(p.done) of \(p.total)…") }
                     .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)
             }
+            if let p = model.boardImport {
+                VStack(alignment: .leading, spacing: 6) {
+                    if p.total > 0 { ProgressView(value: Double(p.done), total: Double(p.total)) { Text("\(p.label) \(p.done) of \(p.total)…") } }
+                    else { ProgressView { Text(p.label) } }
+                }
+                .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 360)
+                .accessibilityIdentifier("board-import-progress")
+            }
             if let p = model.autoTagProgress {
                 ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Auto-tagging \(p.done) of \(p.total)…") }
                     .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)

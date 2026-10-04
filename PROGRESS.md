@@ -2,6 +2,19 @@
 
 ## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
 
+## Import from Are.na / Pinterest — 2026-10-04
+- ⇧⌘I, ⌘K "Import from Are.na or Pinterest…", File menu, or `stash-import <link> [--into Lib.stash]` (no `--into` = list only, downloads nothing).
+  Becomes a collection named after the board; re-importing only adds what's new (content-hash dedupe; dupes are filed into the collection too); one undo.
+- **Are.na**: public API v2 `channels/<slug>?per=100&page=n`, all pages. Image → file (original, falling back to large/display), Link/Media → link card, PDF/image/video
+  attachments → file; Text, nested channels, other attachments are skipped and counted. **Not verified live**: after one successful probe, Are.na began
+  answering every request from this machine with "403 Automated access blocked" and asked automated agents to stop, so no further live requests were made.
+  Code now identifies itself honestly (`Stash/0.1 …`, not a browser) and shows a specific "blocked" message. Try `stash-import <channel link>` yourself.
+- **Pinterest**: only the official public RSS feed (`/<user>/<board>.rss`) works without login: the latest ~25 pins, upgraded from 236 px to originals (falls back
+  to 1200/736). Pinterest's JSON API answers scripts with 403 and logged-out board pages carry no pin data. `pin.it` short links are resolved. Verified live
+  (list only: 25 pins, URLs well-formed); no pin images were downloaded outside stubbed tests. Full boards need the Chrome extension route (open the board while
+  logged in) — not built.
+- Tests: 9 kit tests with a stubbed network (paging, block types, fallback sizes, re-import, errors).
+
 ## UI simplification, canvas, auto-tagging — 2026-10-03 (post v0.1.0)
 - **Toolbar**: view switcher (Grid / Canvas), one Filter menu, info toggle. No zoom slider: pinch or ⌘-scroll zooms
   continuously (grid tiles 56–720 pt, settles to a filled row; ⌘+/⌘− step columns). ⌘1 Grid, ⌘2 Canvas, ⌘0 fit.
