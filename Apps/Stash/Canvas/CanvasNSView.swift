@@ -130,7 +130,7 @@ final class CanvasNSView: NSView {
         dust.zPosition = -1_000_000
         content.addSublayer(dust)
         dropOutline.fillColor = nil
-        dropOutline.lineDashPattern = [14, 10]
+        dropOutline.lineDashPattern = [0.1, 3]
         dropOutline.actions = ["path": NSNull(), "hidden": NSNull(), "position": NSNull(), "bounds": NSNull()]
         dropOutline.zPosition = 9_000
         dropOutline.isHidden = true
@@ -277,13 +277,27 @@ final class CanvasNSView: NSView {
         let live = Set(clusters.map(\.id))
         for (id, h) in headers where !live.contains(id) { h.removeFromSuperlayer(); headers[id] = nil }
         for c in clusters {
-            guard let f = clusterFrames[c.id] else { continue }
             let h = headers[c.id] ?? { let n = ClusterHeaderLayer(); content.addSublayer(n); headers[c.id] = n; return n }()
             h.contentsScale = backing
-            h.frame = CGRect(x: f.minX, y: -(f.minY + ClusterLayout.headerHeight), width: f.width, height: ClusterLayout.headerHeight)
             h.configure(title: c.title, count: members(of: c).count)
         }
+        updateHeaderGeometry()
         CATransaction.commit()
+    }
+
+    /// Title bars keep the same size on screen at every zoom, like Figma's frame names: each header is laid out in screen
+    /// points and scaled by 1/zoom, pinned just above its cluster's pictures.
+    private func updateHeaderGeometry() {
+        let inv = 1 / max(scale, 0.0001)
+        for c in clusters {
+            guard let f = clusterFrames[c.id], let h = headers[c.id] else { continue }
+            let widthPx = max(f.width * scale, 220)                 // a narrow cluster's name still has room
+            h.anchorPoint = .zero
+            h.bounds = CGRect(x: 0, y: 0, width: widthPx, height: ClusterHeaderLayer.heightPx)
+            h.position = CGPoint(x: f.minX, y: -(f.minY + ClusterLayout.headerHeight) + 7 * inv)
+            h.setAffineTransform(CGAffineTransform(scaleX: inv, y: inv))
+            h.showsGrip = f.width * scale >= 140
+        }
     }
 
     /// On big boards, every item gets a flat placeholder rectangle in one world-space layer underneath the real tiles.
@@ -322,6 +336,7 @@ final class CanvasNSView: NSView {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         content.setAffineTransform(CGAffineTransform(a: scale, b: 0, c: 0, d: scale, tx: -scale * origin.x, ty: bounds.height + scale * origin.y))
+        updateHeaderGeometry()
         syncLayers()
         updateSelectionVisuals()
         CATransaction.commit()
@@ -556,10 +571,13 @@ final class CanvasNSView: NSView {
     private func headerHit(atWorld p: CGPoint) -> HeaderHit? {
         for c in clusters.reversed() {
             guard let f = clusterFrames[c.id] else { continue }
-            let bar = CGRect(x: f.minX, y: f.minY, width: f.width, height: ClusterLayout.headerHeight)
+            // the label row sits just above the pictures; it is a fixed size on screen, so the grab area is too
+            let top = f.minY + ClusterLayout.headerHeight
+            let hitHeight = max(ClusterLayout.headerHeight, 34 / scale)
+            let bar = CGRect(x: f.minX, y: top - hitHeight, width: max(f.width, 220 / scale), height: hitHeight)
             guard bar.contains(p) else { continue }
-            let grip = max(60, 30 / scale)
-            return p.x > bar.maxX - grip ? .grip(c.id) : .title(c.id)
+            let grip = 30 / scale
+            return f.width * scale >= 140 && p.x > f.maxX - grip ? .grip(c.id) : .title(c.id)
         }
         return nil
     }
@@ -761,7 +779,9 @@ final class CanvasNSView: NSView {
             else { index = restVisible.last.flatMap { full.firstIndex(of: $0) }.map { $0 + 1 } ?? full.count }
             target = .cluster(host.id, index: index)
             key = "c:\(host.id):\(index)"
-            outline = (d.baseFrames[host.id] ?? .zero).insetBy(dx: -14, dy: -14)
+            // just the pictures: the title bar stays outside the outline
+            let frame = d.baseFrames[host.id] ?? .zero
+            outline = CGRect(x: frame.minX, y: frame.minY + ClusterLayout.headerHeight, width: frame.width, height: max(frame.height - ClusterLayout.headerHeight, 1))
             d.targetID = host.id
         } else {
             let tile = d.baseClusters.first { $0.items.contains(where: carried.contains) }?.tile ?? CanvasCluster.defaultTile
@@ -770,17 +790,21 @@ final class CanvasNSView: NSView {
             let x = (lead?.x ?? w.x - 60) + dx, y = (lead?.y ?? w.y - 60) + dy - ClusterLayout.headerHeight
             target = .newCluster(x: x, y: y, width: tile * 4.5, tile: tile)
             key = "n"
-            outline = CGRect(x: x, y: y, width: max(lead?.w ?? tile, 260), height: ClusterLayout.headerHeight + (lead?.h ?? tile)).insetBy(dx: -16, dy: -16)
+            outline = CGRect(x: x, y: y + ClusterLayout.headerHeight, width: lead?.w ?? tile, height: lead?.h ?? tile)      // where the first tile lands
             d.targetID = nil
         }
         // the outline of where it would land follows the pointer when making a new cluster
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         dropOutline.isHidden = false
-        dropOutline.lineWidth = 2.5 / max(scale, 0.0001)
-        dropOutline.lineDashPattern = [NSNumber(value: 14 / max(scale, 0.0001)), NSNumber(value: 10 / max(scale, 0.0001))]
-        dropOutline.path = CGPath(roundedRect: CGRect(x: outline.minX, y: -outline.maxY, width: outline.width, height: outline.height),
-                                  cornerWidth: 18 / max(scale, 0.0001), cornerHeight: 18 / max(scale, 0.0001), transform: nil)
+        // fine, screen-sized dots that stay the same at every zoom, hugging the pictures with a small radius
+        let px = 1 / max(scale, 0.0001)
+        let box = outline.insetBy(dx: -3 * px, dy: -3 * px)
+        dropOutline.lineWidth = 1 * px
+        dropOutline.lineCap = .round
+        dropOutline.lineDashPattern = [NSNumber(value: 0.1 * px), NSNumber(value: 3.2 * px)]      // round caps turn the dashes into dots
+        dropOutline.path = CGPath(roundedRect: CGRect(x: box.minX, y: -box.maxY, width: box.width, height: box.height),
+                                  cornerWidth: min(5 * px, box.width / 2), cornerHeight: min(5 * px, box.height / 2), transform: nil)
         CATransaction.commit()
 
         if key == "n" {
@@ -1172,24 +1196,28 @@ final class DustLayer: CALayer {
 }
 
 
-/// The title bar of one cluster: its name (or a faint "Untitled"), how many items it holds, and a grip at the right end
-/// that resizes the cluster.
+/// The label above one cluster: its name (or a faint "Untitled"), how many items it holds, and a small grip at the right
+/// end that resizes the cluster. Laid out in screen points; the canvas scales it by 1/zoom so it never changes size.
 final class ClusterHeaderLayer: CALayer {
+    static let heightPx: CGFloat = 24
     private let text = CATextLayer()
     private let grip = CAShapeLayer()
+    var showsGrip = true { didSet { grip.isHidden = !showsGrip } }
 
     override init() {
         super.init()
-        let none: [String: CAAction] = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull(), "frame": NSNull(), "string": NSNull(), "path": NSNull(), "hidden": NSNull()]
+        let none: [String: CAAction] = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull(), "frame": NSNull(), "string": NSNull(), "path": NSNull(),
+                                        "hidden": NSNull(), "transform": NSNull(), "anchorPoint": NSNull()]
         actions = none
         text.actions = none
         grip.actions = none
         text.truncationMode = .end
         text.alignmentMode = .left
         grip.fillColor = nil
-        grip.strokeColor = NSColor.white.withAlphaComponent(0.28).cgColor
-        grip.lineWidth = 3
+        grip.strokeColor = NSColor.white.withAlphaComponent(0.32).cgColor
+        grip.lineWidth = 1.4
         grip.lineCap = .round
+        grip.lineJoin = .round
         addSublayer(text)
         addSublayer(grip)
     }
@@ -1200,11 +1228,11 @@ final class ClusterHeaderLayer: CALayer {
     func configure(title: String, count: Int) {
         let s = NSMutableAttributedString()
         s.append(NSAttributedString(string: title.isEmpty ? "Untitled" : title, attributes: [
-            .font: NSFont.systemFont(ofSize: 36, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(title.isEmpty ? 0.30 : 0.92),
+            .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(title.isEmpty ? 0.34 : 0.92),
         ]))
-        s.append(NSAttributedString(string: "   \(count)", attributes: [
-            .font: NSFont.systemFont(ofSize: 26, weight: .regular), .foregroundColor: NSColor.white.withAlphaComponent(0.38),
+        s.append(NSAttributedString(string: "  \(count)", attributes: [
+            .font: NSFont.systemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.white.withAlphaComponent(0.40),
         ]))
         text.string = s
         text.contentsScale = contentsScale
@@ -1213,12 +1241,13 @@ final class ClusterHeaderLayer: CALayer {
 
     override func layoutSublayers() {
         super.layoutSublayers()
-        text.frame = CGRect(x: 4, y: 8, width: max(bounds.width - 80, 40), height: 52)
-        grip.frame = CGRect(x: max(bounds.width - 56, 0), y: 18, width: 44, height: 36)
+        let w = bounds.width
+        text.frame = CGRect(x: 1, y: 2, width: max(w - 30, 20), height: 20)
+        grip.frame = CGRect(x: max(w - 24, 0), y: 4, width: 24, height: 16)
         let p = CGMutablePath()
-        p.move(to: CGPoint(x: 6, y: 18)); p.addLine(to: CGPoint(x: 38, y: 18))
-        p.move(to: CGPoint(x: 14, y: 10)); p.addLine(to: CGPoint(x: 6, y: 18)); p.addLine(to: CGPoint(x: 14, y: 26))
-        p.move(to: CGPoint(x: 30, y: 10)); p.addLine(to: CGPoint(x: 38, y: 18)); p.addLine(to: CGPoint(x: 30, y: 26))
+        p.move(to: CGPoint(x: 4, y: 8)); p.addLine(to: CGPoint(x: 20, y: 8))
+        p.move(to: CGPoint(x: 8, y: 4)); p.addLine(to: CGPoint(x: 4, y: 8)); p.addLine(to: CGPoint(x: 8, y: 12))
+        p.move(to: CGPoint(x: 16, y: 4)); p.addLine(to: CGPoint(x: 20, y: 8)); p.addLine(to: CGPoint(x: 16, y: 12))
         grip.path = p
     }
 }
@@ -1267,6 +1296,9 @@ extension CanvasNSView {
             zoom(by: 0.62, at: CGPoint(x: bounds.midX, y: bounds.midY))
             await wait(0.8)
             snap("1-packed")
+            zoom(by: 0.3, at: CGPoint(x: bounds.midX, y: bounds.midY)); await wait(0.5); snap("1b-zoomed-out")
+            zoom(by: 9, at: CGPoint(x: bounds.midX, y: bounds.midY)); await wait(0.5); snap("1c-zoomed-in")
+            zoom(by: 1 / 2.7, at: CGPoint(x: bounds.midX, y: bounds.midY)); await wait(0.5)
 
             // 1. carry the second tile out onto empty canvas: a new cluster
             if let id = clusters.first?.items.dropFirst().first, let from = centre(of: id) {
