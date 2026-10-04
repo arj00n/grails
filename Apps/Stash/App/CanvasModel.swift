@@ -6,7 +6,11 @@ extension AppModel {
     /// Untagged, the Trash. They have no board; the canvas lays their items out as one temporary, read-only cluster,
     /// so nothing arranged or named there can leak into the real boards.
     var canvasIsDerived: Bool {
-        isSearching || filters.isActive || addedByFilter != nil || source == .liked || source == .untagged || source == .trash
+        if isSearching || filters.isActive || addedByFilter != nil { return true }
+        switch source {
+        case .liked, .untagged, .trash, .tag, .smart: return true
+        case .all, .inbox, .collection: return false
+        }
     }
 
     /// Which saved board the current view uses (nil for derived views).
@@ -16,28 +20,22 @@ extension AppModel {
         case .all: return CanvasKey.library
         case .inbox: return CanvasKey.inbox
         case .collection(let id): return CanvasKey.collection(id)
-        case .smart(let id): return CanvasKey.smart(id)
-        case .tag(let t): return CanvasKey.tag(t)
-        case .liked, .untagged, .trash: return nil
-        }
-    }
-
-    /// The automatic title of a derived view's single cluster.
-    var canvasDerivedTitle: String {
-        if isSearching { return "Results for “\(searchText.trimmingCharacters(in: .whitespaces))”" }
-        if let who = addedByFilter, !filters.isActive, source == .all { return "Added by \(who)" }
-        switch source {
-        case .liked: return "Liked"
-        case .untagged: return "Untagged"
-        case .trash: return "Trash"
-        default: return filters.isActive || addedByFilter != nil ? "Filtered" : ""
+        case .liked, .untagged, .trash, .tag, .smart: return nil
         }
     }
 
     /// Identifies what the canvas is showing, so it re-fits when the view changes. Derived views are never saved under it.
     var canvasViewKey: String? {
         if let key = canvasBoardKey { return key }
-        return "derived:" + (isSearching ? "search" : source == .liked ? "liked" : source == .untagged ? "untagged" : source == .trash ? "trash" : "filter")
+        if isSearching { return "derived:search" }
+        switch source {
+        case .liked: return "derived:liked"
+        case .untagged: return "derived:untagged"
+        case .trash: return "derived:trash"
+        case .tag(let t): return "derived:tag:\(t)"
+        case .smart(let id): return "derived:smart:\(id)"
+        default: return "derived:filter"
+        }
     }
 
     /// Makes sure the canvas has the right board loaded and every visible item belongs to a cluster.
@@ -45,9 +43,7 @@ extension AppModel {
         guard viewMode == .canvas else { return }
         guard let key = canvasBoardKey else {
             // A derived view (search, filters, Liked, Untagged, Trash) has no board: its items are one temporary, read-only cluster.
-            var temporary = ClusterOps.adopt(items.map(\.id), into: [])
-            if !temporary.isEmpty { temporary[0].title = canvasDerivedTitle }
-            canvasClusters = temporary
+            canvasClusters = ClusterOps.adopt(items.map(\.id), into: [])
             canvasLoadedKey = nil
             bumpCanvasVersion()
             return

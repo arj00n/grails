@@ -31,6 +31,7 @@ struct StashApp: App {
             }
             CommandGroup(after: .textEditing) {
                 Button("Find") { model.focusSearchTick += 1 }.keyboardShortcut("f")
+                Button("Back") { model.goBack() }.keyboardShortcut("[").disabled(!model.canGoBack)
             }
             CommandGroup(after: .sidebar) {
                 Button("Toggle Sidebar") { model.sidebarVisible.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])

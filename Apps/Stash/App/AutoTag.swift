@@ -43,6 +43,7 @@ extension AppModel {
                 Task { @MainActor in
                     guard model.autoTagGeneration == generation else { return }
                     model.autoTagProgress = done < total ? (done, total) : nil
+                    if done > 0, done % 6 == 0 { model.reloadSoon() }          // tags appear as they are added
                 }
             }
             if model.autoTagGeneration == generation { self.autoTagProgress = nil; self.autoTagTask = nil }

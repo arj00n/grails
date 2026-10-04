@@ -9,7 +9,8 @@ struct SidebarView: View {
     @AppStorage("sidebar.showTags") private var showTags = true
     @AppStorage("sidebar.expandCollections") private var expandCollections = true
     @AppStorage("sidebar.expandSmart") private var expandSmart = true
-    @AppStorage("sidebar.expandTags") private var expandTags = false
+    @AppStorage("sidebar.expandTags") private var expandTags = true
+    @State private var showAllTags = false
     @State private var targeted: String?
 
     private var topLevel: [StashCollection] { model.collections.filter { $0.parentId == nil && !$0.archived } }
@@ -75,7 +76,7 @@ struct SidebarView: View {
             if showTags {
                 Section("Tags", isExpanded: $expandTags) {
                     if model.tags.isEmpty { Text("No tags yet").foregroundStyle(Ink.tertiary).font(.callout).listRowSeparator(.hidden) }
-                    ForEach(model.tags, id: \.tag) { t in
+                    ForEach(showAllTags ? model.tags : Array(model.tags.prefix(14)), id: \.tag) { t in
                         SidebarRow(title: t.tag, symbol: model.tagColors[t.tag.lowercased()] == nil ? "number" : "circle.fill",
                                    tint: model.tagColor(t.tag), count: t.count)
                             .tag(Source.tag(t.tag))
@@ -92,6 +93,11 @@ struct SidebarView: View {
                                 Divider()
                                 Button("Delete Tag…", role: .destructive) { model.confirmDeleteTag(t.tag) }
                             }
+                    }
+                    if model.tags.count > 14 {
+                        Button(showAllTags ? "Show fewer" : "Show all \(model.tags.count)") { showAllTags.toggle() }
+                            .buttonStyle(.plain).font(.callout).foregroundStyle(Ink.secondary)
+                            .listRowSeparator(.hidden)
                     }
                 }
             }

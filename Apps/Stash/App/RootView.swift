@@ -39,6 +39,7 @@ struct RootView: View {
         }
         .animation(.smooth(duration: 0.25), value: model.sidebarVisible)
         .animation(.smooth(duration: 0.25), value: model.showInfo)
+        .animation(.smooth(duration: 0.2), value: model.viewChip)
     }
 
     // MARK: Content
@@ -118,6 +119,22 @@ struct RootView: View {
                 }
                 .padding(3).glassPill(interactive: true)
                 .padding(.leading, ChromeMetrics.shared.leading)
+                if let chip = model.viewChip {
+                    HStack(spacing: 7) {
+                        Image(systemName: chip.symbol).font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.secondary)
+                        Text(chip.label).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.text).lineLimit(1)
+                        Button { model.clearViewChip() } label: {
+                            Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(Ink.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Clear")
+                        .accessibilityIdentifier("clear-filter")
+                    }
+                    .padding(.horizontal, 13).frame(height: 40).frame(maxWidth: 220)
+                    .glassPill(interactive: true)
+                    .padding(.leading, 8)
+                    .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .leading)))
+                }
                 Spacer(minLength: 0)
                 HStack(spacing: 2) {
                     ForEach(ViewMode.allCases) { mode in

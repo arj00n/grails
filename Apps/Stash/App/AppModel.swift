@@ -112,12 +112,17 @@ final class AppModel {
     var source: Source = .all {
         didSet {
             guard oldValue != source else { return }
+            if !restoringHistory { pushHistory(ViewSnapshot(source: oldValue, addedBy: addedByFilter)) }
             scrollResetTick += 1
             selection = []
             if !searchText.isEmpty { searchText = "" } else { reloadSoon() }
         }
     }
     private(set) var items: [ItemSummary] = []
+    /// Views you came from, newest last, for Back.
+    @ObservationIgnored var viewHistory: [ViewSnapshot] = []
+    @ObservationIgnored var restoringHistory = false
+    var canGoBack: Bool { !viewHistory.isEmpty }
     /// Bumped on every reload so the grid can skip O(n) diffing.
     private(set) var itemsVersion = 0
     var selection: Set<String> = []

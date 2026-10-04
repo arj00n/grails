@@ -23,7 +23,7 @@ final class CanvasNSView: NSView {
     var onViewportSettled: ((String, CGPoint, CGFloat) -> Void)?
     var onOptionClick: ((String) -> Void)?
     /// False in views that have no board to save to (the Trash): items can be selected and previewed but not rearranged.
-    var editable = true
+    var editable = true { didSet { if oldValue != editable { for h in headers.values { h.isHidden = !editable } } } }
 
     // MARK: Data
     var layout: LibraryLayout?
@@ -315,6 +315,7 @@ final class CanvasNSView: NSView {
         for c in clusters where live.contains(c.id) {
             let h = headers[c.id] ?? { let n = ClusterHeaderLayer(); content.addSublayer(n); headers[c.id] = n; return n }()
             h.contentsScale = backing
+            h.isHidden = !editable
             h.configure(title: c.title, count: members(of: c).count)
         }
         updateHeaderGeometry()
