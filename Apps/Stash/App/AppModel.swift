@@ -156,8 +156,14 @@ final class AppModel {
     var importProgress: (done: Int, total: Int)?
     var autoTagProgress: (done: Int, total: Int)?
     var focusSearchTick = 0
+    /// Remembers a UI preference, except in dev and test runs (STASH_LIBRARY): those share this app's preferences with the
+    /// installed copy, and a test that switches to the canvas must not leave the real app opening on the canvas.
+    static func remember(_ value: Any, _ key: String) {
+        guard ProcessInfo.processInfo.environment["STASH_LIBRARY"] == nil else { return }
+        UserDefaults.standard.set(value, forKey: key)
+    }
     var sidebarVisible: Bool = UserDefaults.standard.object(forKey: "sidebar.visible") == nil || UserDefaults.standard.bool(forKey: "sidebar.visible") {
-        didSet { UserDefaults.standard.set(sidebarVisible, forKey: "sidebar.visible") }
+        didSet { Self.remember(sidebarVisible, "sidebar.visible") }
     }
     /// A board import in progress: what it's doing, and how far (total 0 = still reading the board).
     var boardImport: (label: String, done: Int, total: Int)?
@@ -175,10 +181,10 @@ final class AppModel {
     var redoTitle: String? { redoStack.last.map { "Redo \($0.label)" } }
 
     /// Persisted tile width for the grid (the grid writes it back after a zoom gesture settles).
-    var tileWidth: CGFloat { didSet { UserDefaults.standard.set(Double(tileWidth), forKey: "tileWidth") } }
+    var tileWidth: CGFloat { didSet { Self.remember(Double(tileWidth), "tileWidth") } }
     /// Grid tile shape: squares, or each image's own proportions.
-    var layoutMode: GridLayoutMode { didSet { UserDefaults.standard.set(layoutMode.rawValue, forKey: "layoutMode") } }
-    var viewMode: ViewMode { didSet { UserDefaults.standard.set(viewMode.rawValue, forKey: "viewMode"); if viewMode == .canvas { Task { await syncCanvas() } } } }
+    var layoutMode: GridLayoutMode { didSet { Self.remember(layoutMode.rawValue, "layoutMode") } }
+    var viewMode: ViewMode { didSet { Self.remember(viewMode.rawValue, "viewMode"); if viewMode == .canvas { Task { await syncCanvas() } } } }
 
     private var reloadTask: Task<Void, Never>?
     /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
