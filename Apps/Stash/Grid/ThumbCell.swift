@@ -183,6 +183,21 @@ final class ThumbCell: NSCollectionViewItem {
     }
 
     /// A section divider: just the cluster's title and how many items it holds.
+    /// The section title becomes an editable field; `commit` gets the new name.
+    func beginRenamingSection(text: String, commit: @escaping (String) -> Void) {
+        guard isSection else { return }
+        view.layoutSubtreeIfNeeded()
+        let field = InlineTitleField(text: text, font: .systemFont(ofSize: 24, weight: .semibold))
+        sectionLabel.isHidden = true
+        field.onFinish = { [weak self] new in
+            self?.sectionLabel.isHidden = false
+            self?.view.window?.makeFirstResponder(self?.view.superview)
+            if let new, new.trimmingCharacters(in: .whitespaces) != text { commit(new) }
+        }
+        let r = sectionLabel.frame
+        field.begin(in: view, frame: NSRect(x: 0, y: max(r.minY - 3, 0), width: min(view.bounds.width, 520), height: 34))
+    }
+
     func configureSection(_ s: ItemSummary) {
         op?.cancel()
         source = nil

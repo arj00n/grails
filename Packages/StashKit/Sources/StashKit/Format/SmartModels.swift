@@ -71,8 +71,12 @@ public struct TagMeta: Codable, Hashable, Sendable {
     /// True when auto-tagging must not suggest this tag in this library (set when it proved too common to be useful,
     /// or when a person deleted the tag).
     public var noAuto: Bool?
-    public init(color: String? = nil, order: String? = nil, noAuto: Bool? = nil) { self.color = color; self.order = order; self.noAuto = noAuto }
-    var isEmpty: Bool { color == nil && order == nil && noAuto != true }
+    /// Set when this tag was merged into a similar one: new suggestions of it are written as that tag.
+    public var mergedInto: String?
+    public init(color: String? = nil, order: String? = nil, noAuto: Bool? = nil, mergedInto: String? = nil) {
+        self.color = color; self.order = order; self.noAuto = noAuto; self.mergedInto = mergedInto
+    }
+    var isEmpty: Bool { color == nil && order == nil && noAuto != true && mergedInto == nil }
 }
 
 struct TagsFile: Codable {

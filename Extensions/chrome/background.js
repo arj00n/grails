@@ -1,6 +1,6 @@
 import { StashClient, StashError } from "./lib/client.js";
 import { buildBoardImport } from "./lib/pinterest.js";
-import { buildPayload, dataUrlToBase64, isDirectVideoUrl, menuTitleFor, updateRecents } from "./lib/payload.js";
+import { buildPayload, dataUrlToBase64, isDirectVideoUrl, isXPage, menuTitleFor, statusUrl, updateRecents } from "./lib/payload.js";
 
 const store = {
   async get() {
@@ -84,7 +84,28 @@ function pageVideoInfo(src) {
   return { poster: v.poster || null, frame };
 }
 
+/** On X, videos and GIFs stream in pieces and can't be saved from the page: Stash reads the post itself instead. */
+async function xPostFor({ kind, info, tab }) {
+  if (!isXPage(tab?.url || info.pageUrl)) return null;
+  if (kind === "link") return statusUrl(info.linkUrl);
+  if (kind === "page") return statusUrl(tab?.url || info.pageUrl);
+  if (kind !== "video") return null;
+  const tapped = tab ? await inPage(tab, info.frameId, () => window.__stashLastTweet) : undefined;
+  return statusUrl(tapped) || statusUrl(tab?.url || info.pageUrl);
+}
+
 async function saveFromTab({ kind, info, tab, collectionId, altClickImage }) {
+  const post = await xPostFor({ kind, info, tab });
+  if (post) {
+    try {
+      await client.importBoard({ source: "x", url: post });
+      notify(tab, true, "Saving the post's media to Stash");
+      return { ok: true };
+    } catch (e) {
+      notify(tab, false, e instanceof StashError ? e.message : String(e));
+      return null;
+    }
+  }
   const ev = { kind, collectionId, pageUrl: tab?.url || info.pageUrl, title: tab?.title };
   if (kind === "image") {
     ev.srcUrl = info.srcUrl;

@@ -24,7 +24,8 @@ struct CanvasView: NSViewRepresentable {
         context.coordinator.hitch?.start(on: v)
         v.onSelectionChange = { [weak model] ids in model?.selection = ids }
         v.onCommitClusters = { [weak model] clusters, label in model?.commitClusters(clusters, label: label) }
-        v.onRenameCluster = { [weak model] id in model?.promptRenameCluster(id) }
+        v.onRenameClusterTo = { [weak model] id, title in model?.renameCluster(id, to: title) }
+        model.beginClusterRename = { [weak v] id in v?.beginRename(id) }
         v.clusterMenuProvider = { [weak model] id in model?.clusterMenu(id) }
         v.onPreview = { [weak model] id in model?.openPreview(id) }
         v.onPaste = { [weak model] in model?.paste() }

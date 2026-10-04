@@ -197,6 +197,8 @@ final class AppModel {
     private var toastTask: Task<Void, Never>?
     // Canvas: free-form boards (see CanvasModel.swift)
     @ObservationIgnored var canvasClusters: [CanvasCluster] = []
+    /// Set by the canvas: starts editing a cluster's name in place.
+    @ObservationIgnored var beginClusterRename: ((String) -> Void)?
     /// The grid's titled sections (one per canvas cluster), or nil when the view shows a plain flat grid.
     var gridSections: [GridSection]?
     var sectionsVersion = 0
@@ -757,6 +759,15 @@ final class AppModel {
                 if self.source == .tag(tag) { self.source = .tag(name) }
                 await self.reload()
             }
+        }
+    }
+
+    /// Folds tags that mean the same ("poster", "posters"; "minimal", "minimalist") into the most used one.
+    func mergeSimilarTags() {
+        Task {
+            guard let merged = await perform("Merge Similar Tags", { try await $0.mergeSimilarTags() }) else { return }
+            if case .tag(let current) = source, let m = merged.first(where: { $0.from.lowercased() == current.lowercased() }) { source = .tag(m.into) }
+            showToast(merged.isEmpty ? "No similar tags" : "Merged \(merged.count) similar tag\(merged.count == 1 ? "" : "s")")
         }
     }
 

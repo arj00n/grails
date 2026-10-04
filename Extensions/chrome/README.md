@@ -19,3 +19,8 @@ Only extension origins are accepted; web pages are refused. Streaming videos (bl
 ## Tests
 - `cd Extensions/chrome-tests && node --test *.test.mjs` (payload building, client, port scanning, error mapping)
 - `Extensions/e2e/run.sh` drives a real Chrome with the extension loaded (via DevTools `Extensions.loadUnpacked`) against the real app.
+
+## Pinterest boards and X posts
+- On a board page, the popup's **Import this Pinterest board** scrolls the board and sends every pin to Stash.
+- On X, right-click or ⌥-click an image to save it at original size. Videos, GIFs and "Save page" on a post hand the post link to Stash, which saves all of
+  the post's media.

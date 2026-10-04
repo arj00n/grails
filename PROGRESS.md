@@ -2,6 +2,17 @@
 
 ## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
 
+## X posts, in-place cluster rename, similar-tag merging, smooth grid zoom — 2026-10-05
+- **Grid zoom** glides tiles between column counts (fractional column count in `TileLayout`, tiles lerp between the two neighbouring whole-column
+  arrangements, anchored on the tile under the pointer / centre); on release it eases to a whole count. Headless-checked only (screen was locked).
+- **X posts** (`TweetImport.swift`): paste or import an x.com / twitter.com post link (⇧⌘I, ⌘V, `stash-import`, extension `POST /api/v1/imports
+  {source:"x", url}`); reads the public embed data (fxtwitter as a fallback): photos at `name=orig`, GIFs as mp4, best-bitrate video mp4. Items land loose
+  (no collection) with the post as source link. The extension saves images on X at original size and routes video / GIF / post saves through the post link.
+- **Rename in place**: double-click a cluster name on the canvas or a section title in the grid (`InlineTitleField`); Return keeps, Esc cancels.
+- **Tags**: the sidebar Tags header has a chevron to collapse (count shown when collapsed) and a ⋯ menu with Merge Similar Tags. `TagSimilarity` /
+  `TagVocabulary`: case, spacing, plurals, word endings, British spelling, one-letter typos in long words (never numbers). The auto-tagger writes a
+  suggestion as the library's existing tag, runs a merge pass after bulk runs, and remembers merges (`mergedInto` in tags.json).
+
 ## Clusters, on-device VLM tags, Pinterest videos — 2026-10-04
 - **Canvas = clusters.** A cluster is a titled block whose items are packed edge to edge into rows that fill its width (`ClusterLayout.pack`, no gaps, short last
   row keeps the target height). You move clusters (drag the title bar), resize them (grip at the right end of the title bar), and carry items: within a cluster

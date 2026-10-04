@@ -4,6 +4,8 @@ import AppKit
 final class StashCollectionView: NSCollectionView {
     var onPreview: (() -> Void)?
     var onOpen: (() -> Void)?
+    /// Double-click on an item; true when it was a section title and got renamed in place instead of opened.
+    var onRenameSection: ((Int) -> Bool)?
     var onEscape: (() -> Void)?
     /// Multiplicative zoom (1.02 = 2% bigger) about a point in this view's coordinates, delivered continuously while
     /// pinching or ⌘-scrolling. `onZoomEnd` fires when the gesture finishes.
@@ -54,9 +56,9 @@ final class StashCollectionView: NSCollectionView {
             onOptionClick?(ip.item)
             return
         }
-        if event.clickCount == 2, indexPathForItem(at: convert(event.locationInWindow, from: nil)) != nil {
+        if event.clickCount == 2, let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)) {
             super.mouseDown(with: event)
-            onOpen?()
+            if onRenameSection?(ip.item) != true { onOpen?() }
         } else {
             super.mouseDown(with: event)
         }

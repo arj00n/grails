@@ -56,13 +56,24 @@ public enum CaptureError: Error, Equatable, LocalizedError {
 
 /// A whole board handed over by the browser extension (it scrolled the page and collected the pin ids).
 public struct BoardImportRequest: Codable, Sendable, Equatable {
-    public var source: String            // "pinterest"
+    public var source: String            // "pinterest", or "x" (a post link; Stash reads its media itself)
     public var name: String
     public var url: String?
     public var pinIds: [String]
-    public init(source: String = "pinterest", name: String, url: String? = nil, pinIds: [String]) {
+    public init(source: String = "pinterest", name: String = "", url: String? = nil, pinIds: [String] = []) {
         self.source = source; self.name = name; self.url = url; self.pinIds = pinIds
     }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        source = try c.decode(String.self, forKey: .source)
+        name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        url = try c.decodeIfPresent(String.self, forKey: .url)
+        pinIds = try c.decodeIfPresent([String].self, forKey: .pinIds) ?? []
+    }
+
+    /// Something the app can act on: pins to look up, or a post link to read.
+    public var isActionable: Bool { source == "x" ? url.flatMap(BoardRef.parse)?.isPost == true : !pinIds.isEmpty }
 }
 
 public struct BoardImportAccepted: Codable, Sendable, Equatable {

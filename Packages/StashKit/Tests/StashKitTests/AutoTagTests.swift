@@ -310,3 +310,75 @@ import Testing
         #expect(throws: (any Error).self) { _ = try ImageTagger.suggestions(forImageAt: url) }
     }
 }
+
+@Suite struct TagSimilarityTests {
+    @Test func sameWordInDifferentClothes() {
+        for (a, b) in [("poster", "posters"), ("Poster", "poster"), ("street-style", "street style"), ("minimal", "minimalist"), ("minimalism", "minimalist"),
+                       ("colour", "color"), ("glasses", "glass"), ("berries", "berry"), ("illustration", "illustrations"), ("typography", "typographys"),
+                       ("packaging", "packagings"), ("illustrate", "illustrated"),
+                       ("minimalistic", "minimalstic")] {
+            #expect(TagSimilarity.similar(a, b), "\(a) ~ \(b)")
+        }
+    }
+
+    @Test func differentWordsStayApart() {
+        for (a, b) in [("red", "bed"), ("cream", "dream"), ("dark", "park"), ("stage", "stag"), ("orange", "range"), ("food", "foot"), ("mint", "mind"),
+                       ("poster", "post"), ("blue", "blur"), ("glass", "class")] {
+            #expect(!TagSimilarity.similar(a, b), "\(a) !~ \(b)")
+        }
+    }
+
+    @Test func vocabularyWritesTagsTheWayTheLibraryDoes() {
+        let v = TagVocabulary(counts: [("poster", 30), ("minimal", 12), ("burger", 5)], aliases: ["hamburger": "burger"])
+        #expect(v.canonical("posters") == "poster")
+        #expect(v.canonical("Minimalist") == "minimal")
+        #expect(v.canonical("hamburger") == "burger")
+        #expect(v.canonical("pizza") == "pizza")
+        #expect(v.canonical("poster") == "poster")
+    }
+
+    @Test func mergeGroupsKeepTheMostUsedOne() {
+        let v = TagVocabulary(counts: [("posters", 4), ("poster", 20), ("Poster", 1), ("minimal", 9), ("minimalist", 3), ("food", 7)])
+        let g = v.mergeGroups()
+        #expect(g.count == 2)
+        #expect(g.first { $0.keep == "poster" }?.merge == ["posters"])        // "Poster" is the same tag as "poster" already
+        #expect(g.first { $0.keep == "minimal" }?.merge == ["minimalist"])
+    }
+
+    @Test func aColouredTagWinsTheMerge() {
+        let v = TagVocabulary(counts: [("brand", 20), ("brands", 3)], preferred: ["brands"])
+        #expect(v.mergeGroups().first?.keep == "brands")
+    }
+}
+
+@Suite struct TagNumbersTests {
+    @Test func numbersAreNotTypos() {
+        #expect(!TagSimilarity.similar("moodboard2024", "moodboard2025"))
+        #expect(!TagSimilarity.similar("thing12", "thing13"))
+    }
+}
+
+@Suite struct TagMergeTests {
+    @Test func similarTagsFoldIntoTheMostUsedAndStayFolded() async throws {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<5 { items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "m\(i)", rgb: (Double(i) / 5, 0.2, 0.6))).item) }
+        try await store.addTags(["poster"], to: [items[0].id, items[1].id, items[2].id])
+        try await store.addTags(["Posters", "minimalist"], to: [items[3].id])
+        try await store.addTags(["minimal"], to: [items[4].id])
+
+        let merged = try await store.mergeSimilarTags()
+        #expect(Set(merged.map(\.from)) == ["Posters", "minimalist"] || Set(merged.map(\.from)) == ["Posters", "minimal"])
+        #expect(try await store.item(id: items[3].id)?.tags.contains("poster") == true)
+        #expect(try await store.item(id: items[3].id)?.tags.contains("Posters") == false)
+        #expect(try await store.index.tagCounts().filter { $0.tag.lowercased().hasPrefix("poster") }.map(\.count) == [4])
+
+        // the machine suggesting the merged-away spelling again writes the surviving one
+        let v = try await store.tagVocabulary()
+        #expect(v.canonical("posters") == "poster")
+        let tagger = AutoTagger(store: store, classify: { _, _ in [TagSuggestion(tag: "posters", confidence: 1)] })
+        _ = await tagger.run(ids: [items[4].id])
+        #expect(try await store.item(id: items[4].id)?.tags.contains("poster") == true)
+    }
+}

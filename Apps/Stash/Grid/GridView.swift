@@ -31,6 +31,7 @@ struct GridView: NSViewRepresentable {
         cv.onPreview = { [weak c] in c?.previewSelection() }
         cv.onOpen = { [weak c] in c?.previewSelection() }
         cv.onEscape = { [weak c] in c?.escape() }
+        cv.onRenameSection = { [weak c] i in c?.beginRenameSection(at: i) ?? false }
         cv.onZoom = { [weak c] factor, p in c?.hitch?.noteActivity(); c?.zoom(by: factor, at: p) }
         cv.onZoomEnd = { [weak c] in c?.scheduleSettle(after: 0.03) }
         cv.onScrollActivity = { [weak c] in c?.hitch?.noteActivity() }
@@ -464,6 +465,15 @@ struct GridView: NSViewRepresentable {
             guard let cv = collectionView else { return }
             let first = cv.selectionIndexPaths.sorted().first(where: { items[safe: $0.item]?.kind != .section })
             if let id = first.flatMap({ items[safe: $0.item]?.id }) { model.openPreview(id) }
+        }
+
+        /// Double-clicking a section's title edits its name in place.
+        func beginRenameSection(at index: Int) -> Bool {
+            guard let cv = collectionView, let s = items[safe: index], s.kind == .section,
+                  let cell = cv.item(at: IndexPath(item: index, section: 0)) as? ThumbCell else { return false }
+            let id = s.id
+            cell.beginRenamingSection(text: s.name) { [weak self] name in self?.model.renameCluster(id, to: name) }
+            return true
         }
 
         func escape() {

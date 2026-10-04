@@ -48,3 +48,22 @@ test("helpers", () => {
   assert.deepEqual(r.map((x) => x.id), ["b", "a", "c"]);
   assert.equal(updateRecents(Array.from({ length: 5 }, (_, i) => ({ id: "" + i, name: "" })), { id: "z", name: "Z" }).length, 5);
 });
+
+import { isXPage, statusUrl, upgradeTwimg } from "../chrome/lib/payload.js";
+
+test("x: post links are recognised and normalised", () => {
+  assert.equal(statusUrl("https://x.com/ana/status/123/photo/1?s=20"), "https://x.com/ana/status/123");
+  assert.equal(statusUrl("https://twitter.com/ana/status/123"), "https://x.com/ana/status/123");
+  assert.equal(statusUrl("https://x.com/i/web/status/123"), "https://x.com/i/status/123");
+  assert.equal(statusUrl("https://x.com/ana"), null);
+  assert.equal(statusUrl("https://example.com/ana/status/123"), null);
+  assert.ok(isXPage("https://www.x.com/home"));
+  assert.ok(!isXPage("https://example.com"));
+});
+
+test("x: pictures are saved at original size", () => {
+  assert.equal(upgradeTwimg("https://pbs.twimg.com/media/ABC.jpg"), "https://pbs.twimg.com/media/ABC?format=jpg&name=orig");
+  assert.equal(upgradeTwimg("https://pbs.twimg.com/media/ABC?format=png&name=small"), "https://pbs.twimg.com/media/ABC?format=png&name=orig");
+  assert.equal(upgradeTwimg("https://pbs.twimg.com/profile_images/1/a.jpg"), "https://pbs.twimg.com/profile_images/1/a.jpg");
+  assert.equal(buildPayload({ kind: "image", srcUrl: "https://pbs.twimg.com/media/ABC?format=jpg&name=360x360", pageUrl: "https://x.com/home" }).mediaUrl, "https://pbs.twimg.com/media/ABC?format=jpg&name=orig");
+});

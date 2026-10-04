@@ -74,7 +74,7 @@ struct SidebarView: View {
             }
 
             if showTags {
-                Section("Tags", isExpanded: $expandTags) {
+                Section(isExpanded: $expandTags) {
                     if model.tags.isEmpty { Text("No tags yet").foregroundStyle(Ink.tertiary).font(.callout).listRowSeparator(.hidden) }
                     ForEach(showAllTags ? model.tags : Array(model.tags.prefix(14)), id: \.tag) { t in
                         SidebarRow(title: t.tag, symbol: model.tagColors[t.tag.lowercased()] == nil ? "number" : "circle.fill",
@@ -98,6 +98,26 @@ struct SidebarView: View {
                         Button(showAllTags ? "Show fewer" : "Show all \(model.tags.count)") { showAllTags.toggle() }
                             .buttonStyle(.plain).font(.callout).foregroundStyle(Ink.secondary)
                             .listRowSeparator(.hidden)
+                    }
+                } header: {
+                    HStack(spacing: 6) {
+                        Button { withAnimation(.smooth(duration: 0.2)) { expandTags.toggle() } } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                                    .rotationEffect(.degrees(expandTags ? 90 : 0)).frame(width: 10)
+                                Text("Tags")
+                                if !expandTags, !model.tags.isEmpty { Text("\(model.tags.count)").foregroundStyle(Ink.tertiary) }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("sidebar-tags-toggle")
+                        Spacer()
+                        Menu {
+                            Button("Merge Similar Tags") { model.mergeSimilarTags() }
+                        } label: { Image(systemName: "ellipsis") }
+                            .menuStyle(.borderlessButton).menuIndicator(.hidden).frame(width: 22)
+                            .accessibilityIdentifier("sidebar-tags-menu")
                     }
                 }
             }

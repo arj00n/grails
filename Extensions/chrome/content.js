@@ -14,6 +14,14 @@
     return null;
   }
 
+  // On X, remember which post a right-click or alt-click landed in, so videos and GIFs can be saved from the post.
+  function noteTweet(target) {
+    const article = target.closest?.("article");
+    const link = article && [...article.querySelectorAll('a[href*="/status/"]')].find((a) => a.querySelector("time"));
+    if (link) window.__stashLastTweet = new URL(link.getAttribute("href"), location.href).href;
+  }
+  document.addEventListener("contextmenu", (e) => noteTweet(e.target), true);
+
   document.addEventListener("click", (e) => {
     if (!e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
     const hit = imageUnder(e.clientX, e.clientY, e.target);

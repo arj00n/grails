@@ -14,7 +14,7 @@ final class CanvasNSView: NSView {
     var onSelectionChange: ((Set<String>) -> Void)?
     /// The board's clusters after an edit, plus an undo label ("Move on Canvas", "Group", …).
     var onCommitClusters: (([CanvasCluster], String) -> Void)?
-    var onRenameCluster: ((String) -> Void)?
+    var onRenameClusterTo: ((String, String) -> Void)?
     var onPreview: ((String) -> Void)?
     var keyHandler: ((NSEvent) -> Bool)?
     var contextMenuProvider: ((String) -> NSMenu?)?
@@ -315,11 +315,40 @@ final class CanvasNSView: NSView {
         for c in clusters where live.contains(c.id) {
             let h = headers[c.id] ?? { let n = ClusterHeaderLayer(); content.addSublayer(n); headers[c.id] = n; return n }()
             h.contentsScale = backing
-            h.isHidden = !editable
+            h.isHidden = !editable || renaming?.id == c.id
             h.configure(title: c.title, count: members(of: c).count)
         }
+        if let r = renaming, !live.contains(r.id) { r.field.finish(commit: false) }
         updateHeaderGeometry()
         CATransaction.commit()
+    }
+
+    // MARK: Renaming a cluster in place
+
+    private var renaming: (id: String, field: InlineTitleField)?
+
+    /// Double-clicking a cluster's name edits it right there.
+    func beginRename(_ id: String) {
+        guard editable, let c = clusters.first(where: { $0.id == id }), clusterFrames[id] != nil else { return }
+        renaming?.field.finish(commit: true)
+        let field = InlineTitleField(text: c.title, font: .systemFont(ofSize: 14, weight: .semibold))
+        field.onFinish = { [weak self] text in
+            guard let self else { return }
+            self.renaming = nil
+            self.headers[id]?.isHidden = !self.editable
+            self.window?.makeFirstResponder(self)
+            if let text, text.trimmingCharacters(in: .whitespaces) != c.title { self.onRenameClusterTo?(id, text) }
+        }
+        renaming = (id, field)
+        headers[id]?.isHidden = true
+        field.begin(in: self, frame: renameFrame(for: id))
+    }
+
+    /// Where the name sits on screen: just above the cluster's pictures, at a fixed size at every zoom.
+    private func renameFrame(for id: String) -> NSRect {
+        guard let f = clusterFrames[id] else { return .zero }
+        let s = screenPoint(CGPoint(x: f.minX, y: f.minY + ClusterLayout.headerHeight))
+        return NSRect(x: s.x - 5, y: s.y + 8, width: max(f.width * scale, 220) - 30, height: 22)
     }
 
     /// Title bars keep the same size on screen at every zoom, like Figma's frame names: each header is laid out in screen
@@ -335,6 +364,7 @@ final class CanvasNSView: NSView {
             h.setAffineTransform(CGAffineTransform(scaleX: inv, y: inv))
             h.showsGrip = f.width * scale >= 140
         }
+        if let r = renaming { r.field.frame = renameFrame(for: r.id) }
     }
 
     /// On big boards, every item gets a flat placeholder rectangle in one world-space layer underneath the real tiles.
@@ -642,7 +672,7 @@ final class CanvasNSView: NSView {
         if editable, let hit = headerHit(atWorld: w) {
             switch hit {
             case .title(let id):
-                if event.clickCount == 2 { onRenameCluster?(id); return }
+                if event.clickCount == 2 { beginRename(id); return }
                 if !selection.isEmpty { selection = []; notifySelection(); updateSelectionVisuals() }
                 drag = .cluster(BlockDrag(id: id, startWorld: w, startScreen: loc, baseClusters: clusters))
             case .grip(let id):

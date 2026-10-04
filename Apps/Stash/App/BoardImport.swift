@@ -9,7 +9,7 @@ extension AppModel {
         let clip = (NSPasteboard.general.string(forType: .string) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let looksRight = BoardRef.parse(clip) != nil || BoardRef.isPinterestShortLink(clip)
         prompt = PromptRequest(
-            title: "Import from Are.na or Pinterest",
+            title: "Import from Are.na, Pinterest or X",
             placeholder: "Board link", initial: looksRight ? clip : "", confirmTitle: "Import"
         ) { [weak self] link in
             guard let self, !link.trimmingCharacters(in: .whitespaces).isEmpty else { return }
@@ -30,6 +30,7 @@ extension AppModel {
     /// The browser extension scrolled a whole board and sent its pin ids; Stash looks them up and imports.
     func startPinterestImport(_ request: BoardImportRequest) {
         guard boardImportTask == nil else { showToast("An import is already running"); return }
+        if request.source == "x" { if let link = request.url { startBoardImport(link) }; return }
         boardImportTask = Task { [weak self] in
             await self?.importBoard(request: request)
             self?.boardImportTask = nil

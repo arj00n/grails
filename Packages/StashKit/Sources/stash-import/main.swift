@@ -7,7 +7,7 @@ import StashKit
 var args = Array(CommandLine.arguments.dropFirst())
 var libraryPath: String?
 if let i = args.firstIndex(of: "--into"), i + 1 < args.count { libraryPath = args[i + 1]; args.removeSubrange(i...(i + 1)) }
-guard let link = args.first else { print("usage: stash-import <are.na or pinterest board link> [--into Library.stash]"); exit(2) }
+guard let link = args.first else { print("usage: stash-import <are.na channel, pinterest board or x post link> [--into Library.stash]"); exit(2) }
 
 let importer = BoardImporter()
 do {

@@ -101,6 +101,8 @@ extension AppModel {
                     await importFiles(capture.files, collectionId: ctx.collectionId, tag: ctx.tags.first, recordUndo: false)
                 }
                 for url in capture.urls {
+                    // a post on X: bring in its pictures and videos rather than a link card
+                    if !forceLink, BoardRef.parse(url.absoluteString)?.isPost == true { startBoardImport(url.absoluteString); continue }
                     let kind = CaptureClassifier.classify(url.absoluteString).kind
                     let asLink = forceLink || kind == .page
                     let req = asLink

@@ -8,6 +8,7 @@ public struct AutoTagSummary: Sendable, Equatable {
     public var failed = 0
     public var learned: [String] = []   // tags found too common to be useful here; removed from machine-tagged items
     public var pruned = 0               // how many item tags that removed
+    public var merged = 0               // tags folded into a similar one that was already there
 }
 
 /// When a tag stops being informative: it sits on more than `maxShare` of the library (and at least `minCount` items).
@@ -49,6 +50,7 @@ public actor AutoTagger {
     private let classify: TagClassifier
     private let modelName: String
     private var ignored: Set<String> = []
+    private var vocabulary = TagVocabulary()
     public var options: ImageTaggerOptions
     public var policy = CommonTagPolicy()
 
@@ -83,6 +85,7 @@ public actor AutoTagger {
     ) async -> AutoTagSummary {
         var summary = AutoTagSummary()
         ignored = await store.autoTagIgnored()
+        vocabulary = (try? await store.tagVocabulary()) ?? TagVocabulary()
         var targets: [String]
         if let ids { targets = ids } else {
             var q = ItemQuery()
@@ -110,6 +113,7 @@ public actor AutoTagger {
         if ids == nil, !Task.isCancelled {
             let (learned, pruned) = await learnCommonTags()
             summary.learned = learned; summary.pruned = pruned
+            summary.merged = ((try? await store.mergeSimilarTags()) ?? []).count
         }
         return summary
     }
@@ -149,9 +153,16 @@ public actor AutoTagger {
         let result: Result<[TagSuggestion], Error> = await Task.detached(priority: .utility) {
             do { return .success(try await classify(source, options)) } catch { return .failure(error) }
         }.value
-        guard case .success(let suggestions) = result else { return .failed }
+        guard case .success(let raw) = result else { return .failed }
+        // "posters" when the library already says "poster": write it the way the library does
+        var seen = Set<String>()
+        let suggestions = raw.compactMap { s -> TagSuggestion? in
+            let tag = vocabulary.canonical(s.tag)
+            return seen.insert(tag.lowercased()).inserted ? TagSuggestion(tag: tag, confidence: s.confidence) : nil
+        }
         do {
             let added = try await store.applyAutoTags(id: id, suggestions: suggestions, model: modelName)
+            for s in suggestions { vocabulary.add(s.tag) }
             return added > 0 ? .tagged(added) : .nothingFound
         } catch { return .failed }
     }

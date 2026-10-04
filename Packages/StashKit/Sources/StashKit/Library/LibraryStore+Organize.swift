@@ -144,6 +144,42 @@ extension LibraryStore {
         return ids.count
     }
 
+    /// Every tag in the library with its use count, plus where tags were merged before.
+    public func tagVocabulary() async throws -> TagVocabulary {
+        let meta = tagMetadata()
+        let aliases = meta.compactMapValues(\.mergedInto)
+        let coloured = Set(meta.filter { $0.value.color != nil }.keys)
+        return TagVocabulary(counts: try await index.tagCounts(), aliases: aliases, preferred: coloured)
+    }
+
+    /// Folds tags that mean the same ("poster", "Posters", "minimalist"/"minimal") into the most used one and remembers it,
+    /// so the auto-tagger doesn't bring the duplicates back. Returns what was merged.
+    @discardableResult
+    public func mergeSimilarTags(progress: (@Sendable (Int, Int) -> Void)? = nil) async throws -> [(from: String, into: String)] {
+        let skip = autoTagIgnored()
+        let groups = try await tagVocabulary().mergeGroups().compactMap { g -> (keep: String, merge: [String])? in
+            let merge = g.merge.filter { !skip.contains($0.lowercased()) }
+            return merge.isEmpty || skip.contains(g.keep.lowercased()) ? nil : (g.keep, merge)
+        }
+        let total = groups.reduce(0) { $0 + $1.merge.count }
+        var done = 0
+        var merged: [(from: String, into: String)] = []
+        for g in groups {
+            for tag in g.merge {
+                try await renameTag(tag, to: g.keep)
+                merged.append((tag, g.keep))
+                done += 1
+                progress?(done, total)
+            }
+        }
+        if !merged.isEmpty {
+            var meta = tagMetadata()
+            for m in merged { var t = meta[m.from.lowercased()] ?? TagMeta(); t.mergedInto = m.into; meta[m.from.lowercased()] = t }
+            try writeTagMetadata(meta)
+        }
+        return merged
+    }
+
     @discardableResult
     public func deleteTag(_ tag: String) async throws -> Int {
         let ids = try await index.itemIds(withTag: tag)

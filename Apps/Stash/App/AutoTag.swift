@@ -49,10 +49,11 @@ extension AppModel {
             if model.autoTagGeneration == generation { self.autoTagProgress = nil; self.autoTagTask = nil }
             guard model.store === store else { return }
             await model.refreshAutoTagSkipped()
-            if summary.tagsAdded > 0 || summary.pruned > 0 { await model.reload() }
+            if summary.tagsAdded > 0 || summary.pruned > 0 || summary.merged > 0 { await model.reload() }
             if announce {
                 model.showToast(summary.tagsAdded > 0
                     ? "Added \(summary.tagsAdded) tag\(summary.tagsAdded == 1 ? "" : "s") to \(summary.tagged) item\(summary.tagged == 1 ? "" : "s")"
+                        + (summary.merged > 0 ? ", merged \(summary.merged) similar" : "")
                     : "No new tags found")
             }
         }

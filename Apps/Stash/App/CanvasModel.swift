@@ -97,16 +97,18 @@ extension AppModel {
 
     // MARK: Cluster commands
 
-    func promptRenameCluster(_ id: String) {
-        guard let c = canvasClusters.first(where: { $0.id == id }) else { return }
-        prompt = PromptRequest(title: "Cluster name", placeholder: "Name", initial: c.title, confirmTitle: "Rename") { [weak self] name in
-            guard let self else { return }
-            var next = self.canvasClusters
-            guard let i = next.firstIndex(where: { $0.id == id }) else { return }
-            next[i].title = name.trimmingCharacters(in: .whitespaces)
-            next[i].at = Date().timeIntervalSince1970
-            self.commitClusters(next, label: "Rename Cluster")
-        }
+    /// Names are edited in place on the canvas header (or the grid's section title).
+    func promptRenameCluster(_ id: String) { beginClusterRename?(id) }
+
+    func renameCluster(_ id: String, to title: String) {
+        // the grid's sections and the canvas share one list; prefer whichever is loaded for this view
+        let base = sectionKey != nil && sectionKey == canvasBoardKey && !sectionClusters.isEmpty ? sectionClusters : canvasClusters
+        var next = base
+        let name = title.trimmingCharacters(in: .whitespaces)
+        guard let i = next.firstIndex(where: { $0.id == id }), next[i].title != name else { return }
+        next[i].title = name
+        next[i].at = Date().timeIntervalSince1970
+        commitClusters(next, label: "Rename Cluster")
     }
 
     func setClusterTile(_ id: String, tile: Double) {

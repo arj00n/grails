@@ -13,7 +13,7 @@ public struct BoardImportSummary: Sendable, Equatable {
 
     /// "Added 48 items to “Interiors”" plus whatever else is worth saying.
     public var headline: String {
-        var s = "Added \(added) item\(added == 1 ? "" : "s") to “\(collectionName)”"
+        var s = "Added \(added) item\(added == 1 ? "" : "s")" + (collectionId == nil ? "" : " to “\(collectionName)”")
         var extra: [String] = []
         if alreadyHad > 0 { extra.append("\(alreadyHad) already in the library") }
         if failed > 0 { extra.append("\(failed) failed") }
@@ -33,10 +33,17 @@ extension BoardImporter {
     ) async throws -> BoardImportSummary {
         let name = (collectionName ?? board.name).trimmingCharacters(in: .whitespacesAndNewlines)
         var summary = BoardImportSummary(skipped: board.skipped, collectionName: name.isEmpty ? board.ref.service : name)
-        let existing = try await store.index.collections().first { !$0.archived && $0.parentId == nil && $0.kind == "collection" && $0.name.lowercased() == summary.collectionName.lowercased() }
-        let collection: StashCollection
-        if let existing { collection = existing } else { collection = try await store.createCollection(name: summary.collectionName) }
-        summary.collectionId = collection.id
+        // A single post's media isn't a board: it lands loose in the library.
+        let collectionId: String?
+        if board.ref.isPost {
+            collectionId = nil
+        } else {
+            let existing = try await store.index.collections().first { !$0.archived && $0.parentId == nil && $0.kind == "collection" && $0.name.lowercased() == summary.collectionName.lowercased() }
+            let collection: StashCollection
+            if let existing { collection = existing } else { collection = try await store.createCollection(name: summary.collectionName) }
+            summary.collectionId = collection.id
+            collectionId = collection.id
+        }
 
         let total = board.entries.count
         progress(0, total)
@@ -45,7 +52,7 @@ extension BoardImporter {
             func launch() {
                 guard next < total, !Task.isCancelled else { return }
                 let entry = board.entries[next]; next += 1
-                group.addTask { await Self.save(entry, collectionId: collection.id, tags: tags, store: store, service: service) }
+                group.addTask { await Self.save(entry, collectionId: collectionId, tags: tags, store: store, service: service) }
             }
             for _ in 0..<min(max(concurrency, 1), total) { launch() }
             for await outcome in group {
@@ -65,7 +72,7 @@ extension BoardImporter {
 
     enum Outcome: Sendable { case added, had, failed }
 
-    static func save(_ e: RemoteBoard.Entry, collectionId: String, tags: [String], store: LibraryStore, service: LibraryCaptureService) async -> Outcome {
+    static func save(_ e: RemoteBoard.Entry, collectionId: String?, tags: [String], store: LibraryStore, service: LibraryCaptureService) async -> Outcome {
         // Files: first URL that downloads wins. Links (no file URL): saved as a link card.
         let attempts: [SaveRequest] = e.mediaUrls.isEmpty
             ? [SaveRequest(pageUrl: e.pageUrl, title: e.title, collectionId: collectionId, tags: tags, author: e.author)]
@@ -75,7 +82,7 @@ extension BoardImporter {
             guard let result = try? await service.save(request) else { continue }
             if result.duplicate {
                 // identical content was already there (maybe filed elsewhere): file it in this collection too
-                try? await store.add(ids: [result.id], toCollection: collectionId)
+                if let collectionId { try? await store.add(ids: [result.id], toCollection: collectionId) }
                 return .had
             }
             return .added

@@ -4,20 +4,25 @@ import Foundation
 public enum BoardRef: Equatable, Sendable {
     case arena(slug: String)
     case pinterest(user: String, board: String)
+    case tweet(id: String, user: String?)
 
     public var service: String {
-        switch self { case .arena: "Are.na"; case .pinterest: "Pinterest" }
+        switch self { case .arena: "Are.na"; case .pinterest: "Pinterest"; case .tweet: "X" }
     }
 
     public var kindName: String {
-        switch self { case .arena: "channel"; case .pinterest: "board" }
+        switch self { case .arena: "channel"; case .pinterest: "board"; case .tweet: "post" }
     }
+
+    /// A single post: its media goes straight into the library rather than into a new collection.
+    public var isPost: Bool { if case .tweet = self { true } else { false } }
 
     /// Where the board lives on the web (stored as the items' page link when nothing better exists).
     public var webURL: URL {
         switch self {
         case .arena(let slug): URL(string: "https://www.are.na/channels/\(slug)")!
         case .pinterest(let user, let board): URL(string: "https://www.pinterest.com/\(user)/\(board)/")!
+        case .tweet(let id, let user): URL(string: "https://x.com/\(user ?? "i")/status/\(id)")!
         }
     }
 
@@ -41,11 +46,24 @@ public enum BoardRef: Equatable, Sendable {
             if parts.count >= 2, !arenaReserved.contains(parts[0].lowercased()) { return .arena(slug: parts[1]) }
             return nil
         }
+        if let tweet = tweetRef(host: host, parts: parts) { return tweet }
         if host.split(separator: ".").contains("pinterest") {   // pinterest.com, in.pinterest.com, pinterest.co.uk …
             guard parts.count >= 2, !pinterestReserved.contains(parts[0].lowercased()), !parts[1].hasPrefix("_") else { return nil }
             return .pinterest(user: parts[0], board: parts[1])
         }
         return nil
+    }
+
+    private static let tweetHosts: Set<String> = ["x.com", "twitter.com", "mobile.twitter.com", "mobile.x.com", "fxtwitter.com", "vxtwitter.com", "fixupx.com", "fixvx.com"]
+
+    /// x.com/name/status/123, twitter.com/name/status/123/photo/1, x.com/i/web/status/123 …
+    private static func tweetRef(host: String, parts: [String]) -> BoardRef? {
+        let h = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        guard tweetHosts.contains(h), let at = parts.firstIndex(where: { $0 == "status" || $0 == "statuses" }), at + 1 < parts.count else { return nil }
+        let id = parts[at + 1]
+        guard !id.isEmpty, id.allSatisfy(\.isNumber) else { return nil }
+        let user = at > 0 && parts[0] != "i" && parts[0] != "web" ? parts[0] : nil
+        return .tweet(id: id, user: user)
     }
 
     /// `pin.it/abc` and `pinterest.com/…` share links redirect to the board; the importer resolves them.
@@ -66,7 +84,7 @@ public enum BoardImportError: Error, LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .notABoardLink: "That doesn't look like an Are.na channel or a Pinterest board link."
+        case .notABoardLink: "That doesn't look like an Are.na channel, a Pinterest board or an X post."
         case .profileNotBoard: "That's a profile link. Paste a link to one board (pinterest.com/name/board)."
         case .notFoundOrPrivate(let what): "Couldn't find \(what), or it isn't public."
         case .blocked(let why): why
@@ -112,6 +130,7 @@ public struct BoardImporter: Sendable {
         switch ref {
         case .arena(let slug): try await fetchArena(slug: slug, progress: progress)
         case .pinterest(let user, let board): try await fetchPinterest(user: user, board: board, progress: progress)
+        case .tweet(let id, let user): try await fetchTweet(id: id, user: user)
         }
     }
 

@@ -299,3 +299,58 @@ import Testing
         #expect(ref == .pinterest(user: "ana", board: "dark-interiors"))
     }
 }
+
+@Suite struct XPostTests {
+    @Test func recognisesPostLinks() {
+        #expect(BoardRef.parse("https://x.com/BarackObama/status/266031293945503744") == .tweet(id: "266031293945503744", user: "BarackObama"))
+        #expect(BoardRef.parse("https://twitter.com/ana/status/123/photo/2?s=20") == .tweet(id: "123", user: "ana"))
+        #expect(BoardRef.parse("https://mobile.twitter.com/ana/statuses/123") == .tweet(id: "123", user: "ana"))
+        #expect(BoardRef.parse("x.com/i/web/status/123") == .tweet(id: "123", user: nil))
+        #expect(BoardRef.parse("https://x.com/ana") == nil)
+        #expect(BoardRef.parse("https://x.com/ana/status/abc") == nil)
+        #expect(BoardRef.parse("https://example.com/ana/status/123") == nil)
+        #expect(BoardRef.parse("https://x.com/ana/status/123")?.isPost == true)
+    }
+
+    @Test func photosAskForTheOriginal() {
+        let v = BoardImporter.photoVariants("https://pbs.twimg.com/media/A7EiDWcCYAAZT1D.jpg")
+        #expect(v.first == "https://pbs.twimg.com/media/A7EiDWcCYAAZT1D?format=jpg&name=orig")
+        #expect(v.last == "https://pbs.twimg.com/media/A7EiDWcCYAAZT1D.jpg")
+    }
+
+    @Test func mediaComesBackBestFirst() throws {
+        let json: [String: Any] = [
+            "text": "look at this https://t.co/abc",
+            "user": ["name": "Ana", "screen_name": "ana"],
+            "mediaDetails": [
+                ["type": "photo", "media_url_https": "https://pbs.twimg.com/media/P1.png"],
+                ["type": "video", "video_info": ["variants": [
+                    ["content_type": "application/x-mpegURL", "url": "https://video.twimg.com/a.m3u8"],
+                    ["content_type": "video/mp4", "bitrate": 256000, "url": "https://video.twimg.com/low.mp4"],
+                    ["content_type": "video/mp4", "bitrate": 2176000, "url": "https://video.twimg.com/high.mp4"],
+                ]]],
+                ["type": "animated_gif", "video_info": ["variants": [["content_type": "video/mp4", "bitrate": 0, "url": "https://video.twimg.com/tweet_video/g.mp4"]]]],
+            ],
+        ]
+        let board = try BoardImporter.tweetBoard(syndication: json, id: "9", userHint: nil)
+        #expect(board.entries.count == 3)
+        #expect(board.entries[0].mediaUrls.first == "https://pbs.twimg.com/media/P1?format=png&name=orig")
+        #expect(board.entries[1].mediaUrls == ["https://video.twimg.com/high.mp4", "https://video.twimg.com/low.mp4"])
+        #expect(board.entries[2].mediaUrls == ["https://video.twimg.com/tweet_video/g.mp4"])
+        #expect(board.entries[0].title == "look at this")
+        #expect(board.entries[0].pageUrl == "https://x.com/ana/status/9")
+        #expect(board.entries[0].author == "Ana")
+        #expect(board.ref.isPost)
+    }
+
+    @Test func aPostWithoutMediaIsSaidSo() {
+        #expect(throws: BoardImportError.self) { try BoardImporter.tweetBoard(syndication: ["text": "just words"], id: "9", userHint: "ana") }
+    }
+
+    @Test func importRequestsFromTheExtensionDecodeWithoutPinIds() throws {
+        let r = try JSONDecoder().decode(BoardImportRequest.self, from: Data(#"{"source":"x","url":"https://x.com/ana/status/123"}"#.utf8))
+        #expect(r.isActionable)
+        let empty = try JSONDecoder().decode(BoardImportRequest.self, from: Data(#"{"source":"pinterest","name":"b"}"#.utf8))
+        #expect(!empty.isActionable)
+    }
+}

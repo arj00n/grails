@@ -215,8 +215,8 @@ public final class LocalAPIServer: @unchecked Sendable {
                 }
             } catch { return .error(500, error.localizedDescription) }
         case ("POST", "/api/v1/imports"):
-            guard let r = try? JSONDecoder().decode(BoardImportRequest.self, from: req.body), !r.pinIds.isEmpty else {
-                return .error(400, "Body must be JSON: { source: \"pinterest\", name, url?, pinIds: [...] }")
+            guard let r = try? JSONDecoder().decode(BoardImportRequest.self, from: req.body), r.isActionable else {
+                return .error(400, "Body must be JSON: { source: \"pinterest\", name, url?, pinIds: [...] } or { source: \"x\", url }")
             }
             do { return .json(202, try await service.importBoard(r)) }
             catch let e as CaptureError {
