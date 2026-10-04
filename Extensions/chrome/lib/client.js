@@ -55,4 +55,5 @@ export class StashClient {
   ping() { return this._request("GET", "/api/v1/ping"); }
   collections() { return this._request("GET", "/api/v1/collections"); }
   save(payload) { return this._request("POST", "/api/v1/items", payload); }
+  importBoard(body) { return this._request("POST", "/api/v1/imports", body); }
 }

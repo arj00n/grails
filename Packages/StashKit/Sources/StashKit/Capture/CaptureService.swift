@@ -54,9 +54,32 @@ public enum CaptureError: Error, Equatable, LocalizedError {
     }
 }
 
+/// A whole board handed over by the browser extension (it scrolled the page and collected the pin ids).
+public struct BoardImportRequest: Codable, Sendable, Equatable {
+    public var source: String            // "pinterest"
+    public var name: String
+    public var url: String?
+    public var pinIds: [String]
+    public init(source: String = "pinterest", name: String, url: String? = nil, pinIds: [String]) {
+        self.source = source; self.name = name; self.url = url; self.pinIds = pinIds
+    }
+}
+
+public struct BoardImportAccepted: Codable, Sendable, Equatable {
+    public var ok = true
+    public var count: Int
+    public init(count: Int) { self.count = count }
+}
+
 /// What the local API (and the paste / menu bar paths) call to save things.
 public protocol CaptureService: Sendable {
     func save(_ request: SaveRequest) async throws -> SaveResult
     func collections() async -> [CollectionInfo]
+    /// Starts importing a board in the background; returns once it is accepted.
+    func importBoard(_ request: BoardImportRequest) async throws -> BoardImportAccepted
     var libraryName: String { get async }
+}
+
+extension CaptureService {
+    public func importBoard(_ request: BoardImportRequest) async throws -> BoardImportAccepted { throw CaptureError.unsupported("board import") }
 }

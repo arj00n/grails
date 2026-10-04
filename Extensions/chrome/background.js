@@ -1,4 +1,5 @@
 import { StashClient, StashError } from "./lib/client.js";
+import { buildBoardImport } from "./lib/pinterest.js";
 import { buildPayload, dataUrlToBase64, isDirectVideoUrl, menuTitleFor, updateRecents } from "./lib/payload.js";
 
 const store = {
@@ -140,6 +141,17 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     } else if (msg.type === "save-page") {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       respond(tab ? await saveFromTab({ kind: "page", info: { pageUrl: tab.url }, tab, collectionId: msg.collectionId }) : null);
+    } else if (msg.type === "board-collected") {
+      const body = buildBoardImport({ url: msg.url, title: msg.title, pinIds: msg.pinIds });
+      if (!body) { notify(sender.tab, false, "That doesn't look like a Pinterest board."); respond(null); return; }
+      try {
+        const r = await client.importBoard(body);
+        notify(sender.tab, true, `Sent ${r.count} pins to Stash. It's importing them now.`);
+        respond({ ok: true, count: r.count });
+      } catch (e) {
+        notify(sender.tab, false, e instanceof StashError ? e.message : String(e));
+        respond({ ok: false, error: String(e.message || e) });
+      }
     } else if (msg.type === "ping") {
       try { respond({ ok: true, ...(await client.ping()) }); } catch (e) { respond({ ok: false, kind: e.kind, error: e.message }); }
     } else if (msg.type === "collections") {

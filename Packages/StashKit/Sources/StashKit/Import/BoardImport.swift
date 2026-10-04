@@ -229,22 +229,43 @@ public struct BoardImporter: Sendable {
         }
         let feed = PinterestFeedParser.parse(data)
         guard !feed.pins.isEmpty else { throw BoardImportError.empty("That board") }
-        let entries = feed.pins.map { RemoteBoard.Entry(mediaUrls: Self.pinImageCandidates($0.image), pageUrl: $0.link, title: $0.title, author: user) }
-        progress(entries.count, entries.count)
-        var out = RemoteBoard(ref: .pinterest(user: user, board: board), name: feed.title ?? board.replacingOccurrences(of: "-", with: " "), entries: entries)
-        out.note = "Pinterest only shares a board's most recent pins publicly, so this brings in the latest \(entries.count)."
+        progress(feed.pins.count, nil)
+        let ref = BoardRef.pinterest(user: user, board: board)
+        let name = feed.title ?? board.replacingOccurrences(of: "-", with: " ")
+        var out = try await fetchPinterestPins(ids: feed.pins.map(\.id), ref: ref, name: name, author: user, fallback: feed.pins)
+        out.note = nil
+        if let total = out.expectedTotal, total > feed.pins.count {
+            out.note = "Pinterest only shares a board's \(feed.pins.count) most recent pins publicly (this board has \(total)). To bring in all \(total), open the board in Chrome and use the Stash extension's “Import this board”."
+        } else if out.expectedTotal == nil {
+            out.note = "Pinterest only shares a board's most recent pins publicly, so this brings in the latest \(feed.pins.count)."
+        }
+        progress(out.entries.count, out.expectedTotal)
         return out
     }
 
-    /// The feed carries a 236 px thumbnail; the same file exists at larger sizes under the same path.
-    static func pinImageCandidates(_ thumb: String) -> [String] {
-        guard let r = thumb.range(of: #"i\.pinimg\.com/\d+x/"#, options: .regularExpression) else { return [thumb] }
-        let pre = String(thumb[..<r.lowerBound]) + "i.pinimg.com/", post = String(thumb[r.upperBound...])
-        return ["\(pre)originals/\(post)", "\(pre)1200x/\(post)", "\(pre)736x/\(post)", thumb]
+    /// Resolves pins by id (from the feed, or sent by the browser extension that scrolled the whole board).
+    /// `fallback`: the feed's own thumbnails, used if Pinterest's pin lookup is unavailable.
+    public func fetchPinterestPins(ids: [String], ref: BoardRef, name: String, author: String?, fallback: [(id: String, link: String, title: String?, image: String)] = []) async throws -> RemoteBoard {
+        var board = RemoteBoard(ref: ref, name: name, entries: [])
+        do {
+            let r = try await PinterestPins.resolve(ids: ids, authorFallback: author, loader: loader)
+            board.entries = r.entries
+            board.skipped = r.skipped
+            board.expectedTotal = r.boardPinCount
+        } catch let e as BoardImportError {
+            // Without the lookup we can still save the feed's thumbnails (bigger versions of the same files).
+            if fallback.isEmpty { throw e }
+            board.entries = fallback.filter { !$0.image.isEmpty }.map {
+                .init(mediaUrls: PinterestPins.upgrade($0.image), pageUrl: $0.link, title: $0.title, author: author)
+            }
+            board.skipped = ["pins without a picture in the feed": fallback.filter { $0.image.isEmpty }.count].filter { $0.value > 0 }
+        }
+        guard !board.entries.isEmpty else { throw BoardImportError.empty("That board") }
+        return board
     }
 }
 
-struct PinterestFeed { var title: String?; var pins: [(link: String, title: String?, image: String)] }
+struct PinterestFeed { var title: String?; var pins: [(id: String, link: String, title: String?, image: String)] }
 
 /// Reads the board's public RSS feed.
 final class PinterestFeedParser: NSObject, XMLParserDelegate {
@@ -277,10 +298,10 @@ final class PinterestFeedParser: NSObject, XMLParserDelegate {
             case "description": desc = text
             case "item":
                 inItem = false
-                if let r = desc.range(of: #"src="([^"]+)""#, options: .regularExpression) {
-                    let src = String(desc[r]).dropFirst(5).dropLast()
-                    feed.pins.append((link: link, title: title.isEmpty ? nil : title, image: String(src)))
-                }
+                // a pin with no picture in the feed (a video, or a pin Pinterest can't render) is kept: its id can still be looked up
+                let src = desc.range(of: #"src="([^"]*)""#, options: .regularExpression).map { String(desc[$0]).dropFirst(5).dropLast() } ?? ""
+                let id = link.split(separator: "/").last(where: { !$0.isEmpty }).map(String.init) ?? ""
+                if !id.isEmpty { feed.pins.append((id: id, link: link, title: title.isEmpty ? nil : title, image: String(src))) }
             default: break
             }
         } else if name == "title", feed.title == nil, !t.isEmpty { feed.title = t }

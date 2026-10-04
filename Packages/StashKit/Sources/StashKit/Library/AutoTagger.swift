@@ -18,7 +18,28 @@ public struct CommonTagPolicy: Sendable {
     public init(minLibrary: Int = 40, minCount: Int = 12, maxShare: Double = 0.25) { self.minLibrary = minLibrary; self.minCount = minCount; self.maxShare = maxShare }
 }
 
-public typealias TagClassifier = @Sendable (URL, ImageTaggerOptions) throws -> [TagSuggestion]
+public typealias TagClassifier = @Sendable (URL, ImageTaggerOptions) async throws -> [TagSuggestion]
+
+extension AutoTagger {
+    /// The best classifier this Mac has: the on-device language model where it can see images (macOS 27 with Apple Intelligence),
+    /// the photo classifier otherwise, and the photo classifier again for any single image the language model declines.
+    public static let automatic: TagClassifier = { url, options in
+        #if canImport(FoundationModels)
+        if #available(macOS 27.0, *), LanguageModelTagger.isAvailable {
+            if let tags = try? await LanguageModelTagger.suggestions(forImageAt: url, options: options), !tags.isEmpty { return tags }
+        }
+        #endif
+        return try ImageTagger.suggestions(forImageAt: url, options: options)
+    }
+
+    /// Which engine `automatic` will use here, for what gets recorded on each item and shown in Settings.
+    public static var engineName: String {
+        #if canImport(FoundationModels)
+        if #available(macOS 27.0, *), LanguageModelTagger.isAvailable { return LanguageModelTagger.modelName }
+        #endif
+        return ImageTagger.modelName
+    }
+}
 
 /// Finds items that haven't been auto-tagged and tags them on-device, one at a time, in the background.
 /// Tags go into the item like any other (so they sync, search and filter), and the item remembers which ones the
@@ -26,23 +47,29 @@ public typealias TagClassifier = @Sendable (URL, ImageTaggerOptions) throws -> [
 public actor AutoTagger {
     private let store: LibraryStore
     private let classify: TagClassifier
+    private let modelName: String
     private var ignored: Set<String> = []
     public var options: ImageTaggerOptions
     public var policy = CommonTagPolicy()
 
     public init(
         store: LibraryStore, options: ImageTaggerOptions = .init(),
-        classify: @escaping TagClassifier = { url, options in try ImageTagger.suggestions(forImageAt: url, options: options) }
+        classify: @escaping TagClassifier = AutoTagger.automatic
     ) {
         self.store = store; self.options = options; self.classify = classify
+        self.modelName = AutoTagger.engineName
     }
 
     public func setOptions(_ o: ImageTaggerOptions) { options = o }
+
+    /// A better engine than the basic photo classifier is in use: items the classifier tagged earlier are worth redoing.
+    private var upgradeTarget: String? { modelName == ImageTagger.modelName ? nil : modelName }
 
     /// How many items are waiting. `addedBy` limits it to one person's items (so teammates don't all tag the same ones).
     public func pendingCount(addedBy: String? = nil) async -> Int {
         var q = ItemQuery()
         q.needsAutoTags = true
+        q.upgradeAutoTagsTo = upgradeTarget
         q.addedBy = addedBy
         return (try? await store.index.count(q)) ?? 0
     }
@@ -60,6 +87,7 @@ public actor AutoTagger {
         if let ids { targets = ids } else {
             var q = ItemQuery()
             q.needsAutoTags = true
+            q.upgradeAutoTagsTo = upgradeTarget
             q.addedBy = addedBy
             q.sort = .addedDesc          // newest first: what you just saved gets tags first
             q.limit = limit
@@ -112,18 +140,18 @@ public actor AutoTagger {
 
     func tagOne(_ id: String, force: Bool) async -> Outcome {
         guard let item = try? await store.item(id: id), item.deletedAt == nil else { return .skipped }
-        if !force, item.extras["autoTagged"] != nil { return .nothingFound }
+        if !force, item.isAutoTagged, item.autoTagModel == modelName || upgradeTarget == nil { return .nothingFound }
         guard let source = pictureURL(for: item) else { return .skipped }
         var options = self.options
         options.denylist.formUnion(ignored)          // learned noise doesn't take up one of the tag slots
         let classify = self.classify
         // Vision work happens off the actor so reads and writes on the library stay responsive.
         let result: Result<[TagSuggestion], Error> = await Task.detached(priority: .utility) {
-            Result { try classify(source, options) }
+            do { return .success(try await classify(source, options)) } catch { return .failure(error) }
         }.value
         guard case .success(let suggestions) = result else { return .failed }
         do {
-            let added = try await store.applyAutoTags(id: id, suggestions: suggestions, model: ImageTagger.modelName)
+            let added = try await store.applyAutoTags(id: id, suggestions: suggestions, model: modelName)
             return added > 0 ? .tagged(added) : .nothingFound
         } catch { return .failed }
     }
@@ -150,6 +178,11 @@ extension Item {
     }
 
     public var isAutoTagged: Bool { extras["autoTagged"] != nil }
+    /// Which engine produced the automatic tags.
+    public var autoTagModel: String? {
+        if case .object(let o)? = extras["autoTagged"], case .string(let m)? = o["model"] { return m }
+        return nil
+    }
 }
 
 extension LibraryStore {
@@ -193,13 +226,13 @@ extension LibraryStore {
     @discardableResult
     public func applyAutoTags(id: String, suggestions: [TagSuggestion], model: String) async throws -> Int {
         guard var item = try item(id: id) else { throw StashError.itemNotFound(id) }
+        // a re-tag (a better engine, or an explicit redo) replaces what the machine said before; a person's own tags stay
+        let previousMachine = Set(item.autoTags.map { $0.lowercased() })
+        if !previousMachine.isEmpty { item.tags.removeAll { previousMachine.contains($0.lowercased()) } }
         var have = Set(item.tags.map { $0.lowercased() })
         var added: [String] = []
         for s in suggestions where have.insert(s.tag.lowercased()).inserted { item.tags.append(s.tag); added.append(s.tag) }
-        var previous: [JSONValue] = []
-        if case .array(let a)? = item.extras["autoTags"] { previous = a }
-        let known = Set(previous.compactMap { if case .string(let s) = $0 { s.lowercased() } else { nil } })
-        item.extras["autoTags"] = .array(previous + added.filter { !known.contains($0.lowercased()) }.map(JSONValue.string))
+        item.extras["autoTags"] = .array(added.map(JSONValue.string))
         item.extras["autoTagged"] = .object(["model": .string(model), "at": .double(Date().timeIntervalSince1970)])
         item.updatedAt = .stashNow
         item.updatedBy = userHandle

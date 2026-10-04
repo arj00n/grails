@@ -23,7 +23,56 @@
     chrome.runtime.sendMessage({ type: "save-image", srcUrl: hit.src, title: hit.title });
   }, true);
 
-  chrome.runtime.onMessage.addListener((msg) => {
+  // ---- Import a whole Pinterest board: scroll it, collect pin ids, hand them to Stash ------------------------------
+  let collecting = false;
+  async function collectBoard() {
+    if (collecting || window !== window.top) return;
+    collecting = true;
+    const ids = new Set();
+    let stopped = false, finished = false;
+    const panel = document.createElement("div");
+    Object.assign(panel.style, {
+      position: "fixed", right: "18px", bottom: "18px", zIndex: 2147483647, padding: "12px 14px", borderRadius: "12px", display: "flex", gap: "12px", alignItems: "center",
+      font: "13px -apple-system, system-ui, sans-serif", color: "#fff", background: "rgba(20,20,20,.92)", boxShadow: "0 8px 30px rgba(0,0,0,.4)",
+    });
+    const label = document.createElement("span");
+    const stop = document.createElement("button");
+    stop.textContent = "Stop & import";
+    Object.assign(stop.style, { font: "inherit", padding: "5px 10px", borderRadius: "8px", border: "0", cursor: "pointer", background: "#fff", color: "#111" });
+    stop.onclick = () => { stopped = true; };
+    panel.append(label, stop);
+    document.documentElement.appendChild(panel);
+
+    const harvest = () => {
+      for (const a of document.querySelectorAll('a[href*="/pin/"]')) {
+        const m = /\/pin\/([A-Za-z0-9]+)\/?(?:[?#]|$)/.exec(a.getAttribute("href") || "");
+        if (m) ids.add(m[1]);
+      }
+    };
+    const startY = window.scrollY;
+    let idle = 0, lastCount = -1;
+    while (!stopped && idle < 6 && ids.size < 5000) {
+      harvest();
+      label.textContent = `Collecting pins… ${ids.size}`;
+      idle = ids.size === lastCount ? idle + 1 : 0;
+      lastCount = ids.size;
+      window.scrollBy(0, Math.max(window.innerHeight * 0.9, 600));
+      await new Promise((r) => setTimeout(r, 900));
+    }
+    harvest();
+    window.scrollTo(0, startY);
+    label.textContent = `Sending ${ids.size} pins to Stash…`;
+    stop.remove();
+    const result = await chrome.runtime.sendMessage({ type: "board-collected", url: location.href, title: document.title, pinIds: [...ids] });
+    label.textContent = result?.ok ? `Sent ${result.count} pins to Stash` : (result?.error || "Couldn't reach Stash");
+    finished = true;
+    setTimeout(() => panel.remove(), 4000);
+    collecting = false;
+    void finished;
+  }
+
+  chrome.runtime.onMessage.addListener((msg, sender, respond) => {
+    if (msg.type === "collect-board") { collectBoard(); respond({ started: true }); return; }
     if (msg.type !== "stash-toast") return;
     let el = document.getElementById("__stash_toast");
     el?.remove();

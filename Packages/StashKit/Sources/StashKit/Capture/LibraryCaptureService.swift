@@ -8,6 +8,8 @@ public final class LibraryCaptureService: CaptureService, @unchecked Sendable {
     private let download: LinkFetcher.Loader
     /// Called after each successful save (the app reloads its grid).
     public var onSaved: (@Sendable (SaveResult) -> Void)?
+    /// Called when the extension hands over a whole board (the app runs the import and shows its progress).
+    public var onBoardImport: (@Sendable (BoardImportRequest) -> Void)?
 
     public init(
         fetcher: LinkFetcher = LinkFetcher(),
@@ -23,6 +25,13 @@ public final class LibraryCaptureService: CaptureService, @unchecked Sendable {
         guard let store = await storeProvider() else { return [] }
         let all = (try? await store.index.collections()) ?? []
         return all.filter { !$0.archived }.map { CollectionInfo(id: $0.id, name: $0.name, kind: $0.kind, parentId: $0.parentId) }
+    }
+
+    public func importBoard(_ request: BoardImportRequest) async throws -> BoardImportAccepted {
+        guard await storeProvider() != nil else { throw CaptureError.noLibrary }
+        guard request.source == "pinterest", !request.pinIds.isEmpty, let handler = onBoardImport else { throw CaptureError.unsupported("nothing to import") }
+        handler(request)
+        return BoardImportAccepted(count: request.pinIds.count)
     }
 
     public func save(_ r: SaveRequest) async throws -> SaveResult {

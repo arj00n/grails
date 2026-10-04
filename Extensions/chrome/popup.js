@@ -1,3 +1,4 @@
+import { parseBoardUrl } from "./lib/pinterest.js";
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
 
@@ -22,7 +23,17 @@ async function refresh() {
 
 $("connect").addEventListener("click", async () => {
   await chrome.storage.local.set({ token: $("token").value.trim() });
-  await refresh();
+  await $("importBoard").addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab) return;
+  await chrome.tabs.sendMessage(tab.id, { type: "collect-board" }).catch(() => {});
+  window.close();           // progress shows on the page itself
+});
+(async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  $("board").hidden = !(tab?.url && parseBoardUrl(tab.url));
+})();
+refresh();
 });
 $("savePage").addEventListener("click", async () => {
   $("savePage").disabled = true;

@@ -90,6 +90,9 @@ struct GlassSearchField: NSViewRepresentable {
         f.isBordered = false
         f.drawsBackground = false
         f.focusRingType = .none
+        // The cell's own magnifier and clear button don't track the text when the field is focused: the icon stays put and the
+        // cursor ends up underneath it. The pill draws its own icon and clear button instead.
+        if let cell = f.cell as? NSSearchFieldCell { cell.searchButtonCell = nil; cell.cancelButtonCell = nil }
         f.font = .systemFont(ofSize: 14)
         f.textColor = NSColor.white.withAlphaComponent(0.92)
         f.placeholderAttributedString = NSAttributedString(
@@ -118,7 +121,10 @@ struct GlassSearchField: NSViewRepresentable {
         func controlTextDidChange(_ obj: Notification) {
             if let f = obj.object as? NSSearchField, parent.text != f.stringValue { parent.text = f.stringValue }
         }
-        func controlTextDidBeginEditing(_ obj: Notification) { parent.isFocused = true }
+        func controlTextDidBeginEditing(_ obj: Notification) {
+            parent.isFocused = true
+            (obj.userInfo?["NSFieldEditor"] as? NSTextView)?.insertionPointColor = .white
+        }
         func controlTextDidEndEditing(_ obj: Notification) { parent.isFocused = false }
 
         func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {

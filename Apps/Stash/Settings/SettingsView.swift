@@ -1,3 +1,4 @@
+import StashKit
 import SwiftUI
 
 struct SettingsView: View {
@@ -57,7 +58,10 @@ struct SettingsView: View {
                         .help("Tags the recognizer put on so many of your items that they stopped being useful. Learned from this library.")
                         Button("Reset skipped tags") { model.resetAutoTagSkipped() }
                     }
-                    Text("Uses Apple's on-device image recognition. Nothing leaves this Mac. Tags are ordinary tags: edit or remove any of them and they stay gone.")
+                    Text((AutoTagger.engineName == "apple-on-device-vlm"
+                          ? "Uses Apple's on-device model, which looks at each image and names the subject, kind of asset, style and colours."
+                          : "Uses Apple's on-device image recognition (this Mac can't run the richer model). Best on photos.")
+                         + " Nothing leaves this Mac. Tags are ordinary tags: edit or remove any of them and they stay gone.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Sidebar sections") {

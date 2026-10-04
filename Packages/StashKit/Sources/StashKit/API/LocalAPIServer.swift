@@ -214,7 +214,15 @@ public final class LocalAPIServer: @unchecked Sendable {
                 case .noLibrary: return .error(503, e.localizedDescription)
                 }
             } catch { return .error(500, error.localizedDescription) }
-        case (_, "/api/v1/ping"), (_, "/api/v1/collections"), (_, "/api/v1/items"):
+        case ("POST", "/api/v1/imports"):
+            guard let r = try? JSONDecoder().decode(BoardImportRequest.self, from: req.body), !r.pinIds.isEmpty else {
+                return .error(400, "Body must be JSON: { source: \"pinterest\", name, url?, pinIds: [...] }")
+            }
+            do { return .json(202, try await service.importBoard(r)) }
+            catch let e as CaptureError {
+                switch e { case .noLibrary: return .error(503, e.localizedDescription); default: return .error(400, e.localizedDescription) }
+            } catch { return .error(500, error.localizedDescription) }
+        case (_, "/api/v1/ping"), (_, "/api/v1/collections"), (_, "/api/v1/items"), (_, "/api/v1/imports"):
             return .error(405, "Method not allowed")
         default:
             return .error(404, "Not found")

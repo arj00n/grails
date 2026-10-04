@@ -190,8 +190,15 @@ final class ThumbCell: NSCollectionViewItem {
         titleLabel.isHidden = !(isLink && !showsPicture)
         siteLabel.isHidden = titleLabel.isHidden
         if isLink && !showsPicture { titleLabel.stringValue = s.name; siteLabel.stringValue = s.site ?? "" }
-        badge.isHidden = s.badge == nil
-        if let b = s.badge { badge.stringValue = " \(b.capitalized) " }
+        if s.kind == .video, let d = s.durationSec, d > 0 {
+            badge.isHidden = false
+            badge.stringValue = String(format: " ▶ %d:%02d ", Int(d) / 60, Int(d) % 60)
+            badge.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
+        } else {
+            badge.isHidden = s.badge == nil
+            badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
+            if let b = s.badge { badge.stringValue = " \(b.capitalized) " }
+        }
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         placeholder.image = NSImage(systemSymbolName: Self.symbol(for: s.kind), accessibilityDescription: nil)
         (view as? TileView)?.axLabel = s.name

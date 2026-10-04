@@ -52,3 +52,12 @@ test("an auth error stops the scan instead of trying every port", async () => {
   await assert.rejects(client.ping());
   assert.equal(calls.length, 1);
 });
+
+test("importBoard posts the pin ids to /api/v1/imports", async () => {
+  const { client, calls } = make(() => res(202, { ok: true, count: 3 }));
+  const r = await client.importBoard({ source: "pinterest", name: "x", pinIds: ["1", "2", "3"] });
+  assert.equal(r.count, 3);
+  assert.equal(calls[0].url, "http://127.0.0.1:47823/api/v1/imports");
+  assert.equal(calls[0].opts.method, "POST");
+  assert.deepEqual(JSON.parse(calls[0].opts.body).pinIds, ["1", "2", "3"]);
+});

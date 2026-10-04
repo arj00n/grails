@@ -17,6 +17,8 @@ public struct ItemQuery: Sendable {
     public var unfiled = false
     /// Pictures that haven't been auto-tagged yet
     public var needsAutoTags = false
+    /// With `needsAutoTags`: also match items an older engine tagged, so a better one can redo them.
+    public var upgradeAutoTagsTo: String? = nil
     /// Only items saved by this person (the `addedBy` handle)
     public var addedBy: String?
     /// Roughly square images (aspect ratio within 5% of 1:1)
@@ -56,4 +58,6 @@ public struct ItemSummary: Sendable, Hashable, Identifiable {
     public var linkDisplay: String?
     /// Links: a badge such as "figma"
     public var badge: String?
+    /// Videos: length in seconds
+    public var durationSec: Double? = nil
 }

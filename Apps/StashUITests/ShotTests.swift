@@ -32,6 +32,38 @@ final class ShotTests: XCTestCase {
         print("SHOT:", path)
     }
 
+    /// TEST_RUNNER_STASH_SHOT_QUERY=720w: search for it, open the first hit in the preview.
+    @MainActor
+    func testQueryShot() throws {
+        let q = ProcessInfo.processInfo.environment["STASH_SHOT_QUERY"] ?? ""
+        try XCTSkipIf(showcase.isEmpty || q.isEmpty)
+        let app = launch(view: "grid")
+        XCTAssertTrue(app.collectionViews["grid"].waitForExistence(timeout: 30))
+        shoot(app, "all")
+        let search = app.searchFields.firstMatch
+        search.click()
+        for ch in q { app.typeKey(String(ch), modifierFlags: []) }
+        app.typeKey(.return, modifierFlags: [])
+        Thread.sleep(forTimeInterval: 1.5)
+        app.collectionViews["grid"].coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: 120, dy: 140)).click()
+        shoot(app, "query-grid")
+        app.typeKey(" ", modifierFlags: [])
+        shoot(app, "query-preview")
+        app.terminate()
+    }
+
+    @MainActor
+    func testSearchShot() throws {
+        try XCTSkipIf(showcase.isEmpty)
+        let app = launch(view: "grid")
+        XCTAssertTrue(app.collectionViews["grid"].waitForExistence(timeout: 30))
+        app.searchFields.firstMatch.click()
+        shoot(app, "search-focused")
+        for ch in "burger" { app.typeKey(String(ch), modifierFlags: []) }
+        shoot(app, "search-typed")
+        app.terminate()
+    }
+
     @MainActor
     func testShots() throws {
         try XCTSkipIf(showcase.isEmpty)

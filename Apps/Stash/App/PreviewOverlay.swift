@@ -1,3 +1,4 @@
+import AVKit
 import AppKit
 import StashKit
 import SwiftUI
@@ -16,7 +17,13 @@ struct PreviewOverlay: View {
         ZStack {
             Color.black.opacity(0.88).ignoresSafeArea()
                 .onTapGesture { model.closePreview() }
-            if let image {
+            if let s = summary, s.kind == .video, let url = model.originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {
+                VideoPlayerView(url: url)
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .black.opacity(0.6), radius: 40, y: 12)
+                    .padding(40)
+                    .id(url)
+            } else if let image {
                 Image(nsImage: image).resizable().scaledToFit()
                     .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     .shadow(color: .black.opacity(0.6), radius: 40, y: 12)
@@ -72,5 +79,30 @@ struct PreviewOverlay: View {
             return ThumbnailLoader.decode(thumb, maxPixel: thumb.lastPathComponent == "snapshot.jpg" ? 1600 : 512)
         }.value
         if let cg, !Task.isCancelled { image = NSImage(cgImage: cg, size: .zero) }
+    }
+}
+
+
+/// A video in the preview: plays right away, with the standard controls.
+struct VideoPlayerView: NSViewRepresentable {
+    let url: URL
+
+    func makeNSView(context: Context) -> AVPlayerView {
+        let v = NonFocusingPlayerView()
+        v.controlsStyle = .floating
+        v.showsFullScreenToggleButton = false
+        let player = AVPlayer(url: url)
+        v.player = player
+        player.play()
+        return v
+    }
+
+    func updateNSView(_ v: AVPlayerView, context: Context) {}
+
+    static func dismantleNSView(_ v: AVPlayerView, coordinator: ()) { v.player?.pause(); v.player = nil }
+
+    /// Keeps the keyboard with the preview overlay, so Space and Esc still close it and ← → still step.
+    private final class NonFocusingPlayerView: AVPlayerView {
+        override var acceptsFirstResponder: Bool { false }
     }
 }

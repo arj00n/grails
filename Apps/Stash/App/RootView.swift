@@ -133,10 +133,15 @@ struct RootView: View {
 
     private var searchPill: some View {
         HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.secondary)
             GlassSearchField(text: $model.searchText, focusTick: model.focusSearchTick, isFocused: $searchFocused, onSubmit: { model.rememberSearch() })
                 .frame(height: 22)
+            if !model.searchText.isEmpty {
+                Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Ink.tertiary) }
+                    .buttonStyle(.plain).help("Clear search")
+            }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .frame(width: 380, height: 40)
         .glassPill()
         .overlay(alignment: .top) { recentSearches.offset(y: 46) }

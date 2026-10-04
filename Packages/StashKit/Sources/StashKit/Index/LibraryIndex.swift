@@ -87,6 +87,9 @@ public final class LibraryIndex: Sendable {
         m.registerMigration("v3-autotag") { db in
             try db.execute(sql: "ALTER TABLE items ADD COLUMN autoTaggedAt REAL")
         }
+        m.registerMigration("v4-autotag-model") { db in
+            try db.execute(sql: "ALTER TABLE items ADD COLUMN autoTagModel TEXT")      // which engine tagged it: a better engine can redo it
+        }
         return m
     }
 
@@ -270,7 +273,7 @@ public final class LibraryIndex: Sendable {
             height: r["height"], bytes: r["bytes"], liked: r["liked"],
             addedAt: Date(timeIntervalSince1970: r["addedAt"]), addedBy: r["addedBy"],
             deletedAt: (r["deletedAt"] as Double?).map { Date(timeIntervalSince1970: $0) },
-            site: r["sourceSite"], linkDisplay: r["linkDisplay"], badge: r["badge"]
+            site: r["sourceSite"], linkDisplay: r["linkDisplay"], badge: r["badge"], durationSec: r["durationSec"]
         )
     }
 
@@ -305,7 +308,15 @@ public final class LibraryIndex: Sendable {
             wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId IN (\(q.collectionIds.map { _ in "?" }.joined(separator: ","))))")
             for id in q.collectionIds.sorted() { args += [id] }
         }
-        if q.needsAutoTags { wheres.append("i.autoTaggedAt IS NULL AND i.kind IN ('image', 'gif', 'raw', 'link')") }
+        if q.needsAutoTags {
+            // never tagged, or (when a better engine is available) tagged by a different, older one
+            if let engine = q.upgradeAutoTagsTo {
+                wheres.append("(i.autoTaggedAt IS NULL OR i.autoTagModel IS NOT ?) AND i.kind IN ('image', 'gif', 'raw', 'link', 'video')")
+                args += [engine]
+            } else {
+                wheres.append("i.autoTaggedAt IS NULL AND i.kind IN ('image', 'gif', 'raw', 'link', 'video')")
+            }
+        }
         if let who = q.addedBy { wheres.append("i.addedBy = ?"); args += [who] }
         if q.squareOnly { wheres.append("i.width > 0 AND i.height > 0 AND ABS(i.width * 1.0 / i.height - 1.0) <= 0.05") }
         if let smart = q.smart {
@@ -329,7 +340,7 @@ public final class LibraryIndex: Sendable {
         }
         args += [q.limit, q.offset]
         return ("""
-        SELECT i.id, i.kind, i.name, i.ext, i.width, i.height, i.bytes, i.liked, i.addedAt, i.addedBy, i.deletedAt, i.sourceSite, i.linkDisplay, i.badge
+        SELECT i.id, i.kind, i.name, i.ext, i.width, i.height, i.bytes, i.liked, i.addedAt, i.addedBy, i.deletedAt, i.sourceSite, i.linkDisplay, i.badge, i.durationSec
         FROM \(from) WHERE \(whereSQL) ORDER BY \(order) LIMIT ? OFFSET ?
         """, args)
     }
@@ -337,7 +348,7 @@ public final class LibraryIndex: Sendable {
     private static let itemColumns = [
         "id", "kind", "name", "ext", "bytes", "width", "height", "durationSec", "sha256", "sourceUrl", "sourcePageUrl",
         "sourceSite", "sourceAuthor", "sourceTitle", "liked", "note", "ocrText", "addedAt", "addedBy", "updatedAt",
-        "updatedBy", "deletedAt", "mtime", "linkDisplay", "badge", "autoTaggedAt",
+        "updatedBy", "deletedAt", "mtime", "linkDisplay", "badge", "autoTaggedAt", "autoTagModel",
     ]
     private static let upsertSQL: String = {
         let cols = itemColumns.joined(separator: ", ")
@@ -353,7 +364,7 @@ public final class LibraryIndex: Sendable {
             item.sha256, s?.url, s?.pageUrl, s?.site, s?.author, s?.title, item.liked, item.note, item.ocrText,
             item.addedAt.timeIntervalSince1970, item.addedBy, item.updatedAt.timeIntervalSince1970, item.updatedBy,
             item.deletedAt?.timeIntervalSince1970, mtime, item.extras["linkDisplay"].flatMap(Self.string), item.extras["badge"].flatMap(Self.string),
-            Self.autoTaggedAt(item),
+            Self.autoTaggedAt(item), Self.autoTagModel(item),
         ])
         let rowid = try Int64.fetchOne(db, sql: "SELECT rowid FROM items WHERE id = ?", arguments: [item.id])!
         if !fresh {
@@ -374,6 +385,11 @@ public final class LibraryIndex: Sendable {
         let source = [s?.site, s?.title, s?.author].compactMap { $0 }.joined(separator: " ")
         try db.cachedStatement(sql: "INSERT INTO items_fts (rowid, name, tags, note, ocrText, source) VALUES (?,?,?,?,?,?)")
             .execute(arguments: [rowid, item.name, item.tags.joined(separator: " "), item.note, item.ocrText, source])
+    }
+
+    private static func autoTagModel(_ item: Item) -> String? {
+        guard case .object(let o)? = item.extras["autoTagged"], case .string(let m)? = o["model"] else { return nil }
+        return m
     }
 
     private static func autoTaggedAt(_ item: Item) -> Double? {

@@ -88,10 +88,15 @@ import Testing
         for _ in 0..<5 { #expect(spots(CanvasReflow.resolve(moved: ["i0"], in: board, hint: (1, 0.3))) == a) }
     }
 
+    struct Seeded: RandomNumberGenerator {
+        var s: UInt64
+        mutating func next() -> UInt64 { s = s &* 6364136223846793005 &+ 1442695040888963407; return s }
+    }
+
     @Test func randomBoardsEndUpWithoutOverlapsAroundTheDrop() {
-        var rng = SystemRandomNumberGenerator()
         var worst = 0
-        for trial in 0..<150 {
+        for trial in 0..<3000 {
+            var rng = Seeded(s: UInt64(trial) &+ 1)         // seeded: a failure names its trial and can be replayed
             // a tidy 7x7 grid, then one item dropped somewhere inside it
             var board: [String: CanvasPlacement] = [:]
             for i in 0..<49 { board["i\(i)"] = p(Double(i % 7) * 140, Double(i / 7) * 140, 120, 120) }

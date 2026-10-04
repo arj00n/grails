@@ -151,7 +151,7 @@ import Testing
 
     @Test func cancellationStopsPromptly() async throws {
         let (store, _) = try await library(30)
-        let tagger = AutoTagger(store: store, classify: { _, _ in Thread.sleep(forTimeInterval: 0.02); return [TagSuggestion(tag: "t", confidence: 1)] })
+        let tagger = AutoTagger(store: store, classify: { _, _ in try await Task.sleep(for: .milliseconds(20)); return [TagSuggestion(tag: "t", confidence: 1)] })
         let task = Task { await tagger.run() }
         try await Task.sleep(for: .milliseconds(150))
         task.cancel()
@@ -295,7 +295,7 @@ import Testing
         let tagged = try #require(try await store.item(id: item.id))
         #expect(tagged.isAutoTagged)
         #expect(tagged.tags == tagged.autoTags)
-        if case .object(let o)? = tagged.extras["autoTagged"], case .string(let m)? = o["model"] { #expect(m == ImageTagger.modelName) } else { Issue.record("model not recorded") }
+        if case .object(let o)? = tagged.extras["autoTagged"], case .string(let m)? = o["model"] { #expect(m == AutoTagger.engineName) } else { Issue.record("model not recorded") }
     }
 
     @Test func aBlankImageDoesNotCrashOrInventTags() throws {

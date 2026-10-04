@@ -116,7 +116,7 @@ public actor LibraryStore {
         let item = Item(
             id: id, kind: prepared.kind, file: fileName, name: name ?? prepared.baseName,
             ext: prepared.ext.isEmpty ? nil : prepared.ext, bytes: prepared.bytes, width: prepared.width,
-            height: prepared.height, sha256: prepared.sha256, source: source, tags: Self.dedupeTags(tags),
+            height: prepared.height, durationSec: prepared.durationSec, sha256: prepared.sha256, source: source, tags: Self.dedupeTags(tags),
             collections: orders, camera: prepared.camera, addedBy: userHandle
         )
         try await persist(item)
@@ -284,6 +284,7 @@ struct PreparedFile: Sendable {
     var height: Int?
     var thumbnail: Data?
     var camera: JSONValue?
+    var durationSec: Double?
 
     init(url: URL) throws {
         guard FileManager.default.isReadableFile(atPath: url.path) else { throw StashError.unreadableFile(url) }
@@ -298,6 +299,11 @@ struct PreparedFile: Sendable {
             height = info?.height
             thumbnail = Thumbnailer.jpegThumbnail(for: url)
             camera = Thumbnailer.cameraInfo(at: url)
+        } else if kind == .video, let v = Thumbnailer.videoInfo(at: url) {
+            width = v.width
+            height = v.height
+            durationSec = v.durationSec
+            thumbnail = v.poster
         }
     }
 }

@@ -1,4 +1,5 @@
 import CoreGraphics
+import AVFoundation
 import Foundation
 import ImageIO
 import UniformTypeIdentifiers
@@ -40,6 +41,29 @@ public enum Thumbnailer {
         if let v = num(exif[kCGImagePropertyExifExposureBiasValue]) { out["exposureBias"] = v }
         if let v = str(exif[kCGImagePropertyExifDateTimeOriginal]) { out["capturedAt"] = v }
         return out.isEmpty ? nil : .object(out)
+    }
+
+    public struct VideoInfo: Sendable { public var width: Int; public var height: Int; public var durationSec: Double; public var poster: Data? }
+
+    /// Size (as displayed), length and a poster frame of a video file. Runs synchronously: call it off the main thread.
+    @available(macOS, deprecated: 15.0, message: "synchronous AVFoundation reads are fine here: this runs on a background task")
+    public static func videoInfo(at url: URL, maxPixel: Int = Thumbnailer.maxPixel) -> VideoInfo? {
+        let asset = AVURLAsset(url: url)
+        guard let track = asset.tracks(withMediaType: .video).first else { return nil }
+        let size = track.naturalSize.applying(track.preferredTransform)
+        let w = Int(abs(size.width).rounded()), h = Int(abs(size.height).rounded())
+        guard w > 0, h > 0 else { return nil }
+        let seconds = CMTimeGetSeconds(asset.duration)
+        let duration = seconds.isFinite ? max(seconds, 0) : 0
+        let gen = AVAssetImageGenerator(asset: asset)
+        gen.appliesPreferredTrackTransform = true
+        gen.maximumSize = CGSize(width: maxPixel, height: maxPixel)
+        gen.requestedTimeToleranceBefore = .positiveInfinity
+        gen.requestedTimeToleranceAfter = .positiveInfinity
+        // a little way in, so the poster isn't the black first frame of a fade-in
+        let at = CMTime(seconds: min(max(duration * 0.2, 0), 1.0), preferredTimescale: 600)
+        let frame = (try? gen.copyCGImage(at: at, actualTime: nil)) ?? (try? gen.copyCGImage(at: .zero, actualTime: nil))
+        return VideoInfo(width: w, height: h, durationSec: duration, poster: frame.flatMap { encodeJPEG(flattened($0)) })
     }
 
     /// JPEG thumbnail (long edge `maxPixel`). Transparent images are flattened onto white.

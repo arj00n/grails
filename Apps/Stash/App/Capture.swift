@@ -44,11 +44,14 @@ extension AppModel {
         service.onSaved = { [weak self] result in
             Task { @MainActor in
                 guard let self else { return }
+                // a board import saves many items through here; it reloads once at the end and shows its own progress
+                guard self.boardImport == nil else { return }
                 await self.reload()
                 if !result.duplicate { self.showToast(result.kind == "link" ? "Saved link" : "Saved to Stash") }
                 if result.kind == "link", !result.duplicate { await self.autoSnapshotIfNeeded(id: result.id) }
             }
         }
+        service.onBoardImport = { [weak self] request in Task { @MainActor in self?.startPinterestImport(request) } }
         captureService = service
 
         if env["STASH_NO_API"] == nil {

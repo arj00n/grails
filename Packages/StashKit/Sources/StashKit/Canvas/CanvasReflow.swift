@@ -21,6 +21,7 @@ public enum CanvasReflow {
         for (id, p) in placements { grid.insert(id, rect(p)) }
         var pushes: [String: Int] = [:]
         var displaced = Set<String>()
+        let held = movers.sorted().compactMap { placements[$0] }.map { rect($0) }       // what pushed items must never be pushed back under
         var queue = movers.sorted()                 // sorted: the result never depends on dictionary order
         var head = 0
         var budget = max(placements.count * 4, 2_000)
@@ -35,7 +36,7 @@ public enum CanvasReflow {
                 guard box.intersects(zone) else { continue }
                 budget -= 1
                 if pushes[otherID, default: 0] >= maxPushesPerItem { continue }
-                let (dx, dy) = escape(other: box, from: rect(pusher), gap: gap, hint: hint)
+                let (dx, dy) = escape(other: box, from: rect(pusher), gap: gap, hint: hint, avoiding: held)
                 guard dx != 0 || dy != 0 else { continue }
                 other.x += dx; other.y += dy
                 if let home = placements[otherID], abs(other.x - home.x) > maxTravel || abs(other.y - home.y) > maxTravel { continue }
@@ -45,6 +46,25 @@ public enum CanvasReflow {
                 displaced.insert(otherID)
                 queue.append(otherID)               // what it now touches is pushed on in turn
             }
+        }
+        // Last word: whatever cascades did, nothing may be left beneath a dragged item.
+        for _ in 0..<4 {
+            var moved = false
+            for mover in held {
+                for otherID in grid.query(mover).sorted() where !movers.contains(otherID) {
+                    guard var other = current[otherID] else { continue }
+                    let box = rect(other)
+                    guard box.intersects(mover) else { continue }
+                    let (dx, dy) = escape(other: box, from: mover, gap: gap, hint: hint, avoiding: held)
+                    guard dx != 0 || dy != 0 else { continue }
+                    other.x += dx; other.y += dy
+                    grid.move(otherID, from: box, to: rect(other))
+                    current[otherID] = other
+                    displaced.insert(otherID)
+                    moved = true
+                }
+            }
+            if !moved { break }
         }
         let now = Date().timeIntervalSince1970
         var out: [String: CanvasPlacement] = [:]
@@ -57,7 +77,7 @@ public enum CanvasReflow {
     }
 
     /// The smallest slide that takes `other` clear of `pusher` plus `gap`, leaning towards the drag direction.
-    static func escape(other o: CGRect, from p: CGRect, gap: Double, hint: (dx: Double, dy: Double)) -> (Double, Double) {
+    static func escape(other o: CGRect, from p: CGRect, gap: Double, hint: (dx: Double, dy: Double), avoiding held: [CGRect] = []) -> (Double, Double) {
         // how far `other` must travel to clear the pusher in each direction
         let right = Double(p.maxX) + gap - Double(o.minX)
         let left = Double(o.maxX) - (Double(p.minX) - gap)
@@ -77,7 +97,10 @@ public enum CanvasReflow {
             if toward < 0 { bias += 0.25 }                 // sliding back through the pusher's middle feels wrong
             options[i].cost *= bias
         }
-        guard let best = options.filter({ $0.cost > 0 }).min(by: { ($0.cost, $0.dx, $0.dy) < ($1.cost, $1.dx, $1.dy) }) else { return (0, 0) }
+        let usable = options.filter { $0.cost > 0 }
+        // prefer a slide that doesn't end up under a dragged item; if every way does, take the cheapest anyway
+        let clear = usable.filter { opt in !held.contains { $0.intersects(o.offsetBy(dx: opt.dx, dy: opt.dy)) } }
+        guard let best = (clear.isEmpty ? usable : clear).min(by: { ($0.cost, $0.dx, $0.dy) < ($1.cost, $1.dx, $1.dy) }) else { return (0, 0) }
         return (best.dx, best.dy)
     }
 

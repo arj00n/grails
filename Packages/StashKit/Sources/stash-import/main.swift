@@ -21,8 +21,11 @@ do {
     for (why, n) in board.skipped.sorted(by: { $0.key < $1.key }) { print("  skipping \(n) \(why)") }
     if let note = board.note { print("  note: \(note)") }
     guard let libraryPath else {
-        for e in board.entries.prefix(12) { print("  - \(e.title ?? "(untitled)")  \(e.mediaUrls.first ?? e.pageUrl ?? "")") }
-        if board.entries.count > 12 { print("  … and \(board.entries.count - 12) more") }
+        let videos = board.entries.filter { $0.mediaUrls.first?.hasSuffix(".mp4") == true }
+        print("  \(videos.count) video\(videos.count == 1 ? "" : "s")")
+        for e in board.entries.prefix(8) { print("  - \(e.title ?? "(untitled)")  \(e.mediaUrls.first ?? e.pageUrl ?? "")\n      source: \(e.pageUrl ?? "-")") }
+        for e in videos { print("  ▶ \(e.mediaUrls.first ?? "")  (+\(e.mediaUrls.count - 1) fallbacks)") }
+        if board.entries.count > 8 { print("  … and \(board.entries.count - 8) more") }
         exit(0)
     }
     let store = try await LibraryStore.open(at: URL(fileURLWithPath: (libraryPath as NSString).expandingTildeInPath), index: nil, userHandle: NSUserName())

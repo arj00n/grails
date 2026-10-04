@@ -234,6 +234,7 @@ final class Recorder: @unchecked Sendable {
 
 actor FakeService: CaptureService {
     var saved: [SaveRequest] = []
+    var imports: [BoardImportRequest] = []
     var nextError: CaptureError?
     var libraryName: String { "Fake Library" }
     func setError(_ e: CaptureError?) { nextError = e }
@@ -243,6 +244,11 @@ actor FakeService: CaptureService {
         return SaveResult(id: "ID\(saved.count)", kind: "image", duplicate: r.title == "dup", name: r.title ?? "x")
     }
     func collections() async -> [CollectionInfo] { [CollectionInfo(id: "C1", name: "Packaging", kind: "collection", parentId: nil)] }
+    func importBoard(_ r: BoardImportRequest) async throws -> BoardImportAccepted {
+        if let e = nextError { throw e }
+        imports.append(r)
+        return BoardImportAccepted(count: r.pinIds.count)
+    }
 }
 
 @Suite(.serialized) struct LocalAPITests {
@@ -307,6 +313,33 @@ actor FakeService: CaptureService {
         #expect(cols.0 == 200 && colList.map(\.name) == ["Packaging"])
         #expect(try await call(base, "GET", "/api/v1/nope").0 == 404)
         #expect(try await call(base, "DELETE", "/api/v1/items").0 == 405)
+    }
+
+    @Test func acceptsABoardImportFromTheExtension() async throws {
+        let (server, svc, base) = try await start()
+        defer { server.stop() }
+        let body = try JSONEncoder().encode(BoardImportRequest(name: "swish", url: "https://www.pinterest.com/a/swish/", pinIds: ["1", "2", "3"]))
+        let ok = try await call(base, "POST", "/api/v1/imports", body: body)
+        #expect(ok.0 == 202)
+        #expect(try JSONDecoder().decode(BoardImportAccepted.self, from: ok.2).count == 3)
+        #expect(await svc.imports.first?.pinIds == ["1", "2", "3"])
+        #expect(try await call(base, "POST", "/api/v1/imports", token: nil, body: body).0 == 401)
+        #expect(try await call(base, "POST", "/api/v1/imports", body: Data("{}".utf8)).0 == 400)
+        #expect(try await call(base, "POST", "/api/v1/imports", body: JSONEncoder().encode(BoardImportRequest(name: "x", pinIds: []))).0 == 400)
+        #expect(try await call(base, "GET", "/api/v1/imports").0 == 405)
+        await svc.setError(.noLibrary)
+        #expect(try await call(base, "POST", "/api/v1/imports", body: body).0 == 503)
+    }
+
+    @Test func aLibraryServiceHandsTheBoardToTheApp() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let svc = LibraryCaptureService(store: { store })
+        await #expect(throws: CaptureError.self) { _ = try await svc.importBoard(BoardImportRequest(name: "x", pinIds: ["1"])) }     // nobody listening
+        final class Box: @unchecked Sendable { var got: BoardImportRequest? }
+        let box = Box()
+        svc.onBoardImport = { box.got = $0 }
+        let r = try await svc.importBoard(BoardImportRequest(name: "x", pinIds: ["1", "2"]))
+        #expect(r.count == 2 && box.got?.pinIds == ["1", "2"])
     }
 
     @Test func corsOnlyForExtensionOrigins() async throws {
