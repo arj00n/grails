@@ -22,6 +22,8 @@ final class CanvasNSView: NSView {
     var onPaste: (() -> Void)?
     var onViewportSettled: ((String, CGPoint, CGFloat) -> Void)?
     var onOptionClick: ((String) -> Void)?
+    /// False in views that have no board to save to (the Trash): items can be selected and previewed but not rearranged.
+    var editable = true
 
     // MARK: Data
     var layout: LibraryLayout?
@@ -195,17 +197,46 @@ final class CanvasNSView: NSView {
     func setClusters(_ new: [CanvasCluster], boardKey key: String?, savedViewport: (CGPoint, CGFloat)?) {
         let switched = key != boardKey
         boardKey = key
+        // where every tile is drawn right now, so a change to the same board can glide from there instead of redrawing
+        let before = switched ? [:] : drawnGeometry()
         clusters = new
         applyLayout()
-        for l in layers.values { recycle(l) }
-        layers.removeAll()
         if switched {
+            for l in layers.values { recycle(l) }
+            layers.removeAll()
             viewportDirty = false
             if let v = savedViewport { origin = v.0; scale = v.1; pendingFit = false } else { pendingFit = true }
         }
         applyViewport()
+        if !switched { glide(from: before) }
         fitIfPending()
         publishAccessibility()
+    }
+
+    private typealias Drawn = (position: CGPoint, bounds: CGRect)
+
+    private func drawnGeometry() -> [String: Drawn] {
+        var out: [String: Drawn] = [:]
+        for (id, l) in layers { out[id] = (l.presentation()?.position ?? l.position, l.presentation()?.bounds ?? l.bounds) }
+        return out
+    }
+
+    /// Tiles that were already on screen slide from where they were drawn to where the new layout puts them.
+    private func glide(from before: [String: Drawn], duration: CFTimeInterval = 0.32) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for (id, was) in before {
+            guard let layer = layers[id], layer.superlayer != nil else { continue }
+            if was.position == layer.position, was.bounds == layer.bounds { continue }
+            for (key, from, to) in [("position", NSValue(point: was.position), NSValue(point: layer.position)), ("bounds", NSValue(rect: was.bounds), NSValue(rect: layer.bounds))] {
+                let a = CABasicAnimation(keyPath: key)
+                a.fromValue = from; a.toValue = to
+                a.duration = duration
+                a.timingFunction = CAMediaTimingFunction(controlPoints: 0.2, 0.9, 0.25, 1)          // quick start, long soft landing
+                layer.add(a, forKey: "flow-" + key)
+            }
+        }
+        CATransaction.commit()
     }
 
     /// "Fit everything" is owed until there's both content and a real size; then it happens once, without animation.
@@ -247,6 +278,8 @@ final class CanvasNSView: NSView {
         var owner: [String: String] = [:]
         for c in clusters {
             let ids = members(of: c)
+            // a cluster with none of its items in this view (a filter, the Trash, another collection) isn't drawn at all
+            if ids.isEmpty { continue }
             let packed = pack(ids, for: c)
             let ox = c.x, oy = c.y + ClusterLayout.headerHeight
             for id in ids {
@@ -274,9 +307,9 @@ final class CanvasNSView: NSView {
     private func syncHeaders() {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let live = Set(clusters.map(\.id))
+        let live = Set(clusterFrames.keys)
         for (id, h) in headers where !live.contains(id) { h.removeFromSuperlayer(); headers[id] = nil }
-        for c in clusters {
+        for c in clusters where live.contains(c.id) {
             let h = headers[c.id] ?? { let n = ClusterHeaderLayer(); content.addSublayer(n); headers[c.id] = n; return n }()
             h.contentsScale = backing
             h.configure(title: c.title, count: members(of: c).count)
@@ -602,7 +635,7 @@ final class CanvasNSView: NSView {
         if spaceHeld { startPan(loc); return }
         let w = worldPoint(loc)
 
-        if let hit = headerHit(atWorld: w) {
+        if editable, let hit = headerHit(atWorld: w) {
             switch hit {
             case .title(let id):
                 if event.clickCount == 2 { onRenameCluster?(id); return }
@@ -629,6 +662,7 @@ final class CanvasNSView: NSView {
             updateSelectionVisuals()
             if event.clickCount == 2 { onPreview?(id); return }
             let ids = entries.filter { selection.contains($0.id) }.map(\.id)       // reading order
+            guard editable else { return }
             drag = .items(ItemDrag(ids: ids, startWorld: w, startScreen: loc, baseClusters: clusters, baseFrames: clusterFrames, basePlacements: placements))
         } else {
             let base: Set<String> = event.modifierFlags.contains(.shift) ? selection : []
@@ -733,7 +767,9 @@ final class CanvasNSView: NSView {
         guard !moved.isEmpty, pushEnabled() else { return cs }
         var board: [String: CanvasPlacement] = [:]
         for c in cs {
-            let f = frame(of: c, packed: pack(members(of: c), for: c))
+            let ids = members(of: c)
+            if ids.isEmpty { continue }
+            let f = frame(of: c, packed: pack(ids, for: c))
             board[c.id] = CanvasPlacement(x: f.minX, y: f.minY, w: f.width, h: f.height)
         }
         let out = CanvasReflow.resolve(moved: moved, in: board, hint: hint, gap: 160)
@@ -870,14 +906,15 @@ final class CanvasNSView: NSView {
 
     /// Puts every layer back where the layout says it belongs.
     private func restoreAfterDrag() {
-        for l in layers.values { l.removeAllAnimations() }
+        let before = drawnGeometry()
         applyLayout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         syncLayers()
-        for (id, l) in layers { l.zPosition = 0; _ = id }
+        for l in layers.values { l.zPosition = 0 }
         updateSelectionVisuals()
         CATransaction.commit()
+        glide(from: before)
     }
 
     /// Esc during a drag puts everything back.
@@ -910,10 +947,11 @@ final class CanvasNSView: NSView {
 
     /// Arranges the cluster blocks into tidy rows.
     func tidyClusters() {
-        guard !clusters.isEmpty else { return }
+        let shown = clusters.filter { clusterFrames[$0.id] != nil }
+        guard !shown.isEmpty else { return }
         var heights: [String: Double] = [:]
-        for c in clusters { heights[c.id] = Double(clusterFrames[c.id]?.height ?? CGFloat(ClusterLayout.headerHeight)) }
-        let spots = ClusterOps.tidy(clusters, heights: heights)
+        for c in shown { heights[c.id] = Double(clusterFrames[c.id]?.height ?? CGFloat(ClusterLayout.headerHeight)) }
+        let spots = ClusterOps.tidy(shown, heights: heights)
         let now = Date().timeIntervalSince1970
         let next = clusters.map { c -> CanvasCluster in
             var c = c
@@ -1003,7 +1041,7 @@ final class CanvasNSView: NSView {
     override func menu(for event: NSEvent) -> NSMenu? {
         let w = worldPoint(convert(event.locationInWindow, from: nil))
         window?.makeFirstResponder(self)
-        if let hit = headerHit(atWorld: w) {
+        if editable, let hit = headerHit(atWorld: w) {
             switch hit { case .title(let id), .grip(let id): return clusterMenuProvider?(id) }
         }
         guard let id = item(atWorld: w) else { return nil }
@@ -1287,7 +1325,14 @@ extension CanvasNSView {
                 await wait(0.35)
                 hold?()
                 if let e = event(.leftMouseUp, b) { mouseUp(with: e) }
-                await wait(0.9)
+                await wait(0.12)
+                // is anything still travelling to its slot? (presentation = what is on screen, model = where it ends up)
+                let travelling = layers.values.filter { l in
+                    guard let p = l.presentation()?.position else { return false }
+                    return abs(p.x - l.position.x) > 1 || abs(p.y - l.position.y) > 1
+                }.count
+                print("DEMO: \(travelling) tiles still gliding 0.12 s after the drop")
+                await wait(0.8)
             }
             @MainActor func centre(of id: String) -> CGPoint? { placements[id].map { screenPoint(CGPoint(x: $0.x + $0.w / 2, y: $0.y + $0.h / 2)) } }
 

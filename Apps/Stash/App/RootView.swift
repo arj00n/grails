@@ -45,7 +45,6 @@ struct RootView: View {
 
     private var content: some View {
         ZStack {
-            if model.items.isEmpty && model.store != nil { emptyState }
             switch model.viewMode {
             case .grid:
                 GridView(model: model, topInset: Self.topInset)
@@ -53,6 +52,13 @@ struct RootView: View {
                     .padding(.trailing, model.showInfo ? Self.infoWidth + Self.edge * 2 : 0)
             case .canvas:
                 CanvasView(model: model)
+            }
+            // above the canvas (which paints its own black), centred in the space the floating panels leave free
+            if model.items.isEmpty && model.store != nil {
+                emptyState
+                    .padding(.leading, model.sidebarVisible ? Self.sidebarWidth + Self.edge * 2 : 0)
+                    .padding(.trailing, model.showInfo ? Self.infoWidth + Self.edge * 2 : 0)
+                    .allowsHitTesting(false)
             }
         }
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 2).padding(6).allowsHitTesting(false) } }

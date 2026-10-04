@@ -49,6 +49,7 @@ struct CanvasView: NSViewRepresentable {
         guard let v = c.canvas else { return }
         if v.frame.size != container.bounds.size { v.frame = container.bounds }
         v.layout = model.layout
+        v.editable = model.canvasBoardKey != nil
         v.contentInsets = NSEdgeInsets(
             top: RootView.topInset - 8, left: model.sidebarVisible ? RootView.sidebarWidth + RootView.edge * 2 : 0, bottom: 0,
             right: model.showInfo ? RootView.infoWidth + RootView.edge * 2 : 0)

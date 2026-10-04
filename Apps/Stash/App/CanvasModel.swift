@@ -17,7 +17,14 @@ extension AppModel {
 
     /// Makes sure the canvas has the right board loaded and every visible item belongs to a cluster.
     func syncCanvas() async {
-        guard viewMode == .canvas, let key = canvasBoardKey else { return }
+        guard viewMode == .canvas else { return }
+        guard let key = canvasBoardKey else {
+            // The Trash has no board of its own: what is in it is laid out as one temporary, read-only cluster (nothing is saved).
+            canvasClusters = ClusterOps.adopt(items.map(\.id), into: [])
+            canvasLoadedKey = nil
+            bumpCanvasVersion()
+            return
+        }
         if canvasLoadedKey != key { await loadBoard() } else { await adoptNewItems(announce: true) }
     }
 
