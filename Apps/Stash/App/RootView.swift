@@ -118,7 +118,7 @@ struct RootView: View {
                     model.sidebarVisible.toggle()
                 }
                 .padding(3).glassPill(interactive: true)
-                .padding(.leading, 78)
+                .padding(.leading, ChromeMetrics.shared.leading)
                 Spacer(minLength: 0)
                 HStack(spacing: 2) {
                     ForEach(ViewMode.allCases) { mode in
@@ -136,7 +136,8 @@ struct RootView: View {
             }
             .padding(.trailing, Self.edge)
         }
-        .padding(.top, 10)
+        // the pills' centre line is the traffic lights' centre line
+        .padding(.top, max(ChromeMetrics.shared.centerY - 20, 4))
         .frame(maxHeight: .infinity, alignment: .top)
     }
 

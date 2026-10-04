@@ -25,6 +25,7 @@ extension AppModel {
     /// The automatic title of a derived view's single cluster.
     var canvasDerivedTitle: String {
         if isSearching { return "Results for “\(searchText.trimmingCharacters(in: .whitespaces))”" }
+        if let who = addedByFilter, !filters.isActive, source == .all { return "Added by \(who)" }
         switch source {
         case .liked: return "Liked"
         case .untagged: return "Untagged"

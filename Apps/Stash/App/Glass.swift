@@ -140,6 +140,16 @@ struct GlassSearchField: NSViewRepresentable {
     }
 }
 
+/// Where the window's traffic lights sit, so the floating top bar can line up with them instead of guessing.
+@MainActor @Observable
+final class ChromeMetrics {
+    static let shared = ChromeMetrics()
+    /// Distance from the top of the window to the centre of the traffic lights.
+    var centerY: CGFloat = 26
+    /// Where the first control can start: just past the zoom button (or the edge in full screen).
+    var leading: CGFloat = 86
+}
+
 /// Makes the window all content: no title bar, black underneath, draggable from any empty spot.
 struct WindowChrome: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { Anchor() }
@@ -155,6 +165,40 @@ struct WindowChrome: NSViewRepresentable {
             w.isMovableByWindowBackground = true
             w.backgroundColor = .black
             w.toolbar = nil
+            measure()
+            for name in [NSWindow.didResizeNotification, NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didBecomeKeyNotification] {
+                observers.append(NotificationCenter.default.addObserver(forName: name, object: w, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.measure() }
+                })
+            }
+        }
+
+        private var observers: [NSObjectProtocol] = []
+
+        /// The floating bar's centre line (also where the traffic lights are moved to) and the left edge their group starts at.
+        static let barCenterY: CGFloat = 30
+        static let leftInset: CGFloat = 14
+
+        private func measure() {
+            guard let w = window, let close = w.standardWindowButton(.closeButton), let mini = w.standardWindowButton(.miniaturizeButton),
+                  let zoom = w.standardWindowButton(.zoomButton) else { return }
+            let m = ChromeMetrics.shared
+            let full = w.styleMask.contains(.fullScreen)
+            func rect(_ b: NSButton) -> CGRect { b.superview?.convert(b.frame, to: nil) ?? .zero }
+            if !full, close.superview != nil {
+                // Sit the traffic lights on the same centre line as the bar's pills, and a little in from the corner.
+                let c = rect(close)
+                let dy = Self.barCenterY - (w.frame.height - c.midY)
+                let dx = Self.leftInset - c.minX
+                if abs(dy) > 0.5 || abs(dx) > 0.5 {
+                    let flipped = close.superview?.isFlipped == true
+                    for b in [close, mini, zoom] { b.setFrameOrigin(NSPoint(x: b.frame.origin.x + dx, y: b.frame.origin.y + (flipped ? dy : -dy))) }
+                }
+            }
+            let c = rect(close), z = rect(zoom)
+            if c != .zero { m.centerY = max(w.frame.height - c.midY, 12) }
+            m.leading = full || z == .zero ? 14 : z.maxX + 16
+            if ProcessInfo.processInfo.environment["STASH_LOG_CHROME"] != nil { FileHandle.standardError.write(Data("CHROME centerY=\(m.centerY) leading=\(m.leading) close=\(c) zoom=\(z)\n".utf8)) }
         }
     }
 }

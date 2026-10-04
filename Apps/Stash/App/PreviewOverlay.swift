@@ -10,6 +10,8 @@ struct PreviewOverlay: View {
     @State private var image: NSImage?
     @FocusState private var focused: Bool
     @State private var downloading = false
+    @State private var detailsShown = false
+    @State private var hideTask: Task<Void, Never>?
 
     private var summary: ItemSummary? { model.items.first { $0.id == id } }
 
@@ -50,6 +52,7 @@ struct PreviewOverlay: View {
                 }
             }
             .padding(.bottom, 16)
+            detailsEdge
         }
         .focusable()
         .focused($focused)
@@ -59,8 +62,57 @@ struct PreviewOverlay: View {
         .onKeyPress(.space) { model.closePreview(); return .handled }
         .onKeyPress(.leftArrow) { model.stepPreview(-1); return .handled }
         .onKeyPress(.rightArrow) { model.stepPreview(1); return .handled }
+        .onKeyPress(KeyEquivalent("i")) { withAnimation(.smooth(duration: 0.22)) { detailsShown.toggle() }; return .handled }
         .task(id: id) { await load() }
         .accessibilityIdentifier("preview")
+    }
+
+    // MARK: Details that slide in from the right edge
+
+    /// Move the pointer to the right edge (or press I) and the item's details slide in; leave the panel and they slide away.
+    @ViewBuilder private var detailsEdge: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 0)
+            ZStack(alignment: .trailing) {
+                Color.clear.frame(width: 40).contentShape(Rectangle())
+                    .onHover { if $0 { showDetails() } }
+                if !detailsShown {
+                    Capsule().fill(Ink.tertiary).frame(width: 4, height: 54).padding(.trailing, 9).allowsHitTesting(false)
+                }
+            }
+        }
+        if detailsShown {
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                ScrollView {
+                    ItemDetails(model: model, itemID: id, showsPicture: false)
+                        .padding(18)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .scrollIndicators(.never)
+                .frame(width: 340)
+                .glassCard()
+                .padding(12)
+                .onHover { inside in if inside { hideTask?.cancel() } else { scheduleHide() } }
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .accessibilityIdentifier("preview-details")
+            }
+        }
+    }
+
+    private func showDetails() {
+        hideTask?.cancel()
+        guard !detailsShown else { return }
+        withAnimation(.smooth(duration: 0.22)) { detailsShown = true }
+    }
+
+    private func scheduleHide() {
+        hideTask?.cancel()
+        hideTask = Task {
+            try? await Task.sleep(for: .milliseconds(350))
+            guard !Task.isCancelled else { return }
+            withAnimation(.smooth(duration: 0.22)) { detailsShown = false }
+        }
     }
 
     private func load() async {

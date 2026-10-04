@@ -427,6 +427,7 @@ final class AppModel {
 
     var title: String {
         if isSearching { return "Search: \(searchText)" }
+        if let who = addedByFilter, source == .all { return "Added by \(who)" }
         switch source {
         case .inbox: return "Inbox"
         case .all: return "All"
