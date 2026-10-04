@@ -40,6 +40,7 @@ final class TileView: NSView {
 final class ThumbCell: NSCollectionViewItem {
     static let identifier = NSUserInterfaceItemIdentifier("ThumbCell")
     private var op: Operation?
+    private var source: (id: String, thumb: URL, original: URL?, variant: String)?
     private(set) var itemID: String?
     private let placeholder = NSImageView()
     private let heart = NSImageView()
@@ -184,6 +185,7 @@ final class ThumbCell: NSCollectionViewItem {
     /// A section divider: just the cluster's title and how many items it holds.
     func configureSection(_ s: ItemSummary) {
         op?.cancel()
+        source = nil
         itemID = nil
         isSection = true
         view.layer?.contents = nil
@@ -255,11 +257,24 @@ final class ThumbCell: NSCollectionViewItem {
             placeholder.isHidden = isLink
         }
         let id = s.id
+        source = (id, pictureURL, isLink ? nil : original, variant)
         op = loader.load(id: id, thumb: pictureURL, original: isLink ? nil : original, pixels: pixels, variant: variant) { [weak self] image in
             guard let self, self.itemID == id, let image else { return }
             self.show(image)
         }
         applySelection()
+    }
+
+    /// After the tile changed size: fetch a sharper picture and swap it in, leaving the current one up until it arrives.
+    func refreshResolution(loader: ThumbnailLoader, scale: CGFloat) {
+        guard let src = source, itemID == src.id, !isSection else { return }
+        let pixels = max(view.bounds.width, view.bounds.height) * scale
+        op?.cancel()
+        let id = src.id
+        op = loader.load(id: id, thumb: src.thumb, original: src.original, pixels: pixels, variant: src.variant) { [weak self] image in
+            guard let self, self.itemID == id, let image else { return }
+            self.show(image)
+        }
     }
 
     private func show(_ image: CGImage) {
@@ -271,6 +286,7 @@ final class ThumbCell: NSCollectionViewItem {
         super.prepareForReuse()
         op?.cancel()
         op = nil
+        source = nil
         itemID = nil
         view.layer?.contents = nil
         cloud.isHidden = true

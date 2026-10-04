@@ -1,42 +1,127 @@
 import AppKit
 import QuartzCore
 
-/// Shared geometry settings for both grid layouts.
+/// One finished arrangement of every tile for a given column count. Tile tops never decrease with index (every
+/// layout here fills top to bottom), which is what lets a visible-rect query binary-search instead of scanning.
+struct TileArrangement {
+    var frames: [CGRect]
+    var height: CGFloat
+    let maxTileHeight: CGFloat
+
+    init(frames: [CGRect], height: CGFloat) {
+        self.frames = frames
+        self.height = height
+        maxTileHeight = frames.reduce(0) { max($0, $1.height) }
+    }
+}
+
+/// Shared geometry for the grid layouts. At rest the tiles fill each row exactly. While zooming, the column count is
+/// fractional: tiles glide between the arrangement for the column count below and the one above, like iOS Photos.
 class TileLayout: NSCollectionViewLayout {
     var targetWidth: CGFloat = 190 { didSet { if oldValue != targetWidth { invalidateLayout() } } }
     var spacing: CGFloat = 8 { didSet { if oldValue != spacing { invalidateLayout() } } }
     var inset: CGFloat = 12
-    /// During a pinch the tile size follows the gesture exactly (grid centred); at rest tiles stretch to fill each row.
-    var exact = false { didSet { if oldValue != exact { invalidateLayout() } } }
+    /// Fractional column count during a zoom; nil at rest.
+    var liveColumns: CGFloat? { didSet { if oldValue != liveColumns { invalidateLayout() } } }
+    /// Bump when the item set or aspect ratios change.
+    var dataVersion = 0 { didSet { cache.removeAll() } }
     var itemCount: Int { collectionView?.numberOfItems(inSection: 0) ?? 0 }
     var availableWidth: CGFloat { max(1, (collectionView?.bounds.width ?? 800) - inset * 2) }
     private var lastWidth: CGFloat = 0
+
+    private var cache: [Int: TileArrangement] = [:]
+    private var cacheOrder: [Int] = []
+    private var cacheSignature: [CGFloat] = []
+    private var lower = 1, upper = 1
+    private var blend: CGFloat = 0
 
     override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
         defer { lastWidth = newBounds.width }
         return newBounds.width != lastWidth
     }
 
+    /// Columns at rest for the saved tile width.
     func columnCount(for width: CGFloat) -> Int { max(1, Int((width + spacing) / (targetWidth + spacing) + 1e-6)) }
 
-    /// Columns, tile width and left edge for the current width and mode.
-    func geometry() -> (cols: Int, tile: CGFloat, leading: CGFloat) {
+    var restColumns: Int { columnCount(for: availableWidth) }
+
+    /// How many columns zooming can reach: tiles stay between the smallest and largest sizes.
+    var columnRange: ClosedRange<Int> {
         let avail = availableWidth
-        if exact {
-            let t = min(targetWidth, avail)
-            let c = max(1, Int((avail + spacing) / (t + spacing) + 1e-6))
-            let used = CGFloat(c) * t + CGFloat(c - 1) * spacing
-            return (c, t, inset + max(0, (avail - used) / 2))
-        }
-        let c = columnCount(for: avail)
-        return (c, (avail - CGFloat(c - 1) * spacing) / CGFloat(c), inset)
+        let most = max(1, Int((avail + spacing) / (Zoom.minWidth + spacing)))
+        let fewest = max(1, Int(((avail + spacing) / (Zoom.maxWidth + spacing)).rounded(.up)))
+        return min(fewest, most)...most
     }
 
-    /// The tile width a target settles to: the nearest column count, stretched so rows are full.
-    func fillWidth(forTarget target: CGFloat) -> CGFloat {
-        let avail = availableWidth
-        let c = max(1, Int(((avail + spacing) / (target + spacing)).rounded()))
-        return (avail - CGFloat(c - 1) * spacing) / CGFloat(c)
+    /// Tile width when `cols` columns fill the row.
+    func tileWidth(forColumns cols: Int) -> CGFloat { (availableWidth - CGFloat(max(0, cols - 1)) * spacing) / CGFloat(max(1, cols)) }
+
+    /// The arrangement for exactly `cols` columns. Subclasses lay out every item.
+    func arrange(columns cols: Int) -> TileArrangement { TileArrangement(frames: [], height: 0) }
+
+    /// Extra inputs the arrangement depends on, beyond width, spacing and item count.
+    var extraSignature: [CGFloat] { [] }
+
+    private func arrangement(_ cols: Int) -> TileArrangement {
+        if let a = cache[cols] { return a }
+        let a = arrange(columns: cols)
+        cache[cols] = a
+        cacheOrder.append(cols)
+        if cacheOrder.count > 4 { cache[cacheOrder.removeFirst()] = nil }
+        return a
+    }
+
+    private var arrangementA = TileArrangement(frames: [], height: 0)
+    private var arrangementB: TileArrangement?
+
+    override func prepare() {
+        let sig = [availableWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion)] + extraSignature
+        if sig != cacheSignature { cacheSignature = sig; cache.removeAll(); cacheOrder.removeAll() }
+        let live = liveColumns.map { min(max($0, 1), 400) }
+        let u = live ?? CGFloat(restColumns)
+        lower = max(1, Int(u + 1e-6))
+        blend = u - CGFloat(lower)
+        if blend < 0.002 { blend = 0 }
+        arrangementA = arrangement(lower)
+        arrangementB = blend > 0 ? arrangement(lower + 1) : nil
+    }
+
+    private func frame(_ i: Int) -> CGRect? {
+        guard let a = arrangementA.frames[safe: i] else { return nil }
+        guard let b = arrangementB?.frames[safe: i] else { return a }
+        let p = blend
+        return CGRect(x: a.minX + (b.minX - a.minX) * p, y: a.minY + (b.minY - a.minY) * p,
+                      width: a.width + (b.width - a.width) * p, height: a.height + (b.height - a.height) * p)
+    }
+
+    override var collectionViewContentSize: NSSize {
+        let h = arrangementA.height + ((arrangementB?.height ?? arrangementA.height) - arrangementA.height) * blend
+        return NSSize(width: collectionView?.bounds.width ?? 0, height: max(h, 0))
+    }
+
+    override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
+        let n = arrangementA.frames.count
+        guard n > 0 else { return [] }
+        // Tops are non-decreasing in index (also after blending two such arrangements), so find the first tile that
+        // could still reach the rect, then walk until tops pass its bottom.
+        let tallest = max(arrangementA.maxTileHeight, arrangementB?.maxTileHeight ?? 0)
+        let reach = rect.minY - tallest
+        var lo = 0, hi = n
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if (frame(mid)?.minY ?? 0) < reach { lo = mid + 1 } else { hi = mid }
+        }
+        var out: [NSCollectionViewLayoutAttributes] = []
+        var i = lo
+        while i < n, let f = frame(i), f.minY <= rect.maxY {
+            if f.intersects(rect) { out.append(attributes(i, f)) }
+            i += 1
+        }
+        return out
+    }
+
+    override func layoutAttributesForItem(at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
+        frame(indexPath.item).map { attributes(indexPath.item, $0) }
     }
 
     func attributes(_ index: Int, _ frame: CGRect) -> NSCollectionViewLayoutAttributes {
@@ -46,39 +131,18 @@ class TileLayout: NSCollectionViewLayout {
     }
 }
 
-/// Uniform square tiles. All geometry is arithmetic, so it costs nothing at 20k+ items.
+/// Uniform square tiles.
 final class SquareLayout: TileLayout {
-    private var cols = 1
-    private var tile: CGFloat = 100
-    private var leading: CGFloat = 12
-    private var height: CGFloat = 0
-
-    override func prepare() {
-        (cols, tile, leading) = geometry()
-        let rows = (itemCount + cols - 1) / cols
-        height = inset * 2 + CGFloat(rows) * tile + CGFloat(max(0, rows - 1)) * spacing
-    }
-
-    override var collectionViewContentSize: NSSize { NSSize(width: collectionView?.bounds.width ?? 0, height: height) }
-
-    private func frame(_ i: Int) -> CGRect {
-        let row = i / cols, col = i % cols
-        return CGRect(x: leading + CGFloat(col) * (tile + spacing), y: inset + CGFloat(row) * (tile + spacing), width: tile, height: tile)
-    }
-
-    override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
+    override func arrange(columns cols: Int) -> TileArrangement {
+        let w = tileWidth(forColumns: cols)
         let n = itemCount
-        guard n > 0 else { return [] }
-        let stride = tile + spacing
-        let firstRow = max(0, Int((rect.minY - inset) / stride))
-        let lastRow = max(0, Int((rect.maxY - inset) / stride))
-        let first = firstRow * cols, last = min(n - 1, (lastRow + 1) * cols - 1)
-        guard first <= last else { return [] }
-        return (first...last).map { attributes($0, frame($0)) }
-    }
-
-    override func layoutAttributesForItem(at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
-        indexPath.item < itemCount ? attributes(indexPath.item, frame(indexPath.item)) : nil
+        var frames: [CGRect] = []
+        frames.reserveCapacity(n)
+        for i in 0..<n {
+            frames.append(CGRect(x: inset + CGFloat(i % cols) * (w + spacing), y: inset + CGFloat(i / cols) * (w + spacing), width: w, height: w))
+        }
+        let rows = (n + cols - 1) / cols
+        return TileArrangement(frames: frames, height: inset * 2 + CGFloat(rows) * w + CGFloat(max(0, rows - 1)) * spacing)
     }
 }
 
@@ -86,63 +150,23 @@ final class SquareLayout: TileLayout {
 final class MasonryLayout: TileLayout {
     /// height / width per item, in index order
     var aspects: [CGFloat] = []
-    private var frames: [CGRect] = []
-    private var columns: [[Int]] = []
-    private var height: CGFloat = 0
 
-    /// Inputs the current geometry was computed from; `prepare()` is a no-op while they're unchanged.
-    private var signature: [CGFloat] = []
-    /// Bump when the item set or aspect ratios change.
-    var dataVersion = 0 { didSet { signature = [] } }
-
-    override func prepare() {
-        let sig: [CGFloat] = [availableWidth, targetWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion), exact ? 1 : 0]
-        guard sig != signature else { return }
-        signature = sig
+    override func arrange(columns cols: Int) -> TileArrangement {
         let t0 = CACurrentMediaTime()
         defer { HitchMonitor.record("masonryPrepare", since: t0) }
-        let (cols, w, leading) = geometry()
+        let w = tileWidth(forColumns: cols)
         var heights = [CGFloat](repeating: inset, count: cols)
-        columns = Array(repeating: [], count: cols)
-        frames = []
+        var frames: [CGRect] = []
         frames.reserveCapacity(itemCount)
         for i in 0..<min(itemCount, aspects.count) {
             let c = heights.indices.min { heights[$0] < heights[$1] } ?? 0
             let h = min(max(w * aspects[i], w * 0.3), w * 3)
-            frames.append(CGRect(x: leading + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
-            columns[c].append(i)
+            frames.append(CGRect(x: inset + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
             heights[c] += h + spacing
         }
-        height = (heights.max() ?? inset) - spacing + inset
+        return TileArrangement(frames: frames, height: (heights.max() ?? inset) - spacing + inset)
     }
-
-    override var collectionViewContentSize: NSSize { NSSize(width: collectionView?.bounds.width ?? 0, height: max(height, 0)) }
-
-    override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
-        var out: [NSCollectionViewLayoutAttributes] = []
-        for col in columns {
-            // first tile in this column whose bottom edge reaches the rect
-            var lo = 0, hi = col.count
-            while lo < hi {
-                let mid = (lo + hi) / 2
-                if frames[col[mid]].maxY < rect.minY { lo = mid + 1 } else { hi = mid }
-            }
-            var k = lo
-            while k < col.count, frames[col[k]].minY <= rect.maxY {
-                out.append(attributes(col[k], frames[col[k]]))
-                k += 1
-            }
-        }
-        return out
-    }
-
-    override func layoutAttributesForItem(at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
-        indexPath.item < frames.count ? attributes(indexPath.item, frames[indexPath.item]) : nil
-    }
-
-    func frame(ofItem i: Int) -> CGRect? { frames.indices.contains(i) ? frames[i] : nil }
 }
-
 
 /// The grid with titled sections: each section is a header row followed by its tiles (squares, or each keeping its
 /// proportions, to match the grid setting). Sections are laid out one after another.
@@ -154,27 +178,18 @@ final class SectionedLayout: TileLayout {
     var headerFlags: [Bool] = []
     /// height / width per item, in index order (used when tiles keep their proportions)
     var aspects: [CGFloat] = []
-    var squareTiles = true { didSet { if oldValue != squareTiles { signature = []; invalidateLayout() } } }
-    var dataVersion = 0 { didSet { signature = [] } }
+    var squareTiles = true { didSet { if oldValue != squareTiles { invalidateLayout() } } }
 
-    private var signature: [CGFloat] = []
-    private var frames: [CGRect] = []
-    private var spans: [(range: Range<Int>, top: CGFloat, bottom: CGFloat)] = []
-    private var height: CGFloat = 0
+    override var extraSignature: [CGFloat] { [squareTiles ? 1 : 0] }
 
-    override func prepare() {
-        let sig: [CGFloat] = [availableWidth, targetWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion), exact ? 1 : 0, squareTiles ? 1 : 0]
-        guard sig != signature else { return }
-        signature = sig
-        let (cols, w, leading) = geometry()
-        frames = []
+    override func arrange(columns cols: Int) -> TileArrangement {
+        let w = tileWidth(forColumns: cols)
+        var frames: [CGRect] = []
         frames.reserveCapacity(itemCount)
-        spans = []
         var y = inset
         var i = 0
         let n = min(itemCount, headerFlags.count)
         while i < n {
-            let spanStart = i, spanTop = y
             if headerFlags[i] {
                 frames.append(CGRect(x: inset, y: y, width: availableWidth, height: Self.headerHeight))
                 y += Self.headerHeight + spacing
@@ -185,7 +200,7 @@ final class SectionedLayout: TileLayout {
             let count = i - first
             if squareTiles {
                 for k in 0..<count {
-                    frames.append(CGRect(x: leading + CGFloat(k % cols) * (w + spacing), y: y + CGFloat(k / cols) * (w + spacing), width: w, height: w))
+                    frames.append(CGRect(x: inset + CGFloat(k % cols) * (w + spacing), y: y + CGFloat(k / cols) * (w + spacing), width: w, height: w))
                 }
                 let rows = (count + cols - 1) / cols
                 if rows > 0 { y += CGFloat(rows) * (w + spacing) - spacing }
@@ -195,28 +210,13 @@ final class SectionedLayout: TileLayout {
                     let c = heights.indices.min { heights[$0] < heights[$1] } ?? 0
                     let aspect = first + k < aspects.count ? aspects[first + k] : 1
                     let h = min(max(w * aspect, w * 0.3), w * 3)
-                    frames.append(CGRect(x: leading + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
+                    frames.append(CGRect(x: inset + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
                     heights[c] += h + spacing
                 }
                 if count > 0 { y = (heights.max() ?? y) - spacing }
             }
-            spans.append((spanStart..<i, spanTop, y))
             y += Self.sectionGap
         }
-        height = max(y - Self.sectionGap, 0) + inset
-    }
-
-    override var collectionViewContentSize: NSSize { NSSize(width: collectionView?.bounds.width ?? 0, height: max(height, 0)) }
-
-    override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
-        var out: [NSCollectionViewLayoutAttributes] = []
-        for span in spans where span.bottom >= rect.minY && span.top <= rect.maxY {
-            for i in span.range where i < frames.count && frames[i].intersects(rect) { out.append(attributes(i, frames[i])) }
-        }
-        return out
-    }
-
-    override func layoutAttributesForItem(at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
-        indexPath.item < frames.count ? attributes(indexPath.item, frames[indexPath.item]) : nil
+        return TileArrangement(frames: frames, height: max(y - Self.sectionGap, 0) + inset)
     }
 }

@@ -32,7 +32,7 @@ struct GridView: NSViewRepresentable {
         cv.onOpen = { [weak c] in c?.previewSelection() }
         cv.onEscape = { [weak c] in c?.escape() }
         cv.onZoom = { [weak c] factor, p in c?.hitch?.noteActivity(); c?.zoom(by: factor, at: p) }
-        cv.onZoomEnd = { [weak c] in c?.scheduleSettle(after: 0.05) }
+        cv.onZoomEnd = { [weak c] in c?.scheduleSettle(after: 0.03) }
         cv.onScrollActivity = { [weak c] in c?.hitch?.noteActivity() }
         cv.keyHandler = { [weak c] event in
             guard let c, let action = ShortcutStore.shared.action(for: event, plainOnly: true) else { return false }
@@ -90,8 +90,8 @@ struct GridView: NSViewRepresentable {
         private var version = -1
         private var layout: LibraryLayout?
         private var applying = false
-        /// Tile width as currently shown. Follows the fingers during a gesture, then settles to fill the row.
-        private var liveWidth: CGFloat = Zoom.defaultWidth
+        /// Fractional column count during a zoom; nil at rest.
+        private var liveColumns: CGFloat?
         private var lastModelWidth: CGFloat = 0
         private var settleWork: DispatchWorkItem?
         private var zoomAnimation: ZoomAnimation?
@@ -102,7 +102,7 @@ struct GridView: NSViewRepresentable {
         private var scrollTick = 0
         private var showAddedBy = false
         /// Item index + its offset from the viewport top, restored after the layout changes size.
-        private var anchor: (index: Int, offsetY: CGFloat)?
+        private var anchor: ZoomAnchor?
 
         init(model: AppModel) {
             self.model = model
@@ -191,6 +191,10 @@ struct GridView: NSViewRepresentable {
             restoreAnchor()
 
             startBenchmarkIfRequested()
+            if !devZoomApplied, !items.isEmpty, let u = ProcessInfo.processInfo.environment["STASH_ZOOM_DEMO"].flatMap(Double.init) {
+                devZoomApplied = true       // dev: freeze the grid mid-zoom at this column count (pair with STASH_SNAPSHOT)
+                setColumns(CGFloat(u))
+            }
 
             if focusTick != model.focusGridTick {
                 focusTick = model.focusGridTick
@@ -208,73 +212,93 @@ struct GridView: NSViewRepresentable {
         }
 
         // MARK: Continuous, pointer-anchored zoom
+        //
+        // A pinch moves a fractional column count. The layout glides every tile between the arrangement for the column
+        // count below and the one above, so the grid scales smoothly, with the tile under the pointer held in place.
+        // When the fingers lift, the count eases to a whole number and tiles fill each row again.
 
+        private struct ZoomAnchor { var index: Int; var fy: CGFloat; var vy: CGFloat }
         private struct ZoomAnimation {
             var from: CGFloat, to: CGFloat, start: CFTimeInterval, duration: CFTimeInterval
-            var anchor: (Int, CGFloat)?
+            var anchor: ZoomAnchor?
         }
         private var zoomLink: CADisplayLink?
+        private var gestureStart: CGFloat = 0
+        private var devZoomApplied = false
+        private var allLayouts: [TileLayout] { [squareLayout, masonryLayout, sectionedLayout] }
+        private var columnsNow: CGFloat { liveColumns ?? CGFloat(activeLayout.restColumns) }
 
-        /// Sets the grid's tile width from the model (startup, ⌘+ / ⌘−), animating unless it's the first layout.
+        /// Tile width as currently shown (for sizing pictures).
+        private var shownTile: CGFloat { activeLayout.tileWidth(forColumns: max(1, Int(columnsNow.rounded()))) }
+
+        private func setColumns(_ u: CGFloat?) {
+            liveColumns = u
+            for l in allLayouts { l.liveColumns = u }
+        }
+
+        /// Restores the saved tile width (startup); zooming itself goes through `finishZoom`.
         private func applyModelWidth() {
             guard abs(model.tileWidth - lastModelWidth) > 0.5 else { return }
             lastModelWidth = model.tileWidth
-            if liveWidth == Zoom.defaultWidth && zoomLink == nil && items.isEmpty && version < 0 {
-                setLiveWidth(model.tileWidth, exact: false)       // first layout: no animation
-            } else {
-                animateWidth(to: activeLayout.fillWidth(forTarget: model.tileWidth), anchor: centreAnchor())
-            }
+            for l in allLayouts { l.targetWidth = model.tileWidth }
         }
 
-        /// ⌘+ / ⌘−: animate to one column fewer (bigger tiles) or more.
+        private func clampColumns(_ c: Int) -> Int {
+            let r = activeLayout.columnRange
+            return min(max(c, r.lowerBound), r.upperBound)
+        }
+
+        /// ⌘+ / ⌘−: glide to one column fewer (bigger tiles) or more.
         private func stepColumns(_ delta: Int) {
-            let l = activeLayout
             // Rapid key presses chain: step from where the running animation is heading, not where it is now.
-            let current: Int
-            if let target = zoomAnimation?.to { current = max(1, Int((l.availableWidth + l.spacing) / (target + l.spacing) + 0.5)) }
-            else { current = l.geometry().cols }
-            let cols = max(1, current + delta)
-            let tile = (l.availableWidth - CGFloat(cols - 1) * l.spacing) / CGFloat(cols)
-            animateWidth(to: tile, anchor: centreAnchor())
+            let current = zoomAnimation.map { Int($0.to.rounded()) } ?? Int(columnsNow.rounded())
+            animateColumns(to: clampColumns(current + delta), anchor: centreAnchor())
         }
 
-        private func setLiveWidth(_ w: CGFloat, exact: Bool) {
-            liveWidth = w
-            for l in [squareLayout, masonryLayout, sectionedLayout] as [TileLayout] { l.exact = exact; l.targetWidth = w }
-        }
-
-        /// One step of a pinch or ⌘-scroll: scale the tile size and keep the tile under the pointer under the pointer.
+        /// One step of a pinch or ⌘-scroll: scale the grid and keep the tile under the pointer under the pointer.
         func zoom(by factor: CGFloat, at point: NSPoint) {
             guard let cv = collectionView, factor.isFinite, factor > 0 else { return }
             cancelAnimation()
             settleWork?.cancel()
-            let next = Zoom.clamp(liveWidth * factor)
-            guard abs(next - liveWidth) > 0.01 else { scheduleSettle(); return }
+            let current = columnsNow
+            if liveColumns == nil { gestureStart = current }
+            let r = activeLayout.columnRange
+            let next = min(max(current / factor, CGFloat(r.lowerBound)), CGFloat(r.upperBound))
+            guard abs(next - current) > 0.0005 else { scheduleSettle(); return }
             anchor = anchorFor(point: point, in: cv)
-            setLiveWidth(next, exact: true)
+            setColumns(next)
             restoreAnchor()
             scheduleSettle()
         }
 
         /// A gesture that ends without an explicit end event (⌘-scroll) settles after a short pause.
-        func scheduleSettle(after delay: TimeInterval = 0.22) {
+        func scheduleSettle(after delay: TimeInterval = 0.12) {
             settleWork?.cancel()
             let work = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.settle() } }
             settleWork = work
             DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
         }
 
+        /// Picks the whole column count to land on. A pinch that has clearly gone one way commits that way.
         private func settle() {
-            let target = activeLayout.fillWidth(forTarget: liveWidth)
-            animateWidth(to: target, anchor: centreAnchor())
+            guard liveColumns != nil else { return }
+            let u = columnsNow
+            let moved = u - gestureStart
+            let target: Int
+            if moved < -0.15 { target = Int((u + 0.2).rounded(.down)) }
+            else if moved > 0.15 { target = Int((u - 0.2).rounded(.up)) }
+            else { target = Int(u.rounded()) }
+            animateColumns(to: clampColumns(target), anchor: centreAnchor())
         }
 
-        private func animateWidth(to target: CGFloat, anchor: (Int, CGFloat)?) {
-            guard let cv = collectionView else { return }
+        private func animateColumns(to columns: Int, anchor: ZoomAnchor?) {
             cancelAnimation()
-            let to = Zoom.clamp(target) == target ? target : Zoom.clamp(target)
-            if abs(to - liveWidth) < 0.5 { finishZoom(at: to); return }
-            zoomAnimation = ZoomAnimation(from: liveWidth, to: to, start: CACurrentMediaTime(), duration: 0.2, anchor: anchor)
+            let from = columnsNow, to = CGFloat(columns)
+            if abs(to - from) < 0.001 { finishZoom(columns: columns); return }
+            setColumns(from)
+            let duration = min(0.5, 0.28 + 0.09 * Double(abs(to - from)))
+            zoomAnimation = ZoomAnimation(from: from, to: to, start: CACurrentMediaTime(), duration: duration, anchor: anchor)
+            guard let cv = collectionView else { return }
             let link = cv.displayLink(target: self, selector: #selector(zoomTick(_:)))
             link.add(to: .main, forMode: .common)
             zoomLink = link
@@ -283,12 +307,12 @@ struct GridView: NSViewRepresentable {
         @objc private func zoomTick(_ l: CADisplayLink) {
             guard let a = zoomAnimation else { cancelAnimation(); return }
             hitch?.noteActivity()
-            let t = min(1, (l.timestamp - a.start) / a.duration)
-            let eased = 1 - pow(1 - t, 3)
+            let t = min(1, max(0, (l.targetTimestamp - a.start) / a.duration))
+            let eased = 1 - pow(1 - t, 4)          // quick start off the fingers, long soft landing
             anchor = a.anchor
-            setLiveWidth(a.from + (a.to - a.from) * CGFloat(eased), exact: true)
+            setColumns(a.from + (a.to - a.from) * CGFloat(eased))
             restoreAnchor()
-            if t >= 1 { cancelAnimation(); finishZoom(at: a.to) }
+            if t >= 1 { cancelAnimation(); finishZoom(columns: Int(a.to)) }
         }
 
         private func cancelAnimation() {
@@ -297,14 +321,15 @@ struct GridView: NSViewRepresentable {
             zoomAnimation = nil
         }
 
-        /// Back to "fill" mode at the settled width, remember it, and re-decode visible tiles for their new size.
-        private func finishZoom(at width: CGFloat) {
-            setLiveWidth(width, exact: false)
+        /// Back to rest at a whole column count: remember it and sharpen the pictures for their new size.
+        private func finishZoom(columns: Int) {
+            let width = activeLayout.tileWidth(forColumns: columns)
+            for l in allLayouts { l.targetWidth = width }
+            setColumns(nil)
             lastModelWidth = width
             model.tileWidth = width
             if let cv = collectionView {
-                let visible = Set(cv.indexPathsForVisibleItems())
-                if !visible.isEmpty { cv.reloadItems(at: visible); applySelection() }
+                for case let cell as ThumbCell in cv.visibleItems() { cell.refreshResolution(loader: .shared, scale: scale) }
             }
         }
 
@@ -314,28 +339,25 @@ struct GridView: NSViewRepresentable {
             return lo...max(lo, contentHeight - scroll.contentView.bounds.height + scroll.contentInsets.bottom)
         }
 
-        private func anchorFor(point: NSPoint, in cv: NSCollectionView) -> (Int, CGFloat)? {
+        /// The tile under `point` (or the nearest one) and where in it the point sits, read from the layout so it's
+        /// right even mid-glide.
+        private func anchorFor(point: NSPoint, in cv: NSCollectionView) -> ZoomAnchor? {
             let top = cv.enclosingScrollView?.contentView.bounds.origin.y ?? cv.visibleRect.minY      // may be negative (inset)
-            let path = cv.indexPathForItem(at: point) ?? nearestVisible(to: point, in: cv)
-            guard let i = path?.item, let f = frame(of: i) else { return nil }
-            return (i, f.minY - top)
+            let l = activeLayout
+            l.prepare()
+            var best: (index: Int, frame: CGRect, d: CGFloat)?
+            for a in l.layoutAttributesForElements(in: cv.visibleRect) {
+                let d = a.frame.contains(point) ? 0 : hypot(a.frame.midX - point.x, a.frame.midY - point.y)
+                if best == nil || d < best!.d { best = (a.indexPath?.item ?? 0, a.frame, d) }
+            }
+            guard let b = best, b.frame.height > 0 else { return nil }
+            return ZoomAnchor(index: b.index, fy: min(max((point.y - b.frame.minY) / b.frame.height, 0), 1), vy: point.y - top)
         }
 
-        private func centreAnchor() -> (Int, CGFloat)? {
+        private func centreAnchor() -> ZoomAnchor? {
             guard let cv = collectionView else { return nil }
             let v = cv.visibleRect
             return anchorFor(point: NSPoint(x: v.midX, y: v.midY), in: cv)
-        }
-
-        private func nearestVisible(to p: NSPoint, in cv: NSCollectionView) -> IndexPath? {
-            cv.indexPathsForVisibleItems().min { a, b in
-                dist(frame(of: a.item), p) < dist(frame(of: b.item), p)
-            }
-        }
-
-        private func dist(_ r: CGRect?, _ p: NSPoint) -> CGFloat {
-            guard let r else { return .greatestFiniteMagnitude }
-            return hypot(r.midX - p.x, r.midY - p.y)
         }
 
         private func frame(of i: Int) -> CGRect? {
@@ -348,7 +370,7 @@ struct GridView: NSViewRepresentable {
             activeLayout.prepare()
             guard let f = frame(of: a.index) else { return }
             let range = scrollRange(scroll, contentHeight: activeLayout.collectionViewContentSize.height)
-            let y = min(max(range.lowerBound, f.minY - a.offsetY), range.upperBound)
+            let y = min(max(range.lowerBound, f.minY + a.fy * f.height - a.vy), range.upperBound)
             scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
             scroll.reflectScrolledClipView(scroll.contentView)
         }
@@ -424,7 +446,7 @@ struct GridView: NSViewRepresentable {
 
         func collectionView(_ cv: NSCollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
             guard let layout else { return }
-            let px = liveWidth * scale
+            let px = shownTile * scale
             for ip in indexPaths { if let s = items[safe: ip.item], s.kind != .section { ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px) } }
         }
 

@@ -67,6 +67,11 @@ final class HitchMonitor: NSObject {
     func finish() { done = true; publish() }
 
     private func publish() {
+        defer {
+            if let path = ProcessInfo.processInfo.environment["STASH_HITCH_FILE"], let label = probe.accessibilityLabel() {
+                try? label.write(toFile: path, atomically: true, encoding: .utf8)
+            }
+        }
         let by = hitchesByPhase.sorted { $0.key < $1.key }.map { "\"\($0.key)\":\($0.value)" }.joined(separator: ",")
         probe.setAccessibilityLabel("{\"frames\":\(frames),\"hitches\":\(hitches),\"worstMs\":\(Int(worst)),\"done\":\(done),\"byPhase\":{\(by)},\"maxMs\":{\(timings.sorted { $0.key < $1.key }.map { "\"\($0.key)\":\(Int($0.value))" }.joined(separator: ","))}}")
     }
