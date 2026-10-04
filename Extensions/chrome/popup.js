@@ -23,17 +23,13 @@ async function refresh() {
 
 $("connect").addEventListener("click", async () => {
   await chrome.storage.local.set({ token: $("token").value.trim() });
-  await $("importBoard").addEventListener("click", async () => {
+  await refresh();
+});
+$("importBoard").addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab) return;
   await chrome.tabs.sendMessage(tab.id, { type: "collect-board" }).catch(() => {});
   window.close();           // progress shows on the page itself
-});
-(async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  $("board").hidden = !(tab?.url && parseBoardUrl(tab.url));
-})();
-refresh();
 });
 $("savePage").addEventListener("click", async () => {
   $("savePage").disabled = true;
@@ -41,4 +37,8 @@ $("savePage").addEventListener("click", async () => {
   $("savePage").disabled = false;
   await refresh();
 });
+(async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  $("board").hidden = !(tab?.url && parseBoardUrl(tab.url));
+})();
 refresh();
