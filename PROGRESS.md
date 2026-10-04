@@ -2,6 +2,14 @@
 
 ## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
 
+## Canvas reflow — 2026-10-04
+- Dragging or resizing on the canvas pushes overlapped items aside, cascading like a snowplow (`CanvasReflow` in the kit: biased to the drag direction,
+  spatial grid, deterministic, 20k items ≈ 20–40 ms debug). Pushes are recomputed from the layout at drag start on every event, so items glide back home when the
+  drag moves on; layers animate 0.2 s; drop = one undo step covering everything that moved. Hold ⌥ mid-drag to overlap; Settings ▸ Canvas turns pushing off.
+  Untouched stacks elsewhere stay put. Launch arg `-canvasPush 0` disables it (UI tests).
+- Known env flake: `CanvasTests.testPanAndPointerAnchoredZoom` fails here with "found AX element … cannot be mapped" on `canvas.scroll` (also fails on the pre-reflow
+  commit 9770c07 on this display setup; passed earlier the same day).
+
 ## Import from Are.na / Pinterest — 2026-10-04
 - ⇧⌘I, ⌘K "Import from Are.na or Pinterest…", File menu, or `stash-import <link> [--into Lib.stash]` (no `--into` = list only, downloads nothing).
   Becomes a collection named after the board; re-importing only adds what's new (content-hash dedupe; dupes are filed into the collection too); one undo.

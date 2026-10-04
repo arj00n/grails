@@ -14,6 +14,7 @@ struct SettingsView: View {
     @AppStorage("showAddedBy") private var showAddedBy = false
     @AppStorage("autoSnapshotLinks") private var autoSnapshotLinks = true
     @AppStorage("autoTagNew") private var autoTagNew = true
+    @AppStorage("canvasPush") private var canvasPush = true
     @AppStorage("autoTagSensitivity") private var autoTagSensitivity = 0.5
 
     var body: some View {
@@ -35,6 +36,11 @@ struct SettingsView: View {
                     Toggle("Take a page snapshot for links without a preview image", isOn: $autoSnapshotLinks)
                     Toggle("Hide Dock icon (use the menu bar item)", isOn: $hideDockIcon)
                         .onChange(of: hideDockIcon) { model.applyDockPolicy() }
+                }
+                Section("Canvas") {
+                    Toggle("Push items out of the way when dragging", isOn: $canvasPush)
+                    Text("Drop an item onto others and they slide aside to make room. Hold ⌥ while dragging to let items overlap.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Auto-tagging") {
                     Toggle("Tag my new items automatically", isOn: $autoTagNew)

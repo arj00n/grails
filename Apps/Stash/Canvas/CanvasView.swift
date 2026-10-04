@@ -26,6 +26,8 @@ struct CanvasView: NSViewRepresentable {
         v.onCommit = { [weak model] updates, label in model?.commitCanvas(updates, label: label) }
         v.onPreview = { [weak model] id in model?.openPreview(id) }
         v.onPaste = { [weak model] in model?.paste() }
+        // launch arguments arrive as strings, so read through bool(forKey:)
+        v.pushEnabled = { UserDefaults.standard.object(forKey: "canvasPush") == nil || UserDefaults.standard.bool(forKey: "canvasPush") }
         v.onOptionClick = { [weak model] id in model?.toggleLike(ids: [id]) }
         v.onViewportSettled = { [weak model] key, origin, scale in CanvasViewports.save(key: CanvasViewports.scoped(key, model?.layout), origin: origin, scale: scale) }
         v.keyHandler = { [weak model] event in

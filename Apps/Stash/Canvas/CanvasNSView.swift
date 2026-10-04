@@ -64,6 +64,11 @@ final class CanvasNSView: NSView {
     }
     private enum Handle: CaseIterable { case topLeft, topRight, bottomLeft, bottomRight }
     private var drag: Drag?
+    /// Whether a drag pushes other items out of the way. Read each time, so the setting applies immediately.
+    var pushEnabled: () -> Bool = { true }
+    /// Everyone's place when the drag began: pushes are always worked out from here, so items return home when the drag moves on.
+    private var reflowBase: [String: CanvasPlacement] = [:]
+    private var pushedIDs: Set<String> = []
     private var spaceHeld = false
     private var spaceUsedForPan = false
     private var animationLink: CADisplayLink?
@@ -488,6 +493,7 @@ final class CanvasNSView: NSView {
         if let h = handle(at: loc), let box = selectionBoundsWorld() {
             let starts = Dictionary(uniqueKeysWithValues: selection.compactMap { id in placements[id].map { (id, $0) } })
             drag = .resize(handle: h, anchor: worldCorner(opposite(h), of: box), grab: worldCorner(h, of: box), starts: starts)
+            reflowBase = placements; pushedIDs = []
             return
         }
         let w = worldPoint(loc)
@@ -506,6 +512,7 @@ final class CanvasNSView: NSView {
             if event.clickCount == 2 { onPreview?(id); return }
             let starts = Dictionary(uniqueKeysWithValues: selection.compactMap { sid in placements[sid].map { (sid, $0) } })
             drag = .move(startWorld: w, starts: starts, raised: false)
+            reflowBase = placements; pushedIDs = []
             raiseIfNeeded(id)
         } else {
             let base: Set<String> = event.modifierFlags.contains(.shift) ? selection : []
@@ -541,6 +548,7 @@ final class CanvasNSView: NSView {
             let w = worldPoint(loc)
             let dx = w.x - startWorld.x, dy = w.y - startWorld.y
             for (id, p) in starts { placements[id]?.x = p.x + dx; placements[id]?.y = p.y + dy }
+            reflow(moved: Set(starts.keys), hint: (Double(dx), Double(dy)), enabled: pushEnabled() && !event.modifierFlags.contains(.option))
             applyPlacementsToLayers(Array(starts.keys))
         case .resize(let h, let anchor, let grab, let starts)?:
             let w = worldPoint(loc)
@@ -557,6 +565,7 @@ final class CanvasNSView: NSView {
                 placements[id]?.h = p.h * f
             }
             _ = h
+            reflow(moved: Set(starts.keys), hint: (0, 0), enabled: pushEnabled() && !event.modifierFlags.contains(.option))
             applyPlacementsToLayers(Array(starts.keys))
         case .marquee(let start, let base)?:
             let rect = CGRect(x: min(start.x, loc.x), y: min(start.y, loc.y), width: abs(loc.x - start.x), height: abs(loc.y - start.y))
@@ -571,7 +580,7 @@ final class CanvasNSView: NSView {
 
     override func mouseUp(with event: NSEvent) {
         trace("canvas mouseUp")
-        defer { drag = nil; marqueeLayer.path = nil; if spaceHeld { NSCursor.openHand.set() } else { NSCursor.arrow.set() } }
+        defer { drag = nil; reflowBase = [:]; pushedIDs = []; marqueeLayer.path = nil; if spaceHeld { NSCursor.openHand.set() } else { NSCursor.arrow.set() } }
         switch drag {
         case .move(_, let starts, _)?:
             var updates: [String: CanvasPlacement] = [:]
@@ -581,15 +590,18 @@ final class CanvasNSView: NSView {
                 updates[id] = p
                 if p.x != s.x || p.y != s.y { moved = true }
             }
+            // whatever was pushed aside is part of the same move (one undo)
+            for id in pushedIDs { if let p = placements[id], p != reflowBase[id] { updates[id] = p; moved = true } }
             // A click that only brought an item to the front still changes stacking, which is worth keeping.
             if !updates.isEmpty { onCommit?(updates, moved ? "Move on Canvas" : "Bring to Front") }
             notifySelection()
-            refreshDust()
+            rebuildEntries()
         case .resize(_, _, _, let starts)?:
             var updates: [String: CanvasPlacement] = [:]
             for (id, s) in starts { if let p = placements[id], p != s { updates[id] = p } }
+            for id in pushedIDs { if let p = placements[id], p != reflowBase[id] { updates[id] = p } }
             if !updates.isEmpty { onCommit?(updates, "Resize on Canvas") }
-            refreshDust()
+            rebuildEntries()
         case .marquee?:
             notifySelection()
         default:
@@ -604,6 +616,33 @@ final class CanvasNSView: NSView {
     }
     override func otherMouseDragged(with event: NSEvent) { mouseDragged(with: event) }
     override func otherMouseUp(with event: NSEvent) { mouseUp(with: event) }
+
+    /// Pushes whatever the moved items now overlap out of their way, working from the layout as it was when the drag began.
+    private func reflow(moved: Set<String>, hint: (Double, Double), enabled: Bool) {
+        let before = pushedIDs
+        for id in before { placements[id] = reflowBase[id] }                       // everything pushed so far goes home first
+        var pushed: [String: CanvasPlacement] = [:]
+        if enabled { pushed = CanvasReflow.resolve(moved: moved, in: placements, hint: hint, gap: max(CanvasReflow.defaultGap, 6 / Double(scale))) }
+        for (id, p) in pushed { placements[id] = p }
+        pushedIDs = Set(pushed.keys)
+        let changed = before.union(pushedIDs).subtracting(moved)
+        guard !changed.isEmpty else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        for id in changed {
+            guard let layer = layers[id], let p = placements[id] else { continue }
+            let fromPosition = layer.presentation()?.position ?? layer.position, fromBounds = layer.presentation()?.bounds ?? layer.bounds
+            layer.frame = CGRect(x: p.x, y: -p.maxY, width: p.w, height: p.h)
+            for (key, from, to) in [("position", NSValue(point: fromPosition), NSValue(point: layer.position)), ("bounds", NSValue(rect: fromBounds), NSValue(rect: layer.bounds))] {
+                let a = CABasicAnimation(keyPath: key)
+                a.fromValue = from; a.toValue = to
+                a.duration = 0.2
+                a.timingFunction = CAMediaTimingFunction(name: .easeOut)
+                layer.add(a, forKey: "reflow-" + key)
+            }
+        }
+        CATransaction.commit()
+    }
 
     private func applyPlacementsToLayers(_ ids: [String]) {
         CATransaction.begin()

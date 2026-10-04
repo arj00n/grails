@@ -4,7 +4,7 @@ import XCTest
 /// The canvas: an infinite pan/zoom board where items sit wherever they're put.
 final class CanvasTests: XCTestCase {
     @MainActor
-    private func launch(items: Int = 40, dir: String? = nil, extra: [String: String] = [:]) -> (XCUIApplication, String) {
+    private func launch(items: Int = 40, dir: String? = nil, extra: [String: String] = [:], args: [String] = []) -> (XCUIApplication, String) {
         let base = dir ?? "/private/tmp/stash-ui-tests/\(UUID().uuidString)"
         let app = XCUIApplication()
         app.launchEnvironment["STASH_LIBRARY"] = base + "/Lib.stash"
@@ -16,7 +16,7 @@ final class CanvasTests: XCTestCase {
         app.launchEnvironment["STASH_TRACE"] = "1"
         for (k, v) in extra { app.launchEnvironment[k] = v }
         app.launchArguments += ["-viewMode", "canvas", "-layoutMode", "square", "-appearance", "light",
-                                "-sidebar.expandCollections", "1", "-sidebar.expandTags", "0", "-sidebar.expandSmart", "1"]
+                                "-sidebar.expandCollections", "1", "-sidebar.expandTags", "0", "-sidebar.expandSmart", "1"] + args
         app.launch()
         app.activate()
         return (app, base)
@@ -177,8 +177,31 @@ final class CanvasTests: XCTestCase {
     }
 
     @MainActor
-    func testArrangeAllPutsAStrayItemBackInRows() throws {
+    func testDroppingAnItemOnAnotherPushesItAsideAndUndoRestoresBoth() throws {
         let (app, _) = launch(items: 40)
+        XCTAssertTrue(app.descendants(matching: .any)["canvas"].waitForExistence(timeout: 30))
+        XCTAssertTrue(try waitFor { try state(app).placed == 40 })
+        let mover = waitForTile(app, 2), target = waitForTile(app, 6)
+        let targetStart = target.frame
+        // drag the first onto the second, so that their centres coincide
+        let from = center(of: mover), to = center(of: target)
+        at(app, screen: from).click(forDuration: 0.1, thenDragTo: at(app, screen: to))
+        XCTAssertTrue(try waitFor { tile(app, 6).frame != targetStart }, "the item underneath slid aside")
+        // the pushed item ends up clear of the dropped one, with room between them
+        XCTAssertTrue(try waitFor {
+            let a = tile(app, 2).frame, b = tile(app, 6).frame
+            return !a.insetBy(dx: -2, dy: -2).intersects(b)
+        }, "no overlap after the drop")
+
+        // one ⌘Z puts both back
+        app.typeKey("z", modifierFlags: .command)
+        XCTAssertTrue(try waitFor { abs(tile(app, 6).frame.minX - targetStart.minX) < 2 && abs(tile(app, 6).frame.minY - targetStart.minY) < 2 })
+        XCTAssertTrue(try waitFor { abs(tile(app, 2).frame.midX - from.x) < 3 && abs(tile(app, 2).frame.midY - from.y) < 3 })
+    }
+
+    @MainActor
+    func testArrangeAllPutsAStrayItemBackInRows() throws {
+        let (app, _) = launch(items: 40, args: ["-canvasPush", "0"])      // this test is about Arrange; pushing would shift the neighbours too
         XCTAssertTrue(app.descendants(matching: .any)["canvas"].waitForExistence(timeout: 30))
         XCTAssertTrue(try waitFor { try state(app).placed == 40 })
         let t = waitForTile(app, 39)
