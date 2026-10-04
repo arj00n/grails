@@ -19,7 +19,7 @@ enum PinterestPins {
         var out = Resolved()
         let numeric = ids.filter(isNumeric)
         let unresolvable = ids.count - numeric.count
-        if unresolvable > 0 { out.skipped["pins with IDs Pinterest won't describe (open the board in Chrome and use the extension)"] = unresolvable }
+        if unresolvable > 0 { out.skipped["pins Pinterest wouldn't describe"] = unresolvable }
         var byID: [String: [String: Any]] = [:]
         for start in stride(from: 0, to: numeric.count, by: batchSize) {
             let batch = numeric[start..<min(start + batchSize, numeric.count)]

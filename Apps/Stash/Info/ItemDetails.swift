@@ -49,7 +49,7 @@ struct ItemDetails: View {
                 FlowLayout(spacing: 6) {
                     ForEach(item.tags, id: \.self) { t in
                         let isAuto = auto.contains(t.lowercased())
-                        LinkChip(help: "Show everything tagged #\(t)", label: isAuto ? "#\(t), automatic" : "#\(t)") { model.showTag(t) } content: {
+                        LinkChip(label: isAuto ? "#\(t), automatic" : "#\(t)") { model.showTag(t) } content: {
                             HStack(spacing: 3) {
                                 if isAuto { Image(systemName: "sparkle").font(.system(size: 8)) }
                                 Text("#\(t)")
@@ -64,7 +64,7 @@ struct ItemDetails: View {
             section("Collections") {
                 FlowLayout(spacing: 6) {
                     ForEach(places) { c in
-                        LinkChip(help: "Open \(c.name)", label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
+                        LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
                     }
                 }
             }
@@ -134,7 +134,6 @@ struct ItemDetails: View {
 
 /// A pill that takes you somewhere (a tag, a collection). Brightens under the pointer.
 struct LinkChip<Content: View>: View {
-    let help: String
     let label: String
     let action: () -> Void
     @ViewBuilder var content: () -> Content
@@ -151,7 +150,6 @@ struct LinkChip<Content: View>: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help(help)
         .accessibilityLabel(label)
     }
 }
@@ -168,7 +166,6 @@ struct PersonLink: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
-        .help("Show everything \(name) added")
     }
 }
 

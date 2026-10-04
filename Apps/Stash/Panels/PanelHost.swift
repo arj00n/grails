@@ -44,7 +44,6 @@ struct NotePanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(batch ? "Add a note to \(ids.count) items" : "Note").font(.headline)
-            if batch { Text("Appended to each item's existing note.").font(.caption).foregroundStyle(.secondary) }
             TextEditor(text: $text)
                 .font(.body)
                 .frame(height: 140)
@@ -54,7 +53,6 @@ struct NotePanel: View {
                 .background(Ink.fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("note-field")
             HStack {
-                Text("⌘↩ to save · Esc to cancel").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("Cancel") { model.closePanel() }.keyboardShortcut(.cancelAction)
                 Button("Save") { save() }.keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)

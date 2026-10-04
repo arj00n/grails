@@ -67,7 +67,7 @@ extension AppModel {
         Task {
             try? await store.resetAutoTagIgnored()
             await refreshAutoTagSkipped()
-            showToast("Auto-tag will suggest every tag again")
+            showToast("Skipped tags reset")
         }
     }
 

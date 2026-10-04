@@ -34,7 +34,7 @@ struct PreviewOverlay: View {
                 ProgressView().controlSize(.large)
             }
             if downloading {
-                VStack { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Downloading the original from your shared drive…").font(.callout) }
+                VStack { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Downloading original…").font(.callout) }
                     .padding(.horizontal, 14).padding(.vertical, 8).glassPill(); Spacer() }
                     .padding(.top, 24)
             }

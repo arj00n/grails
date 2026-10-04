@@ -25,7 +25,7 @@ extension AppModel {
     func openLibrary(at url: URL) {
         let isLibrary = FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path)
         guard isLibrary || url == AppModel.defaultLibraryURL else {
-            errorMessage = "“\(url.lastPathComponent)” isn't a Stash library. Choose a folder ending in .stash."
+            errorMessage = "“\(url.lastPathComponent)” isn't a Stash library."
             return
         }
         Task { await openOrCreate(at: url) }
@@ -107,7 +107,7 @@ extension AppModel {
     func confirmMoveCollection(_ c: StashCollection, to library: RecentLibrary) {
         confirm = ConfirmRequest(
             title: "Move “\(c.name)” to \(library.name)?",
-            message: "The collection and its items go to \(library.name). Items that were only in this collection are moved to this library's Trash.",
+            message: "Items that were only in this collection move to this library's Trash.",
             confirmTitle: "Move", destructive: false
         ) { [weak self] in self?.transferCollection(c, to: URL(fileURLWithPath: library.path), move: true) }
     }

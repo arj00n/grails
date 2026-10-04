@@ -76,12 +76,11 @@ struct RootView: View {
         if model.isSearching {
             ContentUnavailableView.search(text: model.searchText)
         } else if model.filters.isActive {
-            ContentUnavailableView("No matches", systemImage: "line.3.horizontal.decrease.circle", description: Text("Try clearing a filter."))
+            ContentUnavailableView("No matches", systemImage: "line.3.horizontal.decrease.circle")
         } else {
             ContentUnavailableView(
                 model.source == .trash ? "Trash is empty" : "Nothing here yet",
-                systemImage: "photo.on.rectangle.angled",
-                description: Text(model.source == .all || model.source == .inbox ? "Drop images, videos or folders here to add them." : "Nothing matches this view yet.")
+                systemImage: "photo.on.rectangle.angled"
             )
         }
     }

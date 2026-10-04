@@ -625,7 +625,7 @@ final class AppModel {
     func confirmEmptyTrash() {
         confirm = ConfirmRequest(
             title: "Empty Trash?",
-            message: "Items in the Trash are removed from the library. A copy stays in the library's .trash folder for 30 days.",
+            message: "Copies stay in the library's .trash folder for 30 days.",
             confirmTitle: "Empty Trash"
         ) { [weak self] in
             guard let self, let store = self.store else { return }
@@ -677,7 +677,7 @@ final class AppModel {
     func confirmDeleteCollection(_ c: StashCollection) {
         confirm = ConfirmRequest(
             title: "Delete “\(c.name)”?",
-            message: "Items stay in your library; they just leave this \(c.kind == "folder" ? "folder" : "collection"). You can undo this.",
+            message: "The items stay in your library.",
             confirmTitle: "Delete"
         ) { [weak self] in
             guard let self else { return }
@@ -736,7 +736,7 @@ final class AppModel {
     }
 
     func promptRenameTag(_ tag: String) {
-        prompt = PromptRequest(title: "Rename Tag", message: "If the new name already exists, the two tags merge.", placeholder: "Tag", initial: tag, confirmTitle: "Rename") { [weak self] name in
+        prompt = PromptRequest(title: "Rename Tag", placeholder: "Tag", initial: tag, confirmTitle: "Rename") { [weak self] name in
             guard let self, !name.isEmpty, name != tag, let store = self.store else { return }
             Task {
                 self.renameProgress = (0, 1)
@@ -756,7 +756,7 @@ final class AppModel {
     }
 
     func confirmDeleteTag(_ tag: String) {
-        confirm = ConfirmRequest(title: "Delete tag “\(tag)”?", message: "The tag is removed from every item. You can undo this.", confirmTitle: "Delete Tag") { [weak self] in
+        confirm = ConfirmRequest(title: "Delete tag “\(tag)”?", message: "It will be removed from every item.", confirmTitle: "Delete Tag") { [weak self] in
             guard let self else { return }
             Task {
                 await self.perform("Delete Tag") { try await $0.deleteTag(tag) }

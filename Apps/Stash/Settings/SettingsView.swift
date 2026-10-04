@@ -27,21 +27,19 @@ struct SettingsView: View {
                 Picker("Grid background", selection: $background) {
                     Text("Default").tag("default"); Text("Black").tag("black"); Text("White").tag("white"); Text("Grey").tag("grey")
                 }
-                Toggle("Show who added each item (initials on tiles)", isOn: $showAddedBy)
+                Toggle("Show who added each item", isOn: $showAddedBy)
                 Picker("Grid tiles", selection: Binding(get: { model.layoutMode }, set: { model.layoutMode = $0 })) {
                     Text("Squares").tag(GridLayoutMode.square); Text("Original proportions").tag(GridLayoutMode.masonry)
                 }
                 Slider(value: $spacing, in: 0...32, step: 1) { Text("Tile spacing") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("32") }
                 Slider(value: $cornerRadius, in: 0...24, step: 1) { Text("Corner radius") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("24") }
                 Section("Capture") {
-                    Toggle("Take a page snapshot for links without a preview image", isOn: $autoSnapshotLinks)
-                    Toggle("Hide Dock icon (use the menu bar item)", isOn: $hideDockIcon)
+                    Toggle("Snapshot links without a preview", isOn: $autoSnapshotLinks)
+                    Toggle("Hide Dock icon", isOn: $hideDockIcon)
                         .onChange(of: hideDockIcon) { model.applyDockPolicy() }
                 }
                 Section("Canvas") {
-                    Toggle("Push clusters out of the way when moving them", isOn: $canvasPush)
-                    Text("Drag a cluster by its title and the clusters in its way slide aside. Drag items between clusters, or onto empty canvas for a new one; hold ⌥ to always start a new cluster.")
-                        .font(.caption).foregroundStyle(.secondary)
+                    Toggle("Push clusters aside when moving", isOn: $canvasPush)
                 }
                 Section("Auto-tagging") {
                     Toggle("Tag my new items automatically", isOn: $autoTagNew)
@@ -55,14 +53,8 @@ struct SettingsView: View {
                         LabeledContent("Skipped here") {
                             Text(model.autoTagSkipped.joined(separator: ", ")).lineLimit(3).multilineTextAlignment(.trailing)
                         }
-                        .help("Tags the recognizer put on so many of your items that they stopped being useful. Learned from this library.")
                         Button("Reset skipped tags") { model.resetAutoTagSkipped() }
                     }
-                    Text((AutoTagger.engineName == "apple-on-device-vlm"
-                          ? "Uses Apple's on-device model, which looks at each image and names the subject, kind of asset, style and colours."
-                          : "Uses Apple's on-device image recognition (this Mac can't run the richer model). Best on photos.")
-                         + " Nothing leaves this Mac. Tags are ordinary tags: edit or remove any of them and they stay gone.")
-                        .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Sidebar sections") {
                     Toggle("Collections", isOn: $showCollections)
@@ -73,7 +65,7 @@ struct SettingsView: View {
             .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
             Form {
-                TextField("Your name (shown as “added by”)", text: $handle)
+                TextField("Your name", text: $handle)
                 LabeledContent("Library") {
                     Text(model.layout?.root.path ?? "—").textSelection(.enabled).lineLimit(2)
                 }
@@ -108,14 +100,12 @@ enum LibraryPicker {
         p.canChooseDirectories = true
         p.canChooseFiles = false
         p.treatsFilePackagesAsDirectories = false
-        p.message = "Choose a Stash library (a folder ending in .stash)"
         if p.runModal() == .OK, let url = p.url { model.openLibrary(at: url) }
     }
 
     static func createNew(_ model: AppModel) {
         let p = NSSavePanel()
         p.nameFieldStringValue = "Stash Library.stash"
-        p.message = "Choose where to create the new library"
         if p.runModal() == .OK, var url = p.url {
             if url.pathExtension != "stash" { url.appendPathExtension("stash") }
             Task { await model.openOrCreate(at: url) }
@@ -147,8 +137,6 @@ struct ShortcutsSettings: View {
             } footer: {
                 VStack(alignment: .leading, spacing: 4) {
                     if let message { Text(message).foregroundStyle(.red) }
-                    Text("Single-key shortcuts only work while the grid has focus, so they never interfere with typing. Press Esc while recording to cancel.")
-                        .foregroundStyle(.secondary)
                     Button("Reset all to defaults") { store.resetAll(); message = nil }
                 }
             }
@@ -221,10 +209,6 @@ struct ExtensionsSettings: View {
                     }
                 }
                 .font(.callout)
-            }
-            Section("Safe by design") {
-                Text("The extension talks to Stash over 127.0.0.1 only, and every request must carry the pairing code. Web pages can't call it.")
-                    .font(.callout).foregroundStyle(.secondary)
             }
         }
         .onAppear { token = model.tokens.token() }

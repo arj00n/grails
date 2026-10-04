@@ -10,8 +10,7 @@ extension AppModel {
         let looksRight = BoardRef.parse(clip) != nil || BoardRef.isPinterestShortLink(clip)
         prompt = PromptRequest(
             title: "Import from Are.na or Pinterest",
-            message: "Paste a link to a public Are.na channel or a Pinterest board. It becomes a collection.",
-            placeholder: "https://www.are.na/…  or  https://www.pinterest.com/…", initial: looksRight ? clip : "", confirmTitle: "Import"
+            placeholder: "Board link", initial: looksRight ? clip : "", confirmTitle: "Import"
         ) { [weak self] link in
             guard let self, !link.trimmingCharacters(in: .whitespaces).isEmpty else { return }
             self.startBoardImport(link)

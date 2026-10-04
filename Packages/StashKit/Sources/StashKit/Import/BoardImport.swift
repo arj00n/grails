@@ -235,9 +235,9 @@ public struct BoardImporter: Sendable {
         var out = try await fetchPinterestPins(ids: feed.pins.map(\.id), ref: ref, name: name, author: user, fallback: feed.pins)
         out.note = nil
         if let total = out.expectedTotal, total > feed.pins.count {
-            out.note = "Pinterest only shares a board's \(feed.pins.count) most recent pins publicly (this board has \(total)). To bring in all \(total), open the board in Chrome and use the Stash extension's “Import this board”."
+            out.note = "Pinterest shares only the latest \(feed.pins.count) of \(total) pins. The Chrome extension can import all of them."
         } else if out.expectedTotal == nil {
-            out.note = "Pinterest only shares a board's most recent pins publicly, so this brings in the latest \(feed.pins.count)."
+            out.note = "Pinterest shares only the latest \(feed.pins.count) pins."
         }
         progress(out.entries.count, out.expectedTotal)
         return out
