@@ -39,8 +39,8 @@ struct SettingsView: View {
                         .onChange(of: hideDockIcon) { model.applyDockPolicy() }
                 }
                 Section("Canvas") {
-                    Toggle("Push items out of the way when dragging", isOn: $canvasPush)
-                    Text("Drop an item onto others and they slide aside to make room. Hold ⌥ while dragging to let items overlap.")
+                    Toggle("Push clusters out of the way when moving them", isOn: $canvasPush)
+                    Text("Drag a cluster by its title and the clusters in its way slide aside. Drag items between clusters, or onto empty canvas for a new one; hold ⌥ to always start a new cluster.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("Auto-tagging") {

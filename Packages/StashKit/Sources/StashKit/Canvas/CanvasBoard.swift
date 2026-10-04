@@ -26,17 +26,49 @@ public struct CanvasBoard: Codable, Sendable, Equatable {
     public var key: String
     public var updatedAt: Date
     public var updatedBy: String
+    /// Free-form placements from before clusters; kept so older Stash versions and older boards still work.
     public var placements: [String: CanvasPlacement]
+    /// Groups of items that sit edge to edge. When present, these decide what the canvas shows.
+    public var clusters: [CanvasCluster]
 
-    public init(key: String, placements: [String: CanvasPlacement] = [:], updatedAt: Date = .stashNow, updatedBy: String = "") {
+    public init(key: String, placements: [String: CanvasPlacement] = [:], clusters: [CanvasCluster] = [], updatedAt: Date = .stashNow, updatedBy: String = "") {
         self.schema = StashKit.schemaVersion
-        self.key = key; self.placements = placements; self.updatedAt = updatedAt; self.updatedBy = updatedBy
+        self.key = key; self.placements = placements; self.clusters = clusters; self.updatedAt = updatedAt; self.updatedBy = updatedBy
+    }
+
+    private enum CodingKeys: String, CodingKey { case schema, key, updatedAt, updatedBy, placements, clusters }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        schema = try c.decode(Int.self, forKey: .schema)
+        key = try c.decode(String.self, forKey: .key)
+        updatedAt = try c.decode(Date.self, forKey: .updatedAt)
+        updatedBy = try c.decode(String.self, forKey: .updatedBy)
+        placements = try c.decodeIfPresent([String: CanvasPlacement].self, forKey: .placements) ?? [:]
+        clusters = try c.decodeIfPresent([CanvasCluster].self, forKey: .clusters) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schema, forKey: .schema)
+        try c.encode(key, forKey: .key)
+        try c.encode(updatedAt, forKey: .updatedAt)
+        try c.encode(updatedBy, forKey: .updatedBy)
+        try c.encode(placements, forKey: .placements)
+        if !clusters.isEmpty { try c.encode(clusters, forKey: .clusters) }
     }
 
     /// Per placement, the newer edit wins; placements only one side has are kept.
     public static func merge(_ a: CanvasBoard, _ b: CanvasBoard) -> CanvasBoard {
         var out = a.updatedAt >= b.updatedAt ? a : b
         out.placements = a.placements.merging(b.placements) { x, y in x.at >= y.at ? x : y }
+        // clusters: per cluster, the newer edit wins; clusters only one side has are kept; no item ends up in two
+        var byID: [String: CanvasCluster] = [:]
+        var order: [String] = []
+        for c in a.clusters + b.clusters {
+            if let existing = byID[c.id] { byID[c.id] = existing.at >= c.at ? existing : c } else { byID[c.id] = c; order.append(c.id) }
+        }
+        out.clusters = ClusterOps.normalized(order.compactMap { byID[$0] }).filter { !$0.items.isEmpty }
         out.updatedAt = max(a.updatedAt, b.updatedAt)
         return out
     }

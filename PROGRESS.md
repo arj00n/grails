@@ -2,6 +2,25 @@
 
 ## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
 
+## Clusters, on-device VLM tags, Pinterest videos — 2026-10-04
+- **Canvas = clusters.** A cluster is a titled block whose items are packed edge to edge into rows that fill its width (`ClusterLayout.pack`, no gaps, short last
+  row keeps the target height). You move clusters (drag the title bar), resize them (grip at the right end of the title bar), and carry items: within a cluster
+  they reorder with the others flowing around the pointer; onto another cluster they slot in at the pointer; onto empty canvas (or with ⌥) they become a new
+  cluster. ⌘G groups the selection, ⌥⌘A tidies the blocks, ← → reorder, double-click a title to rename, right-click a title for tile size / dissolve.
+  Blocks never overlap (`CanvasReflow` on cluster frames). Stored in `canvas/<key>.json` as `clusters` (older boards migrate into one cluster; old placements are
+  kept untouched so older Stash versions still read them). Merge is per cluster, newest wins; one undo step per edit.
+- **Grid = sections.** With two or more clusters (and natural sort, no search) the grid shows each cluster as a titled section, in your arrangement order
+  (`SectionedLayout`, header rows are `ItemKind.section` pseudo-items; selection ignores them). Items no cluster holds yet join the first.
+- **Auto-tag engine**: macOS 27's on-device language model with image input (`LanguageModelTagger`, falls back to the Vision classifier elsewhere). Names subject,
+  asset type, style and colours; ~1.2 s/image. Items the old classifier tagged are re-tagged once, replacing only machine-added tags (`autoTagModel` column,
+  index migration v4). On the 25 Pinterest creatives: old tags were `adult, people, sign`; new are `burger, poster, minimal, gradient, orange, red`.
+- **Pinterest**: pins are resolved through the public widget endpoint (exact originals incl. PNG/WebP, source link as the item's page, video renditions: the `.mp4`
+  is derived from the HLS stream). The feed only lists ~25 pins, so the Chrome extension gained "Import this board" (scrolls the logged-in tab, sends pin ids to
+  `POST /api/v1/imports`). Videos get a poster thumbnail, size, duration, a ▶ badge and play in the preview.
+- **Dev tools that don't touch the screen**: `STASH_CANVAS_DEMO=<dir>` drives the canvas with synthetic events delivered to the view and renders PNGs;
+  `STASH_SNAPSHOT=<png>` renders the AppKit grid. (Don't use XCUITest screenshots while someone is using the Mac: they capture whatever is on top and click/type
+  at screen coordinates.) The existing canvas UI tests describe the old free-form canvas and are stale; they were not run for this change.
+
 ## Black-and-glass redesign — 2026-10-04
 - Look: Cosmos-style. Full-bleed black; chrome floats as glass (Liquid Glass via `glassEffect` on macOS 26+, frosted material before): centred search pill
   (a real `NSSearchField`, ⌘F), view switcher + filter + info cluster, a floating sidebar card (⌃⌘S, remembered) and info card, glass dialogs/palette/toasts/progress,

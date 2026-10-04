@@ -60,4 +60,10 @@ public struct ItemSummary: Sendable, Hashable, Identifiable {
     public var badge: String?
     /// Videos: length in seconds
     public var durationSec: Double? = nil
+
+    /// A divider row for the grid: the cluster's title, and how many items follow in `bytes`.
+    public static func sectionHeader(id: String, title: String, count: Int) -> ItemSummary {
+        ItemSummary(id: "section:\(id)", kind: .section, name: title, ext: nil, width: nil, height: nil, bytes: Int64(count), liked: false,
+                    addedAt: .distantPast, addedBy: "", deletedAt: nil, site: nil, linkDisplay: nil, badge: nil, durationSec: nil)
+    }
 }

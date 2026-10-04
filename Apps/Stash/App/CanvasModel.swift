@@ -15,74 +15,108 @@ extension AppModel {
         }
     }
 
-    /// Makes sure the canvas has the right board loaded and every visible item has a place on it.
+    /// Makes sure the canvas has the right board loaded and every visible item belongs to a cluster.
     func syncCanvas() async {
         guard viewMode == .canvas, let key = canvasBoardKey else { return }
-        if canvasLoadedKey != key { await loadBoard() } else { await placeMissingItems(announce: true) }
+        if canvasLoadedKey != key { await loadBoard() } else { await adoptNewItems(announce: true) }
     }
 
     func loadBoard() async {
         guard let store, let key = canvasBoardKey else { return }
-        canvasPlacements = await store.canvasBoard(key: key)?.placements ?? [:]
+        let board = await store.canvasBoard(key: key)
+        var clusters = board?.clusters ?? []
+        // a board from before clusters: its items become one cluster, in the order they were laid out
+        if clusters.isEmpty, let placements = board?.placements, !placements.isEmpty { clusters = ClusterOps.migrate(placements) }
+        canvasClusters = clusters
         canvasLoadedKey = key
-        await placeMissingItems(announce: false)
+        await adoptNewItems(announce: false)
         bumpCanvasVersion()
     }
 
-    /// New items (a paste, a teammate's save) get a spot below existing work; the first time a board opens, a tidy layout.
-    private func placeMissingItems(announce: Bool) async {
+    /// New items (a paste, a teammate's save, an import) join the first cluster; a board with none gets one.
+    private func adoptNewItems(announce: Bool) async {
         guard let store, let key = canvasBoardKey else { return }
-        let missing = items.filter { canvasPlacements[$0.id] == nil }
-        guard !missing.isEmpty else { return }
-        let entries = missing.map { CanvasLayoutEngine.Entry(id: $0.id, aspect: Self.aspect(of: $0)) }
-        let hadWork = !canvasPlacements.isEmpty
-        let placed = CanvasLayoutEngine.placeNew(entries, existing: canvasPlacements)
-        for (id, p) in placed { canvasPlacements[id] = p }
-        _ = try? await store.updatePlacements(boardKey: key, placed)
+        let ids = items.map(\.id)
+        let adopted = ClusterOps.adopt(ids, into: canvasClusters)
+        guard adopted != canvasClusters else { return }
+        let known = Set(canvasClusters.flatMap(\.items))
+        let fresh = ids.filter { !known.contains($0) }
+        canvasClusters = adopted
+        _ = try? await store.setClusters(boardKey: key, adopted)       // housekeeping: not an undo step
         if announce {
             bumpCanvasVersion()
-            if hadWork { canvasRequest = CanvasRequest(kind: .reveal(Array(placed.keys))) }
+            if !known.isEmpty, !fresh.isEmpty { canvasRequest = CanvasRequest(kind: .reveal(fresh)) }
         }
     }
 
-    static func aspect(of s: ItemSummary) -> Double {
-        if let w = s.width, let h = s.height, w > 0, h > 0 { return Double(w) / Double(h) }
-        return s.kind == .link ? 4.0 / 3.0 : 1
-    }
+    static func aspect(of s: ItemSummary) -> Double { CanvasNSView.aspect(of: s) }
 
-    /// A move, resize or nudge finished on the canvas: remember it locally and save it (undoable).
-    func commitCanvas(_ updates: [String: CanvasPlacement], label: String) {
-        guard let store, let key = canvasBoardKey, !updates.isEmpty else { return }
-        for (id, p) in updates { canvasPlacements[id] = p }
+    /// An edit finished on the canvas: remember it locally and save it (undoable).
+    func commitClusters(_ new: [CanvasCluster], label: String) {
+        guard let store, let key = canvasBoardKey else { return }
+        canvasClusters = new
+        sectionClusters = new; sectionKey = key; rebuildSections()
+        bumpCanvasVersion()
         Task {
             do {
-                let (_, undo) = try await recorded(label, in: store) { _ = try await store.updatePlacements(boardKey: key, updates) }
+                let (_, undo) = try await recorded(label, in: store) { _ = try await store.setClusters(boardKey: key, new) }
                 pushUndo(undo)
             } catch { errorMessage = "Couldn't save the canvas: \(error.localizedDescription)" }
         }
     }
 
-    /// Re-packs the selection (or everything) into tidy rows, keeping each item's size.
-    func arrangeCanvas(selectionOnly: Bool) {
-        let ids = selectionOnly && !selection.isEmpty ? Array(selection) : items.map(\.id)
-        let updates = CanvasLayoutEngine.arrange(ids, in: canvasPlacements)
-        guard !updates.isEmpty else { return }
-        commitCanvas(updates, label: selectionOnly ? "Arrange Selection" : "Arrange All")
-        bumpCanvasVersion()
-        canvasRequest = CanvasRequest(kind: selectionOnly ? .fitSelection : .fit)
+    // MARK: Cluster commands
+
+    func promptRenameCluster(_ id: String) {
+        guard let c = canvasClusters.first(where: { $0.id == id }) else { return }
+        prompt = PromptRequest(title: "Cluster name", message: "Shown as the section title in the grid, too.", placeholder: "Name", initial: c.title, confirmTitle: "Rename") { [weak self] name in
+            guard let self else { return }
+            var next = self.canvasClusters
+            guard let i = next.firstIndex(where: { $0.id == id }) else { return }
+            next[i].title = name.trimmingCharacters(in: .whitespaces)
+            next[i].at = Date().timeIntervalSince1970
+            self.commitClusters(next, label: "Rename Cluster")
+        }
     }
 
-    func canvasStacking(front: Bool) {
-        let ids = selection.filter { canvasPlacements[$0] != nil }.sorted { (canvasPlacements[$0]!.z, $0) < (canvasPlacements[$1]!.z, $1) }
-        guard !ids.isEmpty else { return }
-        let zs = canvasPlacements.values.map(\.z)
-        var updates: [String: CanvasPlacement] = [:]
-        for (i, id) in ids.enumerated() {
-            var p = canvasPlacements[id]!
-            p.z = front ? (zs.max() ?? 0) + 1 + i : (zs.min() ?? 0) - ids.count + i
-            updates[id] = p
+    func setClusterTile(_ id: String, tile: Double) {
+        var next = canvasClusters
+        guard let i = next.firstIndex(where: { $0.id == id }) else { return }
+        next[i].tile = min(max(tile, ClusterLayout.minTile), ClusterLayout.maxTile)
+        next[i].at = Date().timeIntervalSince1970
+        commitClusters(next, label: "Change Tile Size")
+    }
+
+    /// Breaks a cluster up: its items go to the first other cluster (or stay, if it is the only one).
+    func dissolveCluster(_ id: String) {
+        guard canvasClusters.count > 1, let c = canvasClusters.first(where: { $0.id == id }), let into = canvasClusters.first(where: { $0.id != id }) else {
+            showToast("This is the only cluster")
+            return
         }
-        commitCanvas(updates, label: front ? "Bring to Front" : "Send to Back")
-        bumpCanvasVersion()
+        let next = ClusterOps.move(c.items, to: .cluster(into.id, index: into.items.count), in: canvasClusters)
+        commitClusters(next, label: "Dissolve Cluster")
+    }
+
+    func clusterMenu(_ id: String) -> NSMenu {
+        let menu = NSMenu()
+        func add(_ title: String, _ symbol: String? = nil, _ action: @escaping @MainActor () -> Void) {
+            let item = ClosureMenuItem(title: title, handler: action)
+            if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
+            menu.addItem(item)
+        }
+        add("Rename…", "pencil") { [self] in promptRenameCluster(id) }
+        let sizes = NSMenu()
+        for (name, tile) in [("Small", 160.0), ("Medium", 260.0), ("Large", 400.0), ("Extra Large", 600.0)] {
+            let item = ClosureMenuItem(title: name) { [self] in setClusterTile(id, tile: tile) }
+            if let c = canvasClusters.first(where: { $0.id == id }), abs(c.tile - tile) < 1 { item.state = .on }
+            sizes.addItem(item)
+        }
+        let parent = NSMenuItem(title: "Tile Size", action: nil, keyEquivalent: "")
+        parent.image = NSImage(systemSymbolName: "square.grid.3x3", accessibilityDescription: nil)
+        parent.submenu = sizes
+        menu.addItem(parent)
+        menu.addItem(.separator())
+        add("Dissolve Cluster", "rectangle.badge.minus") { [self] in dissolveCluster(id) }
+        return menu
     }
 }

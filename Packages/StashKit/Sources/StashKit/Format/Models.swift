@@ -21,6 +21,8 @@ public struct ItemKind: RawRepresentable, Codable, Hashable, Sendable, Expressib
     public static let link: ItemKind = "link"
     public static let color: ItemKind = "color"
     public static let file: ItemKind = "file"
+    /// Not an item: a titled section divider in the grid (a canvas cluster). Never stored.
+    public static let section: ItemKind = "section"
 }
 
 public struct ItemSource: Codable, Hashable, Sendable {

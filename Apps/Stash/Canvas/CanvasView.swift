@@ -3,7 +3,7 @@ import StashKit
 import SwiftUI
 
 /// SwiftUI host for the canvas. Items, placements, selection and one-shot requests flow in from the model;
-/// edits flow back through `commitCanvas` (which records undo and saves to the library).
+/// edits flow back through `commitClusters` (which records undo and saves to the library).
 struct CanvasView: NSViewRepresentable {
     var model: AppModel
 
@@ -23,7 +23,9 @@ struct CanvasView: NSViewRepresentable {
         }
         context.coordinator.hitch?.start(on: v)
         v.onSelectionChange = { [weak model] ids in model?.selection = ids }
-        v.onCommit = { [weak model] updates, label in model?.commitCanvas(updates, label: label) }
+        v.onCommitClusters = { [weak model] clusters, label in model?.commitClusters(clusters, label: label) }
+        v.onRenameCluster = { [weak model] id in model?.promptRenameCluster(id) }
+        v.clusterMenuProvider = { [weak model] id in model?.clusterMenu(id) }
         v.onPreview = { [weak model] id in model?.openPreview(id) }
         v.onPaste = { [weak model] in model?.paste() }
         // launch arguments arrive as strings, so read through bool(forKey:)
@@ -57,10 +59,14 @@ struct CanvasView: NSViewRepresentable {
         if c.canvasVersion != model.canvasVersion {
             c.canvasVersion = model.canvasVersion
             let key = model.canvasBoardKey
-            v.setPlacements(model.canvasPlacements, boardKey: key, savedViewport: key.flatMap { CanvasViewports.load(key: CanvasViewports.scoped($0, model.layout)) })
+            v.setClusters(model.canvasClusters, boardKey: key, savedViewport: key.flatMap { CanvasViewports.load(key: CanvasViewports.scoped($0, model.layout)) })
         }
         v.setSelection(model.selection)
-        if !c.benchStarted, ProcessInfo.processInfo.environment["STASH_BENCH"] != nil, !model.canvasPlacements.isEmpty {
+        if !c.demoStarted, let dir = ProcessInfo.processInfo.environment["STASH_CANVAS_DEMO"], !model.canvasClusters.isEmpty {
+            c.demoStarted = true
+            v.runDemo(into: dir, quit: ProcessInfo.processInfo.environment["STASH_CANVAS_DEMO_QUIT"] != nil)
+        }
+        if !c.benchStarted, ProcessInfo.processInfo.environment["STASH_BENCH"] != nil, !model.canvasClusters.isEmpty {
             c.benchStarted = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak v, weak c] in MainActor.assumeIsolated { v?.startBenchmark(hitch: c?.hitch) } }
         }
@@ -71,6 +77,8 @@ struct CanvasView: NSViewRepresentable {
             case .fitSelection: v.fit(ids: Array(model.selection), animated: true)
             case .reveal(let ids): v.fit(ids: ids, animated: true, margin: 110)
             case .zoom(let f): v.zoom(by: f, at: CGPoint(x: v.bounds.midX, y: v.bounds.midY))
+            case .groupSelection: v.groupSelection()
+            case .tidyClusters: v.tidyClusters()
             }
         }
         if c.focusTick != model.focusGridTick {
@@ -83,6 +91,7 @@ struct CanvasView: NSViewRepresentable {
         weak var canvas: CanvasNSView?
         var hitch: HitchMonitor?
         var benchStarted = false
+        var demoStarted = false
         var itemsVersion = -1
         var canvasVersion = -1
         var lastRequest: UUID?

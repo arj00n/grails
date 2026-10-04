@@ -69,7 +69,7 @@ struct ViewFilters: Equatable {
 }
 
 struct CanvasRequest: Equatable {
-    enum Kind: Equatable { case fit, fitSelection, zoom(CGFloat), reveal([String]) }
+    enum Kind: Equatable { case fit, fitSelection, zoom(CGFloat), reveal([String]), groupSelection, tidyClusters }
     let id = UUID()
     var kind: Kind
 }
@@ -191,7 +191,12 @@ final class AppModel {
     private var reloadGeneration = 0
     private var toastTask: Task<Void, Never>?
     // Canvas: free-form boards (see CanvasModel.swift)
-    @ObservationIgnored var canvasPlacements: [String: CanvasPlacement] = [:]
+    @ObservationIgnored var canvasClusters: [CanvasCluster] = []
+    /// The grid's titled sections (one per canvas cluster), or nil when the view shows a plain flat grid.
+    var gridSections: [GridSection]?
+    var sectionsVersion = 0
+    @ObservationIgnored var sectionClusters: [CanvasCluster] = []
+    @ObservationIgnored var sectionKey: String?
     /// Bumped when the grid-of-record for the canvas changes from outside the canvas (board loaded, undo, teammate, arrange).
     private(set) var canvasVersion = 0
     @ObservationIgnored var canvasLoadedKey: String?
@@ -397,6 +402,7 @@ final class AppModel {
             if autoTagSeenTotal >= 0, total > autoTagSeenTotal { kickAutoTag() }
             contributors = people.map { (who: $0.who, count: $0.count) }
             if viewMode == .canvas { await syncCanvas() }
+            await refreshSections()
         } catch {
             errorMessage = "Couldn't load items: \(error.localizedDescription)"
         }
@@ -492,6 +498,7 @@ final class AppModel {
             redoStack.append(inverse)
             await reload()
             if viewMode == .canvas { await loadBoard() }
+            await refreshSections(forceRead: true)
             showToast(cs.label.isEmpty ? "Undone" : "Undid \(cs.label.lowercased())")
         } catch { errorMessage = "Undo failed: \(error.localizedDescription)" }
     }
@@ -503,6 +510,7 @@ final class AppModel {
             undoStack.append(inverse)
             await reload()
             if viewMode == .canvas { await loadBoard() }
+            await refreshSections(forceRead: true)
             showToast("Redid \(cs.label.lowercased())")
         } catch { errorMessage = "Redo failed: \(error.localizedDescription)" }
     }

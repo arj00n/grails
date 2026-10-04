@@ -28,9 +28,7 @@ extension AppModel {
         }
         if canvas {
             menu.addItem(.separator())
-            add("Bring to Front", "square.3.layers.3d.top.filled") { [self] in canvasStacking(front: true) }
-            add("Send to Back", "square.3.layers.3d.bottom.filled") { [self] in canvasStacking(front: false) }
-            if selected.count > 1 { add("Arrange Selection", "rectangle.grid.2x2") { [self] in arrangeCanvas(selectionOnly: true) } }
+            add("Group into New Cluster", "square.on.square.dashed") { [self] in canvasRequest = CanvasRequest(kind: .groupSelection) }
             add("Zoom to Selection", "arrow.up.left.and.down.right.magnifyingglass") { [self] in canvasRequest = CanvasRequest(kind: .fitSelection) }
         }
         menu.addItem(.separator())

@@ -142,3 +142,81 @@ final class MasonryLayout: TileLayout {
 
     func frame(ofItem i: Int) -> CGRect? { frames.indices.contains(i) ? frames[i] : nil }
 }
+
+
+/// The grid with titled sections: each section is a header row followed by its tiles (squares, or each keeping its
+/// proportions, to match the grid setting). Sections are laid out one after another.
+final class SectionedLayout: TileLayout {
+    static let headerHeight: CGFloat = 60
+    static let sectionGap: CGFloat = 36
+
+    /// Per item index: true for a section header.
+    var headerFlags: [Bool] = []
+    /// height / width per item, in index order (used when tiles keep their proportions)
+    var aspects: [CGFloat] = []
+    var squareTiles = true { didSet { if oldValue != squareTiles { signature = []; invalidateLayout() } } }
+    var dataVersion = 0 { didSet { signature = [] } }
+
+    private var signature: [CGFloat] = []
+    private var frames: [CGRect] = []
+    private var spans: [(range: Range<Int>, top: CGFloat, bottom: CGFloat)] = []
+    private var height: CGFloat = 0
+
+    override func prepare() {
+        let sig: [CGFloat] = [availableWidth, targetWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion), exact ? 1 : 0, squareTiles ? 1 : 0]
+        guard sig != signature else { return }
+        signature = sig
+        let (cols, w, leading) = geometry()
+        frames = []
+        frames.reserveCapacity(itemCount)
+        spans = []
+        var y = inset
+        var i = 0
+        let n = min(itemCount, headerFlags.count)
+        while i < n {
+            let spanStart = i, spanTop = y
+            if headerFlags[i] {
+                frames.append(CGRect(x: inset, y: y, width: availableWidth, height: Self.headerHeight))
+                y += Self.headerHeight + spacing
+                i += 1
+            }
+            let first = i
+            while i < n, !headerFlags[i] { i += 1 }
+            let count = i - first
+            if squareTiles {
+                for k in 0..<count {
+                    frames.append(CGRect(x: leading + CGFloat(k % cols) * (w + spacing), y: y + CGFloat(k / cols) * (w + spacing), width: w, height: w))
+                }
+                let rows = (count + cols - 1) / cols
+                if rows > 0 { y += CGFloat(rows) * (w + spacing) - spacing }
+            } else {
+                var heights = [CGFloat](repeating: y, count: cols)
+                for k in 0..<count {
+                    let c = heights.indices.min { heights[$0] < heights[$1] } ?? 0
+                    let aspect = first + k < aspects.count ? aspects[first + k] : 1
+                    let h = min(max(w * aspect, w * 0.3), w * 3)
+                    frames.append(CGRect(x: leading + CGFloat(c) * (w + spacing), y: heights[c], width: w, height: h))
+                    heights[c] += h + spacing
+                }
+                if count > 0 { y = (heights.max() ?? y) - spacing }
+            }
+            spans.append((spanStart..<i, spanTop, y))
+            y += Self.sectionGap
+        }
+        height = max(y - Self.sectionGap, 0) + inset
+    }
+
+    override var collectionViewContentSize: NSSize { NSSize(width: collectionView?.bounds.width ?? 0, height: max(height, 0)) }
+
+    override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
+        var out: [NSCollectionViewLayoutAttributes] = []
+        for span in spans where span.bottom >= rect.minY && span.top <= rect.maxY {
+            for i in span.range where i < frames.count && frames[i].intersects(rect) { out.append(attributes(i, frames[i])) }
+        }
+        return out
+    }
+
+    override func layoutAttributesForItem(at indexPath: IndexPath) -> NSCollectionViewLayoutAttributes? {
+        indexPath.item < frames.count ? attributes(indexPath.item, frames[indexPath.item]) : nil
+    }
+}

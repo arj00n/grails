@@ -50,6 +50,8 @@ final class ThumbCell: NSCollectionViewItem {
     private let badge = PassthroughLabel.make()
     private let cloud = NSImageView()
     private let avatar = PassthroughLabel.make()
+    private let sectionLabel = PassthroughLabel.make()
+    private var isSection = false
 
     override func loadView() {
         let v = TileView()
@@ -117,6 +119,17 @@ final class ThumbCell: NSCollectionViewItem {
         badge.translatesAutoresizingMaskIntoConstraints = false
         badge.isHidden = true
         v.addSubview(badge)
+        sectionLabel.font = .systemFont(ofSize: 24, weight: .semibold)
+        sectionLabel.textColor = NSColor.white.withAlphaComponent(0.92)
+        sectionLabel.lineBreakMode = .byTruncatingTail
+        sectionLabel.translatesAutoresizingMaskIntoConstraints = false
+        sectionLabel.isHidden = true
+        v.addSubview(sectionLabel)
+        NSLayoutConstraint.activate([
+            sectionLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 2),
+            sectionLabel.trailingAnchor.constraint(lessThanOrEqualTo: v.trailingAnchor),
+            sectionLabel.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -6),
+        ])
         NSLayoutConstraint.activate([
             captionBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             captionBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
@@ -164,13 +177,38 @@ final class ThumbCell: NSCollectionViewItem {
     override var isSelected: Bool { didSet { applySelection() } }
 
     private func applySelection() {
-        view.layer?.borderWidth = isSelected ? 2.5 : 0
+        view.layer?.borderWidth = isSelected && !isSection ? 2.5 : 0
         view.layer?.borderColor = NSColor.white.withAlphaComponent(0.92).cgColor
+    }
+
+    /// A section divider: just the cluster's title and how many items it holds.
+    func configureSection(_ s: ItemSummary) {
+        op?.cancel()
+        itemID = nil
+        isSection = true
+        view.layer?.contents = nil
+        view.layer?.backgroundColor = NSColor.clear.cgColor
+        view.layer?.borderWidth = 0
+        for v in [placeholder, heart, captionBar, titleLabel, siteLabel, badge, cloud, avatar] as [NSView] { v.isHidden = true }
+        let untitled = s.name.isEmpty
+        let text = NSMutableAttributedString(string: untitled ? "Untitled" : s.name, attributes: [
+            .font: NSFont.systemFont(ofSize: 24, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(untitled ? 0.30 : 0.92),
+        ])
+        text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
+            .font: NSFont.systemFont(ofSize: 16, weight: .regular), .foregroundColor: NSColor.white.withAlphaComponent(0.38),
+        ]))
+        sectionLabel.attributedStringValue = text
+        sectionLabel.isHidden = false
+        (view as? TileView)?.axLabel = "Cluster: \(untitled ? "Untitled" : s.name)"
     }
 
     func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false) {
         op?.cancel()
         itemID = s.id
+        isSection = false
+        sectionLabel.isHidden = true
+        view.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
         cloud.isHidden = !cloudOnly
         avatar.isHidden = !showAddedBy || s.addedBy.isEmpty
         if showAddedBy {
@@ -241,6 +279,10 @@ final class ThumbCell: NSCollectionViewItem {
         titleLabel.isHidden = true
         siteLabel.isHidden = true
         badge.isHidden = true
+        sectionLabel.isHidden = true
+        placeholder.isHidden = false
+        isSection = false
+        view.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
     }
 
     static func symbol(for kind: ItemKind) -> String {

@@ -42,7 +42,7 @@ struct GridView: NSViewRepresentable {
         cv.onPaste = { [weak c] in c?.model.paste() }
         cv.contextMenuProvider = { [weak c] i in c?.contextMenu(forItemAt: i) }
         cv.onOptionClick = { [weak c] i in
-            guard let c, let s = c.item(at: i) else { return }
+            guard let c, let s = c.item(at: i), s.kind != .section else { return }
             c.model.toggleLike(ids: [s.id])
         }
         c.collectionView = cv
@@ -80,6 +80,9 @@ struct GridView: NSViewRepresentable {
         weak var collectionView: StashCollectionView?
         let squareLayout = SquareLayout()
         let masonryLayout = MasonryLayout()
+        let sectionedLayout = SectionedLayout()
+        private var useSections = false
+        private var sectionsSeen = -1
         var hitch: HitchMonitor?
 
         private var items: [ItemSummary] = []
@@ -107,14 +110,16 @@ struct GridView: NSViewRepresentable {
         }
 
         private var scale: CGFloat { collectionView?.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2 }
-        private var activeLayout: TileLayout { mode == .square ? squareLayout : masonryLayout }
+        private var activeLayout: TileLayout { useSections ? sectionedLayout : (mode == .square ? squareLayout : masonryLayout) }
 
         // MARK: SwiftUI → AppKit
 
         func update(model: AppModel, spacing: Double, cornerRadius: Double, showAddedBy: Bool) {
             self.model = model
             guard let cv = collectionView else { return }
-            let needsData = version != model.itemsVersion || layout != model.layout
+            let sections = model.gridSections
+            useSections = sections != nil
+            let needsData = version != model.itemsVersion || sectionsSeen != model.sectionsVersion || layout != model.layout
             let spacingChanged = squareLayout.spacing != CGFloat(spacing)
             let radiusChanged = self.cornerRadius != CGFloat(cornerRadius)
             let modeChanged = mode != model.layoutMode
@@ -127,7 +132,8 @@ struct GridView: NSViewRepresentable {
             self.cornerRadius = CGFloat(cornerRadius)
             layout = model.layout
             mode = model.layoutMode
-            for l in [squareLayout, masonryLayout] as [TileLayout] { l.spacing = CGFloat(spacing) }
+            for l in [squareLayout, masonryLayout, sectionedLayout] as [TileLayout] { l.spacing = CGFloat(spacing) }
+            sectionedLayout.squareTiles = model.layoutMode == .square
             if lastZoomTick != model.gridZoomTick {
                 lastZoomTick = model.gridZoomTick
                 let delta = model.takeColumnDelta()
@@ -135,17 +141,34 @@ struct GridView: NSViewRepresentable {
             }
             applyModelWidth()
 
-            if modeChanged { cv.collectionViewLayout = activeLayout }
+            if cv.collectionViewLayout !== activeLayout { cv.collectionViewLayout = activeLayout }
             if needsData {
-                items = model.items
+                if let sections {
+                    // one header row per cluster, then its tiles
+                    let byID = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+                    var flat: [ItemSummary] = []
+                    flat.reserveCapacity(model.items.count + sections.count)
+                    for sec in sections {
+                        flat.append(.sectionHeader(id: sec.id, title: sec.title, count: sec.ids.count))
+                        for id in sec.ids { if let it = byID[id] { flat.append(it) } }
+                    }
+                    items = flat
+                } else {
+                    items = model.items
+                }
+                sectionsSeen = model.sectionsVersion
                 indexByID = Dictionary(uniqueKeysWithValues: items.enumerated().map { ($1.id, $0) })
                 version = model.itemsVersion
                 masonryLayout.aspects = items.map { s in
                     guard let w = s.width, let h = s.height, w > 0 else { return 1 }
                     return CGFloat(h) / CGFloat(w)
                 }
-                masonryLayout.dataVersion = version
+                masonryLayout.dataVersion = version &+ model.sectionsVersion
                 masonryLayout.invalidateLayout()
+                sectionedLayout.aspects = masonryLayout.aspects
+                sectionedLayout.headerFlags = items.map { $0.kind == .section }
+                sectionedLayout.dataVersion = version &+ model.sectionsVersion &* 7919
+                sectionedLayout.invalidateLayout()
                 cv.reloadData()
                 applySelection()
                 // A refresh (a teammate's save arriving, an edit) keeps you where you were; a new view starts at the top.
@@ -217,7 +240,7 @@ struct GridView: NSViewRepresentable {
 
         private func setLiveWidth(_ w: CGFloat, exact: Bool) {
             liveWidth = w
-            for l in [squareLayout, masonryLayout] as [TileLayout] { l.exact = exact; l.targetWidth = w }
+            for l in [squareLayout, masonryLayout, sectionedLayout] as [TileLayout] { l.exact = exact; l.targetWidth = w }
         }
 
         /// One step of a pinch or ⌘-scroll: scale the tile size and keep the tile under the pointer under the pointer.
@@ -383,6 +406,11 @@ struct GridView: NSViewRepresentable {
         func collectionView(_ cv: NSCollectionView, itemForRepresentedObjectAt indexPath: IndexPath) -> NSCollectionViewItem {
             let cell = cv.makeItem(withIdentifier: ThumbCell.identifier, for: indexPath) as! ThumbCell
             guard let layout, let s = items[safe: indexPath.item] else { return cell }
+            if s.kind == .section {
+                cell.view.frame.size = activeLayout.layoutAttributesForItem(at: indexPath)?.frame.size ?? cell.view.frame.size
+                cell.configureSection(s)
+                return cell
+            }
             cell.view.frame.size = activeLayout.layoutAttributesForItem(at: indexPath)?.frame.size ?? cell.view.frame.size
             // Files that only exist as sync placeholders must never be read while browsing (it would force a download).
             let original = model.originalURL(for: s)
@@ -397,7 +425,7 @@ struct GridView: NSViewRepresentable {
         func collectionView(_ cv: NSCollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
             guard let layout else { return }
             let px = liveWidth * scale
-            for ip in indexPaths { if let s = items[safe: ip.item] { ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px) } }
+            for ip in indexPaths { if let s = items[safe: ip.item], s.kind != .section { ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px) } }
         }
 
         // MARK: Selection
@@ -407,12 +435,12 @@ struct GridView: NSViewRepresentable {
 
         private func pushSelection(_ cv: NSCollectionView) {
             guard !applying else { return }
-            model.selection = Set(cv.selectionIndexPaths.compactMap { items[safe: $0.item]?.id })
+            model.selection = Set(cv.selectionIndexPaths.compactMap { items[safe: $0.item] }.filter { $0.kind != .section }.map(\.id))
         }
 
         func previewSelection() {
             guard let cv = collectionView else { return }
-            let first = cv.selectionIndexPaths.sorted().first
+            let first = cv.selectionIndexPaths.sorted().first(where: { items[safe: $0.item]?.kind != .section })
             if let id = first.flatMap({ items[safe: $0.item]?.id }) { model.openPreview(id) }
         }
 
@@ -426,7 +454,7 @@ struct GridView: NSViewRepresentable {
         // MARK: Context menu
 
         func contextMenu(forItemAt index: Int) -> NSMenu? {
-            guard let s = items[safe: index], let cv = collectionView else { return nil }
+            guard let s = items[safe: index], s.kind != .section, let cv = collectionView else { return nil }
             if !model.selection.contains(s.id) {
                 applying = true
                 cv.selectionIndexPaths = [IndexPath(item: index, section: 0)]
@@ -440,7 +468,7 @@ struct GridView: NSViewRepresentable {
 
         /// Each dragged tile carries its file (for Finder, Figma, Slack) and its id (for the sidebar's drop targets).
         func collectionView(_ cv: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-            guard let s = items[safe: indexPath.item] else { return nil }
+            guard let s = items[safe: indexPath.item], s.kind != .section else { return nil }
             let pb = NSPasteboardItem()
             if let ids = try? JSONEncoder().encode([s.id]) { pb.setData(ids, forType: NSPasteboard.PasteboardType(UTType.stashItems.identifier)) }
             if let url = model.originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {

@@ -33,7 +33,10 @@ struct RootView: View {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
         .task { await model.openInitialLibrary() }
-        .onAppear { model.startCheatSheetMonitor() }
+        .onAppear {
+            model.startCheatSheetMonitor()
+            Self.snapshotIfRequested()
+        }
         .animation(.smooth(duration: 0.25), value: model.sidebarVisible)
         .animation(.smooth(duration: 0.25), value: model.showInfo)
     }
@@ -218,6 +221,33 @@ struct RootView: View {
         case "white": Color.white
         case "grey": Color(white: 0.16)
         default: Color.black
+        }
+    }
+}
+
+extension RootView {
+    /// Dev: STASH_SNAPSHOT=<png path> renders the window's contents to that file a few seconds after launch (and quits when
+    /// STASH_SNAPSHOT_QUIT is set). No screen access, so it works while the app is in the background.
+    @MainActor
+    static func snapshotIfRequested() {
+        let env = ProcessInfo.processInfo.environment
+        guard let path = env["STASH_SNAPSHOT"] else { return }
+        let delay = Double(env["STASH_SNAPSHOT_DELAY"] ?? "") ?? 5
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(delay))
+            func find(_ v: NSView) -> NSView? {
+                if v is StashCollectionView { return v.enclosingScrollView ?? v }
+                for s in v.subviews { if let hit = find(s) { return hit } }
+                return nil
+            }
+            // the AppKit grid renders offscreen; a SwiftUI window does not
+            let root = NSApp.windows.compactMap(\.contentView).first
+            if let root, let v = find(root), let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                v.cacheDisplay(in: v.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+                print("SNAPSHOT: \(path)")
+            }
+            if env["STASH_SNAPSHOT_QUIT"] != nil { NSApp.terminate(nil) }
         }
     }
 }

@@ -68,7 +68,10 @@ extension AppModel {
         pendingPaths = []
         guard let store, let summary = try? await store.applyExternalChanges(paths: paths), !summary.isEmpty else { return }
         await reload()
-        if viewMode == .canvas, let key = canvasBoardKey, summary.canvasBoards.contains(key) { await loadBoard() }
+        if let key = canvasBoardKey, summary.canvasBoards.contains(key) {
+            if viewMode == .canvas { await loadBoard() }
+            await refreshSections(forceRead: true)
+        }
         if summary.added > 0 { showToast("\(summary.added) new \(summary.added == 1 ? "item" : "items") from your team") }
     }
 

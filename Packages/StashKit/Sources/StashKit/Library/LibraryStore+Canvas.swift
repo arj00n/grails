@@ -31,6 +31,18 @@ extension LibraryStore {
         return board
     }
 
+    /// Saves the board's clusters (the whole list), recording the previous list for undo.
+    @discardableResult
+    public func setClusters(boardKey key: String, _ clusters: [CanvasCluster]) async throws -> CanvasBoard {
+        var board = readBoard(key: key) ?? CanvasBoard(key: key)
+        if recorder != nil, recorder?.clusters[key] == nil { recorder?.clusters[key] = board.clusters }
+        board.clusters = clusters
+        board.updatedAt = .stashNow
+        board.updatedBy = userHandle
+        try writeBoard(board)
+        return board
+    }
+
     func writeBoard(_ board: CanvasBoard) throws {
         try FileManager.default.createDirectory(at: layout.canvasDir, withIntermediateDirectories: true)
         try AtomicFile.write(StashJSON.encodeCompact(board), to: layout.canvasURL(board.key))

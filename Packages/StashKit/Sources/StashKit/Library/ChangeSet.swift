@@ -9,11 +9,13 @@ public struct ChangeSet: Sendable {
     public var smartFolders: [String: SmartFolder?]
     /// board key → item id → the placement before the action (nil = it had none)
     public var canvases: [String: [String: CanvasPlacement?]]
+    /// board key → the board's clusters before the action
+    public var clusters: [String: [CanvasCluster]]
 
-    public var isEmpty: Bool { items.isEmpty && collections.isEmpty && smartFolders.isEmpty && canvases.isEmpty }
+    public var isEmpty: Bool { items.isEmpty && collections.isEmpty && smartFolders.isEmpty && canvases.isEmpty && clusters.isEmpty }
 
-    public init(label: String, items: [String: Item?] = [:], collections: [String: StashCollection?] = [:], smartFolders: [String: SmartFolder?] = [:], canvases: [String: [String: CanvasPlacement?]] = [:]) {
-        self.label = label; self.items = items; self.collections = collections; self.smartFolders = smartFolders; self.canvases = canvases
+    public init(label: String, items: [String: Item?] = [:], collections: [String: StashCollection?] = [:], smartFolders: [String: SmartFolder?] = [:], canvases: [String: [String: CanvasPlacement?]] = [:], clusters: [String: [CanvasCluster]] = [:]) {
+        self.label = label; self.items = items; self.collections = collections; self.smartFolders = smartFolders; self.canvases = canvases; self.clusters = clusters
     }
 }
 
@@ -22,4 +24,5 @@ struct ChangeRecorder {
     var collections: [String: StashCollection?] = [:]
     var smartFolders: [String: SmartFolder?] = [:]
     var canvases: [String: [String: CanvasPlacement?]] = [:]
+    var clusters: [String: [CanvasCluster]] = [:]
 }
