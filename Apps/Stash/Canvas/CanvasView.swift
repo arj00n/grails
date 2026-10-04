@@ -31,7 +31,9 @@ struct CanvasView: NSViewRepresentable {
         // launch arguments arrive as strings, so read through bool(forKey:)
         v.pushEnabled = { UserDefaults.standard.object(forKey: "canvasPush") == nil || UserDefaults.standard.bool(forKey: "canvasPush") }
         v.onOptionClick = { [weak model] id in model?.toggleLike(ids: [id]) }
-        v.onViewportSettled = { [weak model] key, origin, scale in CanvasViewports.save(key: CanvasViewports.scoped(key, model?.layout), origin: origin, scale: scale) }
+        v.onViewportSettled = { [weak model] key, origin, scale in
+            guard !key.hasPrefix("derived:") else { return }        // slices of the library don't remember a view
+            CanvasViewports.save(key: CanvasViewports.scoped(key, model?.layout), origin: origin, scale: scale) }
         v.keyHandler = { [weak model] event in
             guard let model, let action = ShortcutStore.shared.action(for: event, plainOnly: true) else { return false }
             model.run(action)
@@ -59,8 +61,8 @@ struct CanvasView: NSViewRepresentable {
         }
         if c.canvasVersion != model.canvasVersion {
             c.canvasVersion = model.canvasVersion
-            let key = model.canvasBoardKey
-            v.setClusters(model.canvasClusters, boardKey: key, savedViewport: key.flatMap { CanvasViewports.load(key: CanvasViewports.scoped($0, model.layout)) })
+            let key = model.canvasViewKey
+            v.setClusters(model.canvasClusters, boardKey: key, savedViewport: model.canvasBoardKey.flatMap { CanvasViewports.load(key: CanvasViewports.scoped($0, model.layout)) })
         }
         v.setSelection(model.selection)
         if !c.demoStarted, let dir = ProcessInfo.processInfo.environment["STASH_CANVAS_DEMO"], !model.canvasClusters.isEmpty {

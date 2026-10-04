@@ -10,7 +10,7 @@ struct GridSection: Equatable {
 extension AppModel {
     /// Reads this view's canvas clusters (only when the view changed, or `forceRead`), then works out the grid's sections.
     func refreshSections(forceRead: Bool = false) async {
-        guard let store, let key = canvasBoardKey, source != .trash else {
+        guard let store, let key = canvasBoardKey else {
             sectionClusters = []; sectionKey = nil
             rebuildSections()
             return
@@ -28,7 +28,7 @@ extension AppModel {
     /// re-sorted); items no cluster holds yet join the first one.
     func rebuildSections() {
         var next: [GridSection]?
-        if !isSearching, sort == .newest, source != .trash, sectionKey == canvasBoardKey, sectionClusters.count >= 2 {
+        if !canvasIsDerived, sort == .newest, sectionKey == canvasBoardKey, sectionClusters.count >= 2 {
             let visible = Set(items.map(\.id))
             var seen = Set<String>()
             var sections: [GridSection] = []

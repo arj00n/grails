@@ -28,7 +28,7 @@ extension AppModel {
         }
         if canvas {
             menu.addItem(.separator())
-            add("Group into New Cluster", "square.on.square.dashed") { [self] in canvasRequest = CanvasRequest(kind: .groupSelection) }
+            if canvasBoardKey != nil { add("Group into New Cluster", "square.on.square.dashed") { [self] in canvasRequest = CanvasRequest(kind: .groupSelection) } }
             add("Zoom to Selection", "arrow.up.left.and.down.right.magnifyingglass") { [self] in canvasRequest = CanvasRequest(kind: .fitSelection) }
         }
         menu.addItem(.separator())

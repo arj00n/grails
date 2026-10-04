@@ -196,6 +196,8 @@ final class CanvasNSView: NSView {
     /// the same board keeps the view.
     func setClusters(_ new: [CanvasCluster], boardKey key: String?, savedViewport: (CGPoint, CGFloat)?) {
         let switched = key != boardKey
+        // a slice of the library (search results, a filter) re-fits whenever its set of items changes
+        let derivedChanged = key?.hasPrefix("derived:") == true && Set(new.flatMap(\.items)) != Set(clusters.flatMap(\.items))
         boardKey = key
         // where every tile is drawn right now, so a change to the same board can glide from there instead of redrawing
         let before = switched ? [:] : drawnGeometry()
@@ -207,6 +209,7 @@ final class CanvasNSView: NSView {
             viewportDirty = false
             if let v = savedViewport { origin = v.0; scale = v.1; pendingFit = false } else { pendingFit = true }
         }
+        if derivedChanged { pendingFit = true; viewportDirty = false }
         applyViewport()
         if !switched { glide(from: before) }
         fitIfPending()
