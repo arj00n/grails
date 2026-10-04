@@ -34,7 +34,7 @@ struct SidebarView: View {
 
             if showCollections {
                 Section(isExpanded: $expandCollections) {
-                    if topLevel.isEmpty { Text("No collections yet").foregroundStyle(.secondary).font(.callout) }
+                    if topLevel.isEmpty { Text("No collections yet").foregroundStyle(Ink.tertiary).font(.callout).listRowSeparator(.hidden) }
                     ForEach(topLevel) { CollectionNode(model: model, collection: $0, targeted: $targeted) }
                     if !archived.isEmpty {
                         DisclosureGroup("Archived") {
@@ -74,7 +74,7 @@ struct SidebarView: View {
 
             if showTags {
                 Section("Tags", isExpanded: $expandTags) {
-                    if model.tags.isEmpty { Text("No tags yet").foregroundStyle(.secondary).font(.callout) }
+                    if model.tags.isEmpty { Text("No tags yet").foregroundStyle(Ink.tertiary).font(.callout).listRowSeparator(.hidden) }
                     ForEach(model.tags, id: \.tag) { t in
                         SidebarRow(title: t.tag, symbol: model.tagColors[t.tag.lowercased()] == nil ? "number" : "circle.fill",
                                    tint: model.tagColor(t.tag), count: t.count)
@@ -96,7 +96,10 @@ struct SidebarView: View {
                 }
             }
         }
-        .navigationSplitViewColumnWidth(min: 190, ideal: 240, max: 340)
+        .scrollContentBackground(.hidden)
+        .listRowSeparator(.hidden)
+        .listSectionSeparator(.hidden)
+        .environment(\.defaultMinListRowHeight, 30)
         .accessibilityIdentifier("sidebar")
     }
 }
@@ -117,11 +120,12 @@ struct SidebarRow: View {
     var body: some View {
         Label {
             HStack {
-                Text(title).lineLimit(1)
+                Text(title).lineLimit(1).foregroundStyle(Ink.text)
                 Spacer()
                 if let count { Text(count.formatted()).foregroundStyle(.secondary).font(.caption).monospacedDigit() }
             }
-        } icon: { Image(systemName: symbol).foregroundStyle(tint ?? .accentColor) }
+        } icon: { Image(systemName: symbol).foregroundStyle(tint ?? Ink.secondary) }
+        .listRowSeparator(.hidden)
     }
 }
 
@@ -192,7 +196,7 @@ extension View {
             }
             return true
         }
-        .listRowBackground(targeted.wrappedValue == id ? Color.accentColor.opacity(0.25) : nil)
+        .listRowBackground(targeted.wrappedValue == id ? Ink.fillHover : nil)
     }
 
     /// Collections accept items (add), files (import), and other collections (reorder / move into a folder).
@@ -212,7 +216,7 @@ extension View {
             }
             return true
         }
-        .listRowBackground(targeted.wrappedValue == id ? Color.accentColor.opacity(0.25) : nil)
+        .listRowBackground(targeted.wrappedValue == id ? Ink.fillHover : nil)
     }
 }
 
@@ -237,7 +241,7 @@ struct LibrarySwitcher: View {
             Button("Show in Finder") { if let u = model.layout?.root { NSWorkspace.shared.activateFileViewerSelecting([u]) } }
         } label: {
             HStack(spacing: 8) {
-                Image(systemName: "books.vertical.fill").foregroundStyle(Color.accentColor)
+                Image(systemName: "books.vertical.fill").foregroundStyle(Ink.secondary)
                 Text(model.libraryName).fontWeight(.semibold).lineLimit(1)
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)

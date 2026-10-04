@@ -5,8 +5,10 @@ import UniformTypeIdentifiers
 
 struct GridView: NSViewRepresentable {
     var model: AppModel
+    /// Clear space above the first row, for the floating top bar.
+    var topInset: CGFloat = 0
     @AppStorage("tileSpacing") private var spacing: Double = 8
-    @AppStorage("cornerRadius") private var cornerRadius: Double = 8
+    @AppStorage("cornerRadius") private var cornerRadius: Double = 12
     @AppStorage("showAddedBy") private var showAddedBy = false
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
@@ -49,7 +51,11 @@ struct GridView: NSViewRepresentable {
         scroll.documentView = cv
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
-        scroll.automaticallyAdjustsContentInsets = true
+        scroll.automaticallyAdjustsContentInsets = false
+        scroll.contentInsets = NSEdgeInsets(top: topInset, left: 0, bottom: 16, right: 0)
+        scroll.scrollerInsets = NSEdgeInsets(top: topInset, left: 0, bottom: 0, right: 0)
+        scroll.contentView.scroll(to: NSPoint(x: 0, y: -topInset))
+        scroll.reflectScrolledClipView(scroll.contentView)
         scroll.autoresizingMask = [.width, .height]
         let container = NSView()
         scroll.frame = container.bounds
@@ -145,8 +151,8 @@ struct GridView: NSViewRepresentable {
                 // A refresh (a teammate's save arriving, an edit) keeps you where you were; a new view starts at the top.
                 if let scroll = cv.enclosingScrollView {
                     activeLayout.prepare()
-                    let maxY = max(0, activeLayout.collectionViewContentSize.height - scroll.contentView.bounds.height)
-                    let y = resetScroll ? 0 : min(keptOrigin?.y ?? 0, maxY)
+                    let range = scrollRange(scroll, contentHeight: activeLayout.collectionViewContentSize.height)
+                    let y = resetScroll ? range.lowerBound : min(max(keptOrigin?.y ?? range.lowerBound, range.lowerBound), range.upperBound)
                     scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
                     scroll.reflectScrolledClipView(scroll.contentView)
                 }
@@ -279,11 +285,17 @@ struct GridView: NSViewRepresentable {
             }
         }
 
+        /// Valid scroll offsets: the top inset (room for the floating bar) lets the origin go negative.
+        private func scrollRange(_ scroll: NSScrollView, contentHeight: CGFloat) -> ClosedRange<CGFloat> {
+            let lo = -scroll.contentInsets.top
+            return lo...max(lo, contentHeight - scroll.contentView.bounds.height + scroll.contentInsets.bottom)
+        }
+
         private func anchorFor(point: NSPoint, in cv: NSCollectionView) -> (Int, CGFloat)? {
-            let visible = cv.visibleRect
+            let top = cv.enclosingScrollView?.contentView.bounds.origin.y ?? cv.visibleRect.minY      // may be negative (inset)
             let path = cv.indexPathForItem(at: point) ?? nearestVisible(to: point, in: cv)
             guard let i = path?.item, let f = frame(of: i) else { return nil }
-            return (i, f.minY - visible.minY)
+            return (i, f.minY - top)
         }
 
         private func centreAnchor() -> (Int, CGFloat)? {
@@ -312,8 +324,8 @@ struct GridView: NSViewRepresentable {
             anchor = nil
             activeLayout.prepare()
             guard let f = frame(of: a.index) else { return }
-            let maxY = max(0, activeLayout.collectionViewContentSize.height - scroll.contentView.bounds.height)
-            let y = min(max(0, f.minY - a.offsetY), maxY)
+            let range = scrollRange(scroll, contentHeight: activeLayout.collectionViewContentSize.height)
+            let y = min(max(range.lowerBound, f.minY - a.offsetY), range.upperBound)
             scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
             scroll.reflectScrolledClipView(scroll.contentView)
         }
@@ -343,8 +355,8 @@ struct GridView: NSViewRepresentable {
             hitch?.noteActivity()
 
             func scrollBy(_ dy: CGFloat) {
-                let maxY = max(0, cv.frame.height - scroll.contentView.bounds.height)
-                let y = min(max(0, scroll.contentView.bounds.origin.y + dy), maxY)
+                let range = scrollRange(scroll, contentHeight: cv.frame.height)
+                let y = min(max(range.lowerBound, scroll.contentView.bounds.origin.y + dy), range.upperBound)
                 scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
                 scroll.reflectScrolledClipView(scroll.contentView)
             }

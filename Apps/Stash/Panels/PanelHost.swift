@@ -8,7 +8,7 @@ struct PanelHost: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { model.closePanel() }
+            Color.black.opacity(0.45).ignoresSafeArea().onTapGesture { model.closePanel() }
             Group {
                 switch panel {
                 case .commandK:
@@ -51,7 +51,7 @@ struct NotePanel: View {
                 .focused($focused)
                 .scrollContentBackground(.hidden)
                 .padding(6)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+                .background(Ink.fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .accessibilityIdentifier("note-field")
             HStack {
                 Text("⌘↩ to save · Esc to cancel").font(.caption).foregroundStyle(.secondary)
@@ -63,9 +63,7 @@ struct NotePanel: View {
         }
         .padding(16)
         .frame(maxWidth: 480)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
-        .shadow(color: .black.opacity(0.3), radius: 30, y: 10)
+        .glassCard(radius: 22)
         .task {
             if !batch, let id = ids.first, let item = try? await model.store?.item(id: id) { text = item.note; original = item.note }
             focused = true

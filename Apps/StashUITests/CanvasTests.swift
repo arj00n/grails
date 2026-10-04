@@ -124,10 +124,10 @@ final class CanvasTests: XCTestCase {
         XCTAssertTrue(try waitFor { try state(app).selected == 1 })
         // clicking empty space clears it, then a marquee over the top-left of the board picks up several
         let frame = canvas.frame
-        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02)).click()
+        canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.19, dy: 0.09)).click()      // right of the floating sidebar, below the bar
         XCTAssertTrue(try waitFor { try state(app).selected == 0 })
-        let from = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.02, dy: 0.02))
-        let to = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.45))
+        let from = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.19, dy: 0.09))
+        let to = canvas.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.55))
         from.click(forDuration: 0.1, thenDragTo: to)
         XCTAssertTrue(try waitFor { try state(app).selected >= 4 }, "marquee selected several items (frame \(frame))")
         app.typeKey("a", modifierFlags: .command)
@@ -237,10 +237,9 @@ final class CanvasTests: XCTestCase {
         XCTAssertTrue(app.collectionViews["grid"].waitForExistence(timeout: 10))
         app.typeKey("2", modifierFlags: .command)
         XCTAssertTrue(app.descendants(matching: .any)["canvas"].waitForExistence(timeout: 10))
-        let switcher = app.radioGroups["view-switcher"]
-        switcher.radioButtons.element(boundBy: 0).click()
+        app.buttons["view-grid"].click()
         XCTAssertTrue(app.collectionViews["grid"].waitForExistence(timeout: 10))
-        switcher.radioButtons.element(boundBy: 1).click()
+        app.buttons["view-canvas"].click()
         XCTAssertTrue(app.descendants(matching: .any)["canvas"].waitForExistence(timeout: 10))
     }
 

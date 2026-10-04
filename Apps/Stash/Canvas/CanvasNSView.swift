@@ -48,6 +48,12 @@ final class CanvasNSView: NSView {
     private var pendingFit = false
     /// Only a viewport the person (or a fit command) actually set is worth remembering.
     private var viewportDirty = false
+    /// Parts of the view covered by floating panels; fitting centres on what's left.
+    var contentInsets = NSEdgeInsets()
+    private var focus: CGPoint {      // the centre of the uncovered area, in points from the top-left
+        CGPoint(x: contentInsets.left + (bounds.width - contentInsets.left - contentInsets.right) / 2,
+                y: contentInsets.top + (bounds.height - contentInsets.top - contentInsets.bottom) / 2)
+    }
 
     struct Entry { var id: String; var rect: CGRect; var z: Int }     // rect in world space, y down
 
@@ -109,14 +115,14 @@ final class CanvasNSView: NSView {
 
     private func refreshColors() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            let accent = NSColor.controlAccentColor.cgColor
+            let accent = NSColor.white.withAlphaComponent(0.92).cgColor
             overlay.strokeColor = accent
             handles.strokeColor = accent
             handles.fillColor = NSColor.white.cgColor
             marqueeLayer.strokeColor = accent
-            marqueeLayer.fillColor = NSColor.controlAccentColor.withAlphaComponent(0.12).cgColor
-            dust.color = NSColor.tertiaryLabelColor.cgColor
-            layer?.backgroundColor = NSColor.underPageBackgroundColor.cgColor
+            marqueeLayer.fillColor = NSColor.white.withAlphaComponent(0.08).cgColor
+            dust.color = NSColor.white.withAlphaComponent(0.18).cgColor
+            layer?.backgroundColor = NSColor.black.cgColor
         }
     }
 
@@ -187,7 +193,7 @@ final class CanvasNSView: NSView {
     private func refreshDust() {
         guard entries.count > 500 else { dust.isHidden = true; dust.rects = []; return }
         dust.isHidden = false
-        dust.color = NSColor.tertiaryLabelColor.cgColor
+        dust.color = NSColor.white.withAlphaComponent(0.18).cgColor
         dust.setWorldRects(entries.map(\.rect), contentsScale: backing)
     }
 
@@ -250,8 +256,9 @@ final class CanvasNSView: NSView {
             return
         }
         let box = rects.dropFirst().reduce(first) { $0.union($1) }
-        let s = min(max(min((bounds.width - 2 * margin) / max(box.width, 1), (bounds.height - 2 * margin) / max(box.height, 1)), Self.minScale), 2)
-        let o = CGPoint(x: box.midX - bounds.width / (2 * s), y: box.midY - bounds.height / (2 * s))
+        let availW = max(bounds.width - contentInsets.left - contentInsets.right, 50), availH = max(bounds.height - contentInsets.top - contentInsets.bottom, 50)
+        let s = min(max(min((availW - 2 * margin) / max(box.width, 1), (availH - 2 * margin) / max(box.height, 1)), Self.minScale), 2)
+        let o = CGPoint(x: box.midX - focus.x / s, y: box.midY - focus.y / s)
         viewportDirty = true
         if animated { animate(to: (o, s)) } else { origin = o; scale = s; applyViewport() }
     }
@@ -271,11 +278,12 @@ final class CanvasNSView: NSView {
         // interpolate the *centre* and log-scale so the motion looks like one smooth zoom
         let s0 = a.from.1, s1 = a.to.1
         let s = s0 * pow(s1 / s0, e)
-        let c0 = CGPoint(x: a.from.0.x + bounds.width / (2 * s0), y: a.from.0.y + bounds.height / (2 * s0))
-        let c1 = CGPoint(x: a.to.0.x + bounds.width / (2 * s1), y: a.to.0.y + bounds.height / (2 * s1))
+        let f = focus
+        let c0 = CGPoint(x: a.from.0.x + f.x / s0, y: a.from.0.y + f.y / s0)
+        let c1 = CGPoint(x: a.to.0.x + f.x / s1, y: a.to.0.y + f.y / s1)
         let c = CGPoint(x: c0.x + (c1.x - c0.x) * e, y: c0.y + (c1.y - c0.y) * e)
         scale = s
-        origin = CGPoint(x: c.x - bounds.width / (2 * s), y: c.y - bounds.height / (2 * s))
+        origin = CGPoint(x: c.x - f.x / s, y: c.y - f.y / s)
         applyViewport()
         if t >= 1 { animationLink?.invalidate(); animationLink = nil; animation = nil }
     }
@@ -841,7 +849,8 @@ final class CanvasItemLayer: CALayer {
     override init() {
         super.init()
         masksToBounds = true
-        backgroundColor = NSColor.quaternaryLabelColor.cgColor
+        cornerRadius = 12
+        backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
         contentsGravity = .resizeAspectFill
         magnificationFilter = .trilinear
         minificationFilter = .trilinear
@@ -860,7 +869,7 @@ final class CanvasItemLayer: CALayer {
 
     func setSelected(_ on: Bool, scale: CGFloat) {
         borderWidth = on ? 2.5 / max(scale, 0.0001) : 0
-        borderColor = NSColor.controlAccentColor.cgColor
+        borderColor = NSColor.white.withAlphaComponent(0.92).cgColor
     }
 
     private func updateTitle() {

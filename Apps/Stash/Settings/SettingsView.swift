@@ -4,8 +4,8 @@ struct SettingsView: View {
     var model: AppModel
     @AppStorage("tileSpacing") private var spacing: Double = 8
     @AppStorage("cornerRadius") private var cornerRadius: Double = 8
-    @AppStorage("appearance") private var appearance = "system"
-    @AppStorage("gridBackground") private var background = "default"
+    @AppStorage("appearance") private var appearance = "dark"
+    @AppStorage("gridBackground") private var background = "black"
     @AppStorage("userHandle") private var handle = StashPathsShim.handle
     @AppStorage("sidebar.showCollections") private var showCollections = true
     @AppStorage("sidebar.showTags") private var showTags = true

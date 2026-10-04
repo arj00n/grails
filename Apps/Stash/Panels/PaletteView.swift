@@ -63,9 +63,7 @@ struct PaletteView: View {
             }
         }
         .frame(maxWidth: 600)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
-        .shadow(color: .black.opacity(0.3), radius: 30, y: 10)
+        .glassCard(radius: 22)
         .task(id: "\(query)|\(refreshToken)") {
             let r = await rows(query)
             guard !Task.isCancelled else { return }
@@ -78,7 +76,7 @@ struct PaletteView: View {
 
     private func rowView(_ row: PaletteRow, highlighted: Bool) -> some View {
         HStack(spacing: 10) {
-            Image(systemName: row.symbol).frame(width: 22).foregroundStyle(row.tint ?? .secondary)
+            Image(systemName: row.symbol).frame(width: 22).foregroundStyle(row.tint ?? Ink.secondary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title).lineLimit(1)
                 if let sub = row.subtitle { Text(sub).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
@@ -87,7 +85,7 @@ struct PaletteView: View {
             if let a = row.accessory { Text(a).font(.callout).foregroundStyle(.secondary).monospacedDigit() }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
-        .background(highlighted ? Color.accentColor.opacity(0.22) : .clear, in: RoundedRectangle(cornerRadius: 7))
+        .background(highlighted ? Ink.fillHover : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
         .contentShape(Rectangle())
     }
 

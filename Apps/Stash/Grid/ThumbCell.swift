@@ -164,8 +164,8 @@ final class ThumbCell: NSCollectionViewItem {
     override var isSelected: Bool { didSet { applySelection() } }
 
     private func applySelection() {
-        view.layer?.borderWidth = isSelected ? 3 : 0
-        view.layer?.borderColor = NSColor.controlAccentColor.cgColor
+        view.layer?.borderWidth = isSelected ? 2.5 : 0
+        view.layer?.borderColor = NSColor.white.withAlphaComponent(0.92).cgColor
     }
 
     func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false) {

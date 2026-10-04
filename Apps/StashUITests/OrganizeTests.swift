@@ -138,7 +138,7 @@ final class OrganizeTests: XCTestCase {
         let app = launch()
         XCTAssertTrue(app.staticTexts["40 items"].waitForExistence(timeout: 30))
         app.menuButtons["sidebar-add"].click()
-        app.menuItems["New Smart Folder…"].click()
+        app.menuButtons["sidebar-add"].menuItems["New Smart Folder…"].click()
         let name = app.textFields["smart-name"]
         XCTAssertTrue(name.waitForExistence(timeout: 5))
         name.click()
@@ -208,12 +208,10 @@ final class OrganizeTests: XCTestCase {
             return tileWidth()
         }
         // ⌘+ is a smooth animated zoom (×1.25 each) that settles with tiles filling the row
-        app.typeKey("=", modifierFlags: .command)
-        app.typeKey("=", modifierFlags: .command)
+        for _ in 0..<4 { app.typeKey("=", modifierFlags: .command) }
         let bigger = waitForWidth { $0 > small * 1.3 }
         XCTAssertGreaterThan(bigger, small * 1.3, "tiles grew after zooming in (\(small) → \(bigger))")
-        app.typeKey("-", modifierFlags: .command)
-        app.typeKey("-", modifierFlags: .command)
+        for _ in 0..<4 { app.typeKey("-", modifierFlags: .command) }
         let back = waitForWidth { $0 < bigger * 0.85 }
         XCTAssertLessThan(back, bigger * 0.85, "and shrank again (\(bigger) → \(back))")
         XCTAssertFalse(app.sliders.firstMatch.exists, "no zoom slider any more")

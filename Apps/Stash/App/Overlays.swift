@@ -7,7 +7,7 @@ struct PromptCard: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { model.prompt = nil }
+            Color.black.opacity(0.45).ignoresSafeArea().onTapGesture { model.prompt = nil }
             VStack(alignment: .leading, spacing: 12) {
                 Text(request.title).font(.headline)
                 if !request.message.isEmpty { Text(request.message).font(.callout).foregroundStyle(.secondary) }
@@ -17,7 +17,7 @@ struct PromptCard: View {
                 )
                 .frame(height: 22)
                 .padding(.horizontal, 8).padding(.vertical, 5)
-                .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 7))
+                .background(Ink.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 HStack {
                     Spacer()
                     Button("Cancel") { model.prompt = nil }.keyboardShortcut(.cancelAction)
@@ -28,9 +28,7 @@ struct PromptCard: View {
             }
             .padding(18)
             .frame(maxWidth: 380)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
-            .shadow(color: .black.opacity(0.3), radius: 24, y: 8)
+            .glassCard(radius: 22)
         }
         .onAppear { text = request.initial }
     }
@@ -49,7 +47,7 @@ struct ConfirmCard: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.28).ignoresSafeArea().onTapGesture { model.confirm = nil }
+            Color.black.opacity(0.45).ignoresSafeArea().onTapGesture { model.confirm = nil }
             VStack(alignment: .leading, spacing: 12) {
                 Text(request.title).font(.headline)
                 Text(request.message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -66,9 +64,7 @@ struct ConfirmCard: View {
             }
             .padding(18)
             .frame(maxWidth: 400)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-            .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
-            .shadow(color: .black.opacity(0.3), radius: 24, y: 8)
+            .glassCard(radius: 22)
         }
     }
 }
@@ -79,9 +75,7 @@ struct ToastView: View {
         Text(text)
             .font(.callout)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .background(.regularMaterial, in: Capsule())
-            .overlay(Capsule().strokeBorder(.primary.opacity(0.12)))
-            .shadow(radius: 8, y: 2)
+            .glassPill()
             .accessibilityIdentifier("toast")
     }
 }
@@ -109,8 +103,6 @@ struct CheatSheet: View {
             }
         }
         .padding(18)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(.primary.opacity(0.12)))
-        .shadow(color: .black.opacity(0.3), radius: 24, y: 8)
+        .glassCard(radius: 22)
     }
 }

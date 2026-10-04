@@ -2,6 +2,18 @@
 
 ## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
 
+## Black-and-glass redesign — 2026-10-04
+- Look: Cosmos-style. Full-bleed black; chrome floats as glass (Liquid Glass via `glassEffect` on macOS 26+, frosted material before): centred search pill
+  (a real `NSSearchField`, ⌘F), view switcher + filter + info cluster, a floating sidebar card (⌃⌘S, remembered) and info card, glass dialogs/palette/toasts/progress,
+  a small "All · 47 items" caption pill. White is the only accent (selection rings, tint). Dark by default (Settings ▸ Appearance can still pick light).
+  Tokens and modifiers live in `App/Glass.swift` (`Ink`, `.glassCard()`, `.glassPill()`, `GlassIconButton`, `WindowChrome` for the hidden title bar).
+- The grid keeps clear of open panels and scrolls under the top bar (`GridView(topInset:)`, scroll range is inset-aware: origin may be negative). The canvas
+  goes under the panels but *fits* into what's uncovered (`contentInsets`).
+- Dev: `STASH_FLAT_GLASS=1` swaps glass for flat fills (measure blur cost: it was not the cause of any benchmark change). `ShotTests` renders real-image
+  screenshots (`TEST_RUNNER_STASH_SHOWCASE=<lib made by stash-fixture --from-folder …>`; output in the runner container tmp, see its SHOT: lines).
+- Tests: view switcher is two buttons (`view-grid`, `view-canvas`); the grid's AX frame already starts below the inset (first tile ≈12 pt in).
+- Known env noise: masonry zoom benchmark shows 70–80 slow frames in Debug on this Mac while its load average is ~9 (same on the pre-redesign commit).
+
 ## Canvas reflow — 2026-10-04
 - Dragging or resizing on the canvas pushes overlapped items aside, cascading like a snowplow (`CanvasReflow` in the kit: biased to the drag direction,
   spatial grid, deterministic, 20k items ≈ 20–40 ms debug). Pushes are recomputed from the layout at drag start on every event, so items glide back home when the

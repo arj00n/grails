@@ -17,22 +17,24 @@ struct PreviewOverlay: View {
             Color.black.opacity(0.88).ignoresSafeArea()
                 .onTapGesture { model.closePreview() }
             if let image {
-                Image(nsImage: image).resizable().scaledToFit().padding(40)
-                    .shadow(radius: 20)
+                Image(nsImage: image).resizable().scaledToFit()
+                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .shadow(color: .black.opacity(0.6), radius: 40, y: 12)
+                    .padding(40)
             } else {
                 ProgressView().controlSize(.large)
             }
             if downloading {
                 VStack { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Downloading the original from your shared drive…").font(.callout) }
-                    .padding(.horizontal, 14).padding(.vertical, 8).background(.regularMaterial, in: Capsule()); Spacer() }
+                    .padding(.horizontal, 14).padding(.vertical, 8).glassPill(); Spacer() }
                     .padding(.top, 24)
             }
             VStack(spacing: 10) {
                 Spacer()
                 if let s = summary {
-                    Text(s.name).font(.callout).foregroundStyle(.white.opacity(0.85))
-                        .padding(.horizontal, 12).padding(.vertical, 6)
-                        .background(.black.opacity(0.5), in: Capsule())
+                    Text(s.name).font(.callout).foregroundStyle(Ink.text)
+                        .padding(.horizontal, 14).padding(.vertical, 7)
+                        .glassPill()
                     if s.kind == .link {
                         Button { model.openLinkInBrowser(s.id) } label: { Label("Open page", systemImage: "safari") }
                             .buttonStyle(.borderedProminent)

@@ -4,38 +4,55 @@ import UniformTypeIdentifiers
 
 struct RootView: View {
     @Bindable var model: AppModel
-    @AppStorage("appearance") private var appearance = "system"
-    @AppStorage("gridBackground") private var background = "default"
+    @AppStorage("appearance") private var appearance = "dark"
+    @AppStorage("gridBackground") private var background = "black"
     @State private var dropTargeted = false
+    @State private var searchFocused = false
+
+    static let sidebarWidth: CGFloat = 244
+    static let infoWidth: CGFloat = 308
+    static let edge: CGFloat = 12
+    /// Space the grid keeps clear above its first row (the floating top bar sits there, tiles scroll beneath it).
+    static let topInset: CGFloat = 72
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(model: model)
-        } detail: {
-            detail
+        ZStack(alignment: .topLeading) {
+            content
+            panels
+            topBar
+            captionPill
+            overlays
         }
-        .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
+        .background(gridBackground)
+        .background(WindowChrome())
+        .ignoresSafeArea()
+        .preferredColorScheme(appearance == "light" ? .light : .dark)
+        .tint(.white)
         .sheet(item: $model.smartEditor) { SmartFolderEditor(model: model, state: $0) }
         .alert("Stash", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
         .task { await model.openInitialLibrary() }
         .onAppear { model.startCheatSheetMonitor() }
+        .animation(.smooth(duration: 0.25), value: model.sidebarVisible)
+        .animation(.smooth(duration: 0.25), value: model.showInfo)
     }
 
-    private var detail: some View {
+    // MARK: Content
+
+    private var content: some View {
         ZStack {
-            gridBackground
             if model.items.isEmpty && model.store != nil { emptyState }
             switch model.viewMode {
-            case .grid: GridView(model: model)
-            case .canvas: CanvasView(model: model)
+            case .grid:
+                GridView(model: model, topInset: Self.topInset)
+                    .padding(.leading, model.sidebarVisible ? Self.sidebarWidth + Self.edge * 2 : 0)
+                    .padding(.trailing, model.showInfo ? Self.infoWidth + Self.edge * 2 : 0)
+            case .canvas:
+                CanvasView(model: model)
             }
         }
-        // Overlays must not take part in layout: a fixed-width panel inside the ZStack would raise the detail pane's
-        // minimum width above what's available when the info panel is open, and AppKit aborts the resulting loop.
-        .overlay { overlays }
-        .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 6).strokeBorder(Color.accentColor, lineWidth: 3).padding(4).allowsHitTesting(false) } }
+        .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 2).padding(6).allowsHitTesting(false) } }
         .onDrop(of: [.fileURL, .stashItems], isTargeted: $dropTargeted) { providers in
             Task { @MainActor in
                 let d = await DropLoader.load(providers)
@@ -43,19 +60,6 @@ struct RootView: View {
                 if d.itemIDs.isEmpty, !d.files.isEmpty { await model.importFiles(d.files) }
             }
             return true
-        }
-        .navigationTitle(model.title)
-        .navigationSubtitle(model.countLabel)
-        .searchable(text: $model.searchText, placement: .toolbar, prompt: "Search library")
-        .searchSuggestions {
-            if model.searchText.isEmpty {
-                ForEach(model.recentSearches, id: \.self) { Text($0).searchCompletion($0) }
-            }
-        }
-        .onSubmit(of: .search) { model.rememberSearch() }
-        .toolbar { toolbar }
-        .inspector(isPresented: $model.showInfo) {
-            InfoPanel(model: model).inspectorColumnWidth(min: 240, ideal: 300, max: 440)
         }
     }
 
@@ -73,6 +77,107 @@ struct RootView: View {
         }
     }
 
+    // MARK: Floating chrome
+
+    /// Sidebar and info panel float over the content as glass cards; the grid makes room for them, the canvas goes beneath.
+    private var panels: some View {
+        HStack(alignment: .top, spacing: 0) {
+            if model.sidebarVisible {
+                SidebarView(model: model)
+                    .frame(width: Self.sidebarWidth)
+                    .glassCard()
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
+            Spacer(minLength: 0).allowsHitTesting(false)
+            if model.showInfo {
+                InfoPanel(model: model)
+                    .frame(width: Self.infoWidth)
+                    .glassCard()
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .padding(.horizontal, Self.edge)
+        .padding(.top, 64)
+        .padding(.bottom, Self.edge)
+    }
+
+    private var topBar: some View {
+        ZStack {
+            searchPill
+            HStack(spacing: 0) {
+                GlassIconButton(symbol: "sidebar.left", selected: model.sidebarVisible, help: "Show or hide the sidebar (⌃⌘S)", identifier: "sidebar-toggle") {
+                    model.sidebarVisible.toggle()
+                }
+                .padding(3).glassPill(interactive: true)
+                .padding(.leading, 78)
+                Spacer(minLength: 0)
+                HStack(spacing: 2) {
+                    ForEach(ViewMode.allCases) { mode in
+                        GlassIconButton(symbol: mode.symbol, selected: model.viewMode == mode, help: "\(mode.label) (⌘\(mode == .grid ? 1 : 2))", identifier: "view-\(mode.rawValue)") {
+                            model.viewMode = mode
+                        }
+                    }
+                    Rectangle().fill(Ink.hairline).frame(width: 1, height: 16).padding(.horizontal, 3)
+                    FilterMenu(model: model)
+                    GlassIconButton(symbol: "sidebar.right", selected: model.showInfo, help: "Show or hide the info panel (I)", identifier: "info-toggle") {
+                        model.showInfo.toggle()
+                    }
+                }
+                .padding(3).glassPill(interactive: true)
+            }
+            .padding(.trailing, Self.edge)
+        }
+        .padding(.top, 10)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var searchPill: some View {
+        HStack(spacing: 8) {
+            GlassSearchField(text: $model.searchText, focusTick: model.focusSearchTick, isFocused: $searchFocused, onSubmit: { model.rememberSearch() })
+                .frame(height: 22)
+        }
+        .padding(.horizontal, 12)
+        .frame(width: 380, height: 40)
+        .glassPill()
+        .overlay(alignment: .top) { recentSearches.offset(y: 46) }
+    }
+
+    @ViewBuilder private var recentSearches: some View {
+        if searchFocused, model.searchText.isEmpty, !model.recentSearches.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(model.recentSearches.prefix(6), id: \.self) { q in
+                    Button { model.searchText = q } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "clock").font(.caption).foregroundStyle(Ink.tertiary)
+                            Text(q).foregroundStyle(Ink.text).lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 8).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.vertical, 6)
+            .frame(width: 380)
+            .glassCard(radius: 20)
+        }
+    }
+
+    /// Where you are and how many items, in a small pill at the bottom.
+    private var captionPill: some View {
+        HStack(spacing: 8) {
+            Text(model.title).foregroundStyle(Ink.text).fontWeight(.medium).lineLimit(1)
+            Text(model.countLabel).foregroundStyle(Ink.secondary).lineLimit(1)
+        }
+        .font(.system(size: 12))
+        .padding(.horizontal, 14).padding(.vertical, 7)
+        .glassPill()
+        .padding(.leading, (model.sidebarVisible ? Self.sidebarWidth + Self.edge : 0) + Self.edge + 4)
+        .padding(.bottom, Self.edge + 2)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .allowsHitTesting(false)
+    }
+
     @ViewBuilder private var overlays: some View {
         if model.needsLibrary { WelcomeView(model: model) }
         if let id = model.previewID { PreviewOverlay(model: model, id: id) }
@@ -84,25 +189,18 @@ struct RootView: View {
             Spacer()
             if let t = model.toast { ToastView(text: t).transition(.move(edge: .bottom).combined(with: .opacity)) }
             if let p = model.importProgress {
-                ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Importing \(p.done) of \(p.total)…") }
-                    .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)
+                ProgressCard(label: "Importing \(p.done) of \(p.total)…", done: p.done, total: p.total)
             }
             if let p = model.boardImport {
-                VStack(alignment: .leading, spacing: 6) {
-                    if p.total > 0 { ProgressView(value: Double(p.done), total: Double(p.total)) { Text("\(p.label) \(p.done) of \(p.total)…") } }
-                    else { ProgressView { Text(p.label) } }
-                }
-                .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 360)
-                .accessibilityIdentifier("board-import-progress")
+                ProgressCard(label: p.total > 0 ? "\(p.label) \(p.done) of \(p.total)…" : p.label, done: p.done, total: p.total)
+                    .accessibilityIdentifier("board-import-progress")
             }
             if let p = model.autoTagProgress {
-                ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Auto-tagging \(p.done) of \(p.total)…") }
-                    .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)
+                ProgressCard(label: "Auto-tagging \(p.done) of \(p.total)…", done: p.done, total: p.total)
                     .accessibilityIdentifier("autotag-progress")
             }
             if let p = model.renameProgress {
-                ProgressView(value: Double(p.done), total: Double(max(p.total, 1))) { Text("Updating tags… \(p.done) of \(p.total)") }
-                    .padding().background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10)).frame(maxWidth: 320)
+                ProgressCard(label: "Updating tags… \(p.done) of \(p.total)", done: p.done, total: p.total)
             }
         }
         .padding(24)
@@ -112,28 +210,27 @@ struct RootView: View {
 
     @ViewBuilder private var gridBackground: some View {
         switch background {
-        case "black": Color.black
         case "white": Color.white
-        case "grey": Color(white: 0.5)
-        default: Color(nsColor: .windowBackgroundColor)
+        case "grey": Color(white: 0.16)
+        default: Color.black
         }
     }
+}
 
-    @ToolbarContentBuilder private var toolbar: some ToolbarContent {
-        ToolbarItemGroup {
-            Picker("View", selection: $model.viewMode) {
-                ForEach(ViewMode.allCases) { Label($0.label, systemImage: $0.symbol).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .help("Grid or Canvas (⌘1 / ⌘2)")
-            .accessibilityIdentifier("view-switcher")
+struct ProgressCard: View {
+    let label: String
+    let done: Int
+    let total: Int
 
-            FilterMenu(model: model)
-
-            Button { model.showInfo.toggle() } label: { Label("Info", systemImage: "sidebar.right") }
-                .help("Show or hide the info panel (I)")
-                .accessibilityIdentifier("info-toggle")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(label).font(.system(size: 12)).foregroundStyle(Ink.text).lineLimit(2)
+            if total > 0 { ProgressView(value: Double(done), total: Double(max(total, 1))).progressViewStyle(.linear).tint(.white) }
+            else { ProgressView().controlSize(.small) }
         }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+        .frame(maxWidth: 340, alignment: .leading)
+        .glassCard(radius: 18)
     }
 }
 
@@ -169,10 +266,17 @@ struct FilterMenu: View {
                 Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil }
             }
         } label: {
-            Image(systemName: model.filters.isActive || model.addedByFilter != nil
-                  ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+            Image(systemName: "line.3.horizontal.decrease")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(model.filters.isActive || model.addedByFilter != nil ? Ink.text : Ink.secondary)
+                .frame(width: 34, height: 34)
+                .background(model.filters.isActive || model.addedByFilter != nil ? Ink.fillHover : .clear, in: Circle())
+                .contentShape(Circle())
         }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
         .menuIndicator(.hidden)
+        .fixedSize()
         .help("Filter and sort")
         .accessibilityLabel("Filter and sort")
         .accessibilityIdentifier("filter-menu")

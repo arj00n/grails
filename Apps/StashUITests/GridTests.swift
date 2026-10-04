@@ -73,7 +73,7 @@ final class GridTests: XCTestCase {
         let grid = app.collectionViews["grid"]
         XCTAssertTrue(grid.waitForExistence(timeout: 10))
         // AX hit-testing of NSCollectionView cells is unreliable; click by coordinate inside the first tile.
-        grid.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.0)).withOffset(CGVector(dx: 0, dy: 150)).click()
+        grid.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0)).withOffset(CGVector(dx: 60, dy: 150)).click()
         XCTAssertTrue(app.staticTexts["HISTORY"].waitForExistence(timeout: 5))
 
         app.typeKey(" ", modifierFlags: [])
@@ -87,8 +87,7 @@ final class GridTests: XCTestCase {
     func testLayoutToggleAndSidebarNavigation() throws {
         let app = try launch()
         XCTAssertTrue(app.staticTexts["20,000 items"].waitForExistence(timeout: 60))
-        let switcher = app.radioGroups["view-switcher"]
-        XCTAssertEqual(switcher.radioButtons.count, 2, "Grid and Canvas")
+        XCTAssertTrue(app.buttons["view-grid"].exists && app.buttons["view-canvas"].exists, "Grid and Canvas")
         app.collectionViews["grid"].scroll(byDeltaX: 0, deltaY: -600)
         app.staticTexts["Liked"].firstMatch.click()
         XCTAssertTrue(app.staticTexts["20,000 items"].waitForNonExistence(timeout: 10))

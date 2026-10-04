@@ -8,7 +8,7 @@ struct WelcomeView: View {
         ZStack {
             Rectangle().fill(.background).ignoresSafeArea()
             VStack(spacing: 22) {
-                Image(systemName: "square.stack.3d.down.right").font(.system(size: 44)).foregroundStyle(Color.accentColor)
+                Image(systemName: "square.stack.3d.down.right").font(.system(size: 44)).foregroundStyle(Ink.text)
                 Text("Welcome to Stash").font(.largeTitle.weight(.semibold))
                 Text("Save inspiration, find it again, and share it with your team.").foregroundStyle(.secondary)
                 VStack(spacing: 10) {
@@ -31,7 +31,7 @@ struct WelcomeView: View {
     private func choice(_ title: String, _ detail: String, _ symbol: String, _ id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 14) {
-                Image(systemName: symbol).font(.title2).frame(width: 34).foregroundStyle(Color.accentColor)
+                Image(systemName: symbol).font(.title2).frame(width: 34).foregroundStyle(Ink.text)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title).font(.headline)
                     Text(detail).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)

@@ -17,6 +17,7 @@ struct StashApp: App {
             RootView(model: model)
                 .frame(minWidth: 900, minHeight: 600)
         }
+        .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New Collection…") { model.run(.newCollection) }.shortcut(.newCollection)
@@ -27,6 +28,12 @@ struct StashApp: App {
                 Divider()
                 Button("New Library…") { LibraryPicker.createNew(model) }
                 Button("Open Library…") { LibraryPicker.openExisting(model) }.keyboardShortcut("o")
+            }
+            CommandGroup(after: .textEditing) {
+                Button("Find") { model.focusSearchTick += 1 }.keyboardShortcut("f")
+            }
+            CommandGroup(after: .sidebar) {
+                Button("Toggle Sidebar") { model.sidebarVisible.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
             }
             CommandGroup(after: .pasteboard) {
                 Button("Paste as Link") { model.paste(forceLink: true) }.keyboardShortcut("v", modifiers: [.command, .option])

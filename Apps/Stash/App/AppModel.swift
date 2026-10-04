@@ -155,6 +155,10 @@ final class AppModel {
     var errorMessage: String?
     var importProgress: (done: Int, total: Int)?
     var autoTagProgress: (done: Int, total: Int)?
+    var focusSearchTick = 0
+    var sidebarVisible: Bool = UserDefaults.standard.object(forKey: "sidebar.visible") == nil || UserDefaults.standard.bool(forKey: "sidebar.visible") {
+        didSet { UserDefaults.standard.set(sidebarVisible, forKey: "sidebar.visible") }
+    }
     /// A board import in progress: what it's doing, and how far (total 0 = still reading the board).
     var boardImport: (label: String, done: Int, total: Int)?
     @ObservationIgnored var boardImportTask: Task<Void, Never>?
