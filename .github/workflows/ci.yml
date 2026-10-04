@@ -1,7 +1,8 @@
 name: CI
+# Manual only (Actions tab ▸ CI ▸ Run workflow). The app needs macOS 27 / Xcode 27, which GitHub's macOS runners may not
+# have yet, and macOS minutes are expensive on private repos. Re-enable `push` and `pull_request` once a runner image has it.
 on:
-  push:
-  pull_request:
+  workflow_dispatch:
 jobs:
   build:
     runs-on: macos-latest
