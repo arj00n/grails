@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { parseBoardUrl, pinIdsFromHrefs, boardNameFromTitle, buildBoardImport } from "../chrome/lib/pinterest.js";
 
 test("recognises board pages and nothing else", () => {
-  assert.deepEqual(parseBoardUrl("https://www.pinterest.com/arjoonveejay/swish/"), { user: "arjoonveejay", board: "swish" });
+  assert.deepEqual(parseBoardUrl("https://www.pinterest.com/ana/refs/"), { user: "ana", board: "refs" });
   assert.deepEqual(parseBoardUrl("https://in.pinterest.com/a.b/dark-interiors/?invite_code=x"), { user: "a.b", board: "dark-interiors" });
   assert.deepEqual(parseBoardUrl("https://www.pinterest.co.uk/ana/shoes/section-x/"), { user: "ana", board: "shoes" });
   for (const u of ["https://www.pinterest.com/", "https://www.pinterest.com/ana/", "https://www.pinterest.com/pin/123/", "https://www.pinterest.com/ana/_saved/",
@@ -16,7 +16,7 @@ test("collects pin ids once each, in page order, ignoring other links", () => {
 });
 
 test("board names come from the page title", () => {
-  assert.equal(boardNameFromTitle("swish | Pinterest"), "swish");
+  assert.equal(boardNameFromTitle("refs | Pinterest"), "refs");
   assert.equal(boardNameFromTitle("Dark Interiors - Pinterest"), "Dark Interiors");
   assert.equal(boardNameFromTitle("", "my board"), "my board");
 });

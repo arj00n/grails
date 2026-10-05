@@ -11,5 +11,5 @@ const x = r.x + r.width / 2, y = r.y + r.height / 2;
 for (const type of ["mousePressed", "mouseReleased"]) await p.send("Input.dispatchMouseEvent", { type, x, y, button: "left", clickCount: 1, modifiers: 1 /* Alt */ });
 console.log("alt-click sent at", Math.round(x), Math.round(y));
 await new Promise((r) => setTimeout(r, 1500));
-console.log("toast:", await p.eval(`document.getElementById("__stash_toast")?.textContent ?? "(toast already gone)"`));
+console.log("toast:", await p.eval(`document.getElementById("__grails_toast")?.textContent ?? "(toast already gone)"`));
 p.close();

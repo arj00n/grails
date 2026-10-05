@@ -8,7 +8,7 @@ async function refresh() {
   const r = await send({ type: "ping" });
   const connected = r?.ok;
   $("dot").className = "dot " + (connected ? "ok" : "bad");
-  $("status").textContent = connected ? `Connected · ${r.library || "Stash"}` : r?.kind === "offline" ? "Stash isn't running" : "Not connected";
+  $("status").textContent = connected ? `Connected · ${r.library || "Grails"}` : r?.kind === "offline" ? "Grails isn't running" : "Not connected";
   $("pair").hidden = connected;
   $("actions").hidden = !connected;
   $("error").textContent = connected || !token ? "" : r?.error || "";

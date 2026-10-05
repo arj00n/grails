@@ -3,7 +3,7 @@ import fs from "node:fs";
 const ext = new URL("../chrome", import.meta.url).pathname;
 const chrome = spawn("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", [
   "--headless=new", "--remote-debugging-pipe", "--remote-debugging-port=9333", "--enable-unsafe-extension-debugging",
-  "--user-data-dir=/private/tmp/stash-chrome-profile", "--no-first-run", "--no-default-browser-check", "http://127.0.0.1:8765/index.html",
+  "--user-data-dir=/private/tmp/grails-chrome-profile", "--no-first-run", "--no-default-browser-check", "http://127.0.0.1:8765/index.html",
 ], { stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"], detached: true });
 const toChrome = chrome.stdio[3], fromChrome = chrome.stdio[4];
 let buf = "";
@@ -21,6 +21,6 @@ const send = (method, params) => new Promise((res) => { const id = ++n; waiters.
 await new Promise((r) => setTimeout(r, 3000));
 const r = await send("Extensions.loadUnpacked", { path: ext });
 console.log("loadUnpacked ->", JSON.stringify(r));
-fs.writeFileSync("/private/tmp/stash-e2e/extid", r.result?.id || "");
+fs.writeFileSync("/private/tmp/grails-e2e/extid", r.result?.id || "");
 await new Promise((r) => setTimeout(r, 120000));
 chrome.kill();

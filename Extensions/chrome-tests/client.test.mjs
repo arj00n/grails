@@ -1,11 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { StashClient, StashError } from "../chrome/lib/client.js";
+import { GrailsClient, GrailsError } from "../chrome/lib/client.js";
 
 function make(handler, settings = { token: "tok", port: 0 }) {
   const state = { ...settings };
   const calls = [];
-  const client = new StashClient({
+  const client = new GrailsClient({
     fetchFn: async (url, opts) => { calls.push({ url, opts }); return handler(url, opts); },
     getSettings: async () => state,
     setSettings: async (p) => Object.assign(state, p),
@@ -26,11 +26,11 @@ test("sends the bearer token and JSON body", async () => {
 
 test("scans nearby ports when the app moved, and remembers the one that answered", async () => {
   const { client, calls, state } = make((url) => {
-    if (url.includes(":47825/")) return res(200, { ok: true, library: "Swish" });
+    if (url.includes(":47825/")) return res(200, { ok: true, library: "Studio" });
     throw new TypeError("Failed to fetch");
   });
   const r = await client.ping();
-  assert.equal(r.library, "Swish");
+  assert.equal(r.library, "Studio");
   assert.equal(state.port, 47825);
   assert.ok(calls.length >= 3);
   calls.length = 0;
@@ -39,7 +39,7 @@ test("scans nearby ports when the app moved, and remembers the one that answered
 });
 
 test("maps failures to specific errors", async () => {
-  await assert.rejects(make(() => { throw new TypeError("nope"); }).client.ping(), (e) => e instanceof StashError && e.kind === "offline");
+  await assert.rejects(make(() => { throw new TypeError("nope"); }).client.ping(), (e) => e instanceof GrailsError && e.kind === "offline");
   await assert.rejects(make(() => res(401, { error: "x" })).client.ping(), (e) => e.kind === "unauthorized");
   await assert.rejects(make(() => res(403, { error: "Origin not allowed" })).client.ping(), (e) => e.kind === "forbidden");
   await assert.rejects(make(() => res(400, { error: "bad body" })).client.save({}), (e) => e.kind === "bad-request" && e.message === "bad body");

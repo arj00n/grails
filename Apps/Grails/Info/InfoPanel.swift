@@ -1,0 +1,58 @@
+import GrailsKit
+import SwiftUI
+
+struct InfoPanel: View {
+    var model: AppModel
+
+    private var selectedID: String? { model.selection.count == 1 ? model.selection.first : nil }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if model.selection.count > 1 {
+                    Text("\(model.selection.count) items selected").font(.headline)
+                } else {
+                    ItemDetails(model: model, itemID: selectedID)
+                }
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .scrollIndicators(.never)
+        .accessibilityIdentifier("info-panel")
+    }
+}
+
+/// Simple wrapping row layout for chips.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        arrange(width: proposal.width ?? 300, subviews: subviews).size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let r = arrange(width: bounds.width, subviews: subviews)
+        for (i, p) in r.origins.enumerated() { subviews[i].place(at: CGPoint(x: bounds.minX + p.x, y: bounds.minY + p.y), proposal: .unspecified) }
+    }
+
+    private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, maxX: CGFloat = 0
+        var origins: [CGPoint] = []
+        for s in subviews {
+            let sz = s.sizeThatFits(.unspecified)
+            if x > 0, x + sz.width > width { x = 0; y += rowH + spacing; rowH = 0 }
+            origins.append(CGPoint(x: x, y: y))
+            x += sz.width + spacing; rowH = max(rowH, sz.height); maxX = max(maxX, x - spacing)
+        }
+        return (CGSize(width: maxX, height: y + rowH), origins)
+    }
+}
+
+extension Color {
+    init(hex: String) {
+        var s = hex; if s.hasPrefix("#") { s.removeFirst() }
+        let v = UInt32(s, radix: 16) ?? 0x888888
+        self.init(red: Double((v >> 16) & 0xFF) / 255, green: Double((v >> 8) & 0xFF) / 255, blue: Double(v & 0xFF) / 255)
+    }
+}

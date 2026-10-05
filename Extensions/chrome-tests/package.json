@@ -1,1 +1,1 @@
-{ "name": "stash-chrome-extension", "private": true, "type": "module", "scripts": { "test": "node --test *.test.mjs" } }
+{ "name": "grails-chrome-extension", "private": true, "type": "module", "scripts": { "test": "node --test *.test.mjs" } }

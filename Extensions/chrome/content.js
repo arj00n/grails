@@ -1,7 +1,7 @@
-// Alt-click any image to send it to Stash. Also shows the little confirmation toast.
+// Alt-click any image to send it to Grails. Also shows the little confirmation toast.
 (() => {
-  if (window.__stashContent) return;
-  window.__stashContent = true;
+  if (window.__grailsContent) return;
+  window.__grailsContent = true;
 
   function imageUnder(x, y, target) {
     const img = target.closest?.("img") || document.elementsFromPoint(x, y).find((e) => e.tagName === "IMG");
@@ -18,7 +18,7 @@
   function noteTweet(target) {
     const article = target.closest?.("article");
     const link = article && [...article.querySelectorAll('a[href*="/status/"]')].find((a) => a.querySelector("time"));
-    if (link) window.__stashLastTweet = new URL(link.getAttribute("href"), location.href).href;
+    if (link) window.__grailsLastTweet = new URL(link.getAttribute("href"), location.href).href;
   }
   document.addEventListener("contextmenu", (e) => noteTweet(e.target), true);
 
@@ -31,7 +31,7 @@
     chrome.runtime.sendMessage({ type: "save-image", srcUrl: hit.src, title: hit.title });
   }, true);
 
-  // ---- Import a whole Pinterest board: scroll it, collect pin ids, hand them to Stash ------------------------------
+  // ---- Import a whole Pinterest board: scroll it, collect pin ids, hand them to Grails ------------------------------
   let collecting = false;
   async function collectBoard() {
     if (collecting || window !== window.top) return;
@@ -69,10 +69,10 @@
     }
     harvest();
     window.scrollTo(0, startY);
-    label.textContent = `Sending ${ids.size} pins to Stash…`;
+    label.textContent = `Sending ${ids.size} pins to Grails…`;
     stop.remove();
     const result = await chrome.runtime.sendMessage({ type: "board-collected", url: location.href, title: document.title, pinIds: [...ids] });
-    label.textContent = result?.ok ? `Sent ${result.count} pins to Stash` : (result?.error || "Couldn't reach Stash");
+    label.textContent = result?.ok ? `Sent ${result.count} pins to Grails` : (result?.error || "Couldn't reach Grails");
     finished = true;
     setTimeout(() => panel.remove(), 4000);
     collecting = false;
@@ -81,11 +81,11 @@
 
   chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     if (msg.type === "collect-board") { collectBoard(); respond({ started: true }); return; }
-    if (msg.type !== "stash-toast") return;
-    let el = document.getElementById("__stash_toast");
+    if (msg.type !== "grails-toast") return;
+    let el = document.getElementById("__grails_toast");
     el?.remove();
     el = document.createElement("div");
-    el.id = "__stash_toast";
+    el.id = "__grails_toast";
     el.textContent = msg.text;
     Object.assign(el.style, {
       position: "fixed", right: "18px", bottom: "18px", zIndex: 2147483647, padding: "9px 14px", borderRadius: "10px",

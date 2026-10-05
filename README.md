@@ -1,10 +1,10 @@
-# Stash
+# Grails
 
 An open-source, team-shareable inspiration library for macOS. Save images, videos, links and pages; find them again with
 tags, collections, smart folders, search and a command palette; and share one library with your whole team through a
 synced folder (Google Drive, Dropbox, iCloud). No server, no accounts.
 
-![Stash](docs/screenshots/m3-light.png)
+![Grails](docs/screenshots/m3-light.png)
 
 ## What it does
 - **Fast grid** (square or masonry) that stays smooth at 20,000+ items; pinch or ⌘-scroll to zoom smoothly, space to preview.
@@ -21,22 +21,22 @@ synced folder (Google Drive, Dropbox, iCloud). No server, no accounts.
 Files stay plain files: a library is a folder of items and small JSON sidecars you can open in Finder.
 
 ## Install
-Download `Stash-0.1.0.dmg`, drag Stash to Applications, then right-click ▸ Open the first time (not notarized yet).
+Download `Grails-0.1.0.dmg`, drag Grails to Applications, then right-click ▸ Open the first time (not notarized yet).
 Requires macOS 14 or later.
 
 ## Build
 ```bash
 brew install xcodegen
 xcodegen
-xcodebuild -scheme Stash -destination 'platform=macOS' build
-cd Packages/StashKit && swift test            # library, index, sync, API tests
+xcodebuild -scheme Grails -destination 'platform=macOS' build
+cd Packages/GrailsKit && swift test            # library, index, sync, API tests
 cd ../../Extensions/chrome-tests && node --test *.test.mjs
-Scripts/make-dmg.sh                           # dist/Stash-<version>.dmg
+Scripts/make-dmg.sh                           # dist/Grails-<version>.dmg
 ```
 UI tests and how to run them are described in [PROGRESS.md](PROGRESS.md).
 
 ## Layout
-`Packages/StashKit` (all logic, no UI) · `Apps/Stash` (SwiftUI/AppKit app) · `Apps/StashCLI` (CLI, coming) ·
+`Packages/GrailsKit` (all logic, no UI) · `Apps/Grails` (SwiftUI/AppKit app) · `Apps/GrailsCLI` (CLI, coming) ·
 `Extensions/chrome` (browser extension) · [PLAN.md](PLAN.md) (roadmap).
 
 MIT licensed.

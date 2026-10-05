@@ -23,13 +23,13 @@ export function pinIdsFromHrefs(hrefs) {
   return out;
 }
 
-/** The board's display name from the page title ("Swish - Pinterest", "swish | Pinterest"). */
+/** The board's display name from the page title ("Refs - Pinterest", "refs | Pinterest"). */
 export function boardNameFromTitle(title, fallback) {
   const t = String(title || "").replace(/\s*[|\-–—·]\s*Pinterest.*$/i, "").trim();
   return t || fallback || "Pinterest board";
 }
 
-/** The body Stash's POST /api/v1/imports expects. */
+/** The body Grails's POST /api/v1/imports expects. */
 export function buildBoardImport({ url, title, pinIds }) {
   const board = parseBoardUrl(url);
   if (!board || !pinIds?.length) return null;

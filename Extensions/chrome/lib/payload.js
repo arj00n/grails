@@ -1,4 +1,4 @@
-// Pure helpers: turn a browser event into the JSON body Stash's local API expects. No chrome.* calls in here,
+// Pure helpers: turn a browser event into the JSON body Grails's local API expects. No chrome.* calls in here,
 // so everything is unit-testable under Node.
 
 export const DEFAULT_PORT = 47823;
@@ -76,7 +76,7 @@ export function buildPayload(ev) {
     }
     case "video": {
       if (ev.dataBase64) return { ...base, dataBase64: ev.dataBase64 };           // a captured frame
-      if (isDirectVideoUrl(ev.srcUrl)) return { ...base, mediaUrl: ev.srcUrl };   // plain file: let Stash download it
+      if (isDirectVideoUrl(ev.srcUrl)) return { ...base, mediaUrl: ev.srcUrl };   // plain file: let Grails download it
       if (isHttp(ev.posterUrl)) return { ...base, mediaUrl: ev.posterUrl };       // streaming video: keep its poster + the page
       return base.pageUrl ? { ...base } : null;                                   // last resort: the page as a link card
     }
@@ -108,5 +108,5 @@ export function dataUrlToBase64(dataUrl) {
 }
 
 export function menuTitleFor(kind) {
-  return { image: "Save Image to Stash", video: "Save Video to Stash", link: "Save Link to Stash", page: "Save Page to Stash" }[kind] || "Save to Stash";
+  return { image: "Save Image to Grails", video: "Save Video to Grails", link: "Save Link to Grails", page: "Save Page to Grails" }[kind] || "Save to Grails";
 }

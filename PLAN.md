@@ -1,7 +1,7 @@
-# Stash — an open-source, team-shareable Atlas for Swish
+# Grails — an open-source, team-shareable Atlas for design teams
 
 > Execution plan for **Claude Sonnet 5.5**. Read this whole file once, then work milestone by milestone.
-> Owner: Arjun Vijayakumar (arjun@justswish.in). Codename **Stash** (rename later is a find/replace).
+> Owner: Arjun Vijayakumar. Codename **Grails** (rename later is a find/replace).
 > Reference product: [Atlas for Mac](https://atlasformac.com/) ([release notes](https://atlasformac.com/release-notes)). We copy *ideas*, never its name, icon, copy, or assets.
 
 ---
@@ -12,7 +12,7 @@
 2. After each milestone: run the verify commands listed, update `PROGRESS.md` (what works, what's stubbed, known bugs), then `git commit`.
 3. **Commit messages must NOT include any `Co-Authored-By: Claude` trailer or "Generated with Claude Code" line.** Plain conventional commits (`feat(grid): …`).
 4. Never push, create a GitHub repo, or publish anything without asking Arjun first. Local commits are fine.
-5. Prefer **headless verification**: `swift test` for `StashKit`, `xcodebuild build` for the app, XCUITest smoke tests for UI. Screenshot the running app with `screencapture -l$(osascript …windowid…)` or `screencapture -x` when a visual check is needed.
+5. Prefer **headless verification**: `swift test` for `GrailsKit`, `xcodebuild build` for the app, XCUITest smoke tests for UI. Screenshot the running app with `screencapture -l$(osascript …windowid…)` or `screencapture -x` when a visual check is needed.
 6. When a decision isn't covered here, pick the simplest option that keeps the **on-disk format** (Section 3) stable, note it in `PROGRESS.md` under "Decisions", and keep going. The on-disk format is the one thing that must not churn — ask before changing it.
 7. Keep dependencies minimal. Allowed: GRDB.swift, Sparkle, lottie-ios, swift-argument-parser, MCP swift-sdk, swift-collections. Anything else: ask.
 8. If stuck on the same failure 3 times, stop, write the hypothesis + what you tried in `PROGRESS.md`, and ask.
@@ -23,10 +23,10 @@
 
 Atlas is a $39 single-user, native macOS inspiration library (Grid / Canvas / Infinity views, collections, tags, colors, on-device semantic search, browser extension, MCP). It's local-first but **not built for a team**.
 
-Stash = the same core experience, open source (MIT), plus **one shared library the whole Swish design/brand/marketing team works out of**, synced through a Google Drive shared drive — no server to run.
+Grails = the same core experience, open source (MIT), plus **one shared library the whole design/brand/marketing team works out of**, synced through a Google Drive shared drive — no server to run.
 
-### Swish-specific goals
-- One shared "Swish Inspo" library: food photography refs, packaging, motion, competitor apps, campaign refs.
+### Team goals
+- One shared "Team Inspo" library: food photography refs, packaging, motion, competitor apps, campaign refs.
 - Everyone can save from the browser in one click; attribution shows who saved what.
 - First-class **Lottie** preview (we ship Lottie for SKUs) and **Figma link** cards.
 - Claude (Code/Desktop) can query the library over MCP: "find warm, top-down biryani shots we've saved".
@@ -44,25 +44,25 @@ Stash = the same core experience, open source (MIT), plus **one shared library t
 |---|---|---|
 | Platform | Native macOS 14+, Swift 6, SwiftUI shell + **AppKit for hot paths** (grid, canvas) | Atlas's whole edge is native speed with 10k+ items. Team is on Macs. Local toolchain: Xcode 27, Swift 6.4. |
 | Project gen | **XcodeGen** (`project.yml` committed, `.xcodeproj` gitignored) | Agent-editable text instead of pbxproj. `brew install xcodegen`. |
-| Core logic | Local SPM package `StashKit` (no UI imports) | Fully testable with `swift test`; shared by app, CLI, MCP. |
+| Core logic | Local SPM package `GrailsKit` (no UI imports) | Fully testable with `swift test`; shared by app, CLI, MCP. |
 | Source of truth | **Folder of files + JSON sidecars** on disk | Sync-safe over Google Drive/Dropbox/iCloud; survives the app disappearing; Eagle-like. |
 | Query layer | **SQLite (GRDB) index per machine**, rebuildable from disk at any time | Fast search/sort/filter; never synced (SQLite on Drive corrupts). |
 | Embeddings | **Apple MobileCLIP (Core ML)**, on-device; vectors stored as sidecars | Semantic search, "find similar", tag suggestions. No cloud. Shared vectors = teammates don't recompute. |
 | Vector search | Brute-force cosine with Accelerate (vDSP) | 50k × 512 f16 vectors ≈ 50 MB, < 20 ms. No vector DB. |
 | Team sync | Library folder lives on a **Google Drive shared drive** (or any synced folder) | Zero infra. |
 | Capture | Chrome MV3 extension → local HTTP API on `127.0.0.1` | Works in Chrome/Arc/Brave/Edge. Safari later via converter. |
-| AI interop | `stash mcp` stdio server + `stash` CLI | "Teach your agent your taste." |
-| Distribution | GitHub Releases DMG + Sparkle auto-update | Developer ID signing/notarization is a human step (Swish Apple account). |
+| AI interop | `grails mcp` stdio server + `grails` CLI | "Teach your agent your taste." |
+| Distribution | GitHub Releases DMG + Sparkle auto-update | Developer ID signing/notarization is a human step (your Apple account). |
 | License | MIT | Open source for the team and anyone else. |
 
 ---
 
 ## 3. On-disk library format (the contract — do not churn)
 
-A library is a folder ending in `.stash` (registered as a package type so Finder shows it as one file; right-click → Show Package Contents still works).
+A library is a folder ending in `.grails` (registered as a package type so Finder shows it as one file; right-click → Show Package Contents still works).
 
 ```
-Swish Inspo.stash/
+Team Inspo.grails/
   library.json                 # { schema, id, name, createdAt }
   items/
     01JABCDXYZ.../             # ULID folder per item
@@ -130,26 +130,26 @@ Fields: kind, name, ext, bytes, width, height, aspect, durationSec, addedAt, add
 2. Last-writer-wins per file, compared by `updatedAt`.
 3. **Conflict copies** from Drive/Dropbox (`item (1).json`, `item (conflicted copy …).json`): on scan, merge into the canonical file — union `tags`, union `collections`, newest wins for scalar fields — then delete the copy.
 4. New items always get a fresh ULID folder → concurrent adds never collide.
-5. Machine-specific things (connected-folder paths, window state, API token, index) live in `~/Library/Application Support/Stash/`, **never** in the library.
+5. Machine-specific things (connected-folder paths, window state, API token, index) live in `~/Library/Application Support/Grails/`, **never** in the library.
 
 ### Local index (per machine, disposable)
-`~/Library/Application Support/Stash/index/<libraryId>.sqlite` via GRDB:
+`~/Library/Application Support/Grails/index/<libraryId>.sqlite` via GRDB:
 - `items` (all scalar fields, `thumbPath`, `mtime` of item.json), `item_tags`, `item_collections`, `palette` (Lab values for ΔE queries), `embeddings` (blob), FTS5 virtual table over `name, tags, note, ocrText, source.title, source.site`.
 - `Index.rebuild(from: libraryURL)` must reproduce everything from disk. Test this.
 
 ### Connected folders
-Point at any existing folder (e.g. `~/Documents/swishapp/assets`) without copying. Items are indexed by relative path; their metadata (tags, notes) is written to `connected/<folderId>/<sha1(relpath)>.json` inside the library so tags survive. The folder's absolute path is per-machine config.
+Point at any existing folder (e.g. `~/Documents/assets/assets`) without copying. Items are indexed by relative path; their metadata (tags, notes) is written to `connected/<folderId>/<sha1(relpath)>.json` inside the library so tags survive. The folder's absolute path is per-machine config.
 
 ---
 
 ## 4. Repo layout
 
 ```
-swish-stash/
+grails/
   PLAN.md  PROGRESS.md  README.md  LICENSE  project.yml  .gitignore  .swiftformat
-  Packages/StashKit/
+  Packages/GrailsKit/
     Package.swift
-    Sources/StashKit/
+    Sources/GrailsKit/
       Format/        # Codable models, JSONValue, atomic writer, ULID, fractional index
       Library/       # LibraryStore (actor): open/create, CRUD, conflict merge, trash, snapshots
       Index/         # GRDB schema, migrations, rebuild, query builder, FTS, smart-rule compiler
@@ -160,10 +160,10 @@ swish-stash/
       Embed/         # MobileCLIP model manager (download/compile/cache), image+text encoders, vDSP search
       Importers/     # Folder, Eagle, Finder drag, URL/link, paste
       API/           # local HTTP server (Network.framework) for the extension
-    Tests/StashKitTests/   # + Fixtures/ (small images, a mini Eagle library, conflict-copy cases)
-  Apps/Stash/              # SwiftUI app target
+    Tests/GrailsKitTests/   # + Fixtures/ (small images, a mini Eagle library, conflict-copy cases)
+  Apps/Grails/              # SwiftUI app target
     App/  Sidebar/  Grid/  Canvas/  Infinity/  Info/  CommandK/  Settings/  MenuBar/  Undo/
-  Apps/StashCLI/           # `stash` executable (swift-argument-parser), includes `stash mcp`
+  Apps/GrailsCLI/           # `grails` executable (swift-argument-parser), includes `grails mcp`
   Extensions/chrome/       # MV3 extension (plain JS, no bundler)
   Scripts/
     gen-fixture-library.swift   # generates N synthetic items for perf tests
@@ -182,10 +182,10 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
 #### M0 · Scaffold (≈1 h)
 - `git init`, `.gitignore` (xcodeproj, DerivedData, .build), MIT `LICENSE`, `README.md` stub, `PROGRESS.md`.
 - `brew install xcodegen swiftformat` if missing.
-- `project.yml`: app target `Stash` (macOS 14, bundle id `in.justswish.stash`), CLI target `stash`, UI test target, local package `StashKit`.
+- `project.yml`: app target `Grails` (macOS 14, bundle id `xyz.arjoon.grails`), CLI target `grails`, UI test target, local package `GrailsKit`.
 - Empty SwiftUI window with a sidebar + placeholder grid.
 - GitHub Actions CI file (don't push yet).
-- **Verify:** `cd Packages/StashKit && swift test` passes (1 trivial test); `xcodegen && xcodebuild -scheme Stash -destination 'platform=macOS' build` succeeds; app launches.
+- **Verify:** `cd Packages/GrailsKit && swift test` passes (1 trivial test); `xcodegen && xcodebuild -scheme Grails -destination 'platform=macOS' build` succeeds; app launches.
 
 #### M1 · Library format + index (≈1 day)
 - Models + `JSONValue` with unknown-field preservation; ULID; fractional indexing; atomic writer.
@@ -239,7 +239,7 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
   - `GET /api/v1/ping`
   - Reject any non-loopback connection and any request without the token. CORS only for the extension origin.
 - **Chrome extension** (`Extensions/chrome`, MV3, plain JS):
-  - Context menu on image / video / link / page: "Save to Stash" → Inbox; submenu of recent collections.
+  - Context menu on image / video / link / page: "Save to Grails" → Inbox; submenu of recent collections.
   - ⌥-click an image on any page → save to Inbox, toast confirms.
   - Popup: pairing code input, status dot (app reachable?), recent collections.
   - For `<video>`: send `currentSrc` if it's a direct file; otherwise fall back to saving a poster frame + page link.
@@ -251,7 +251,7 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
 - Handle **online-only (streamed) files**: never read `original.*` for browsing — use `thumb.jpg`; show a cloud badge when original isn't local (`URLResourceValues.ubiquitousItemDownloadingStatus` / file-provider attrs); Space/expand triggers download with spinner.
 - "Added by" filter + avatar initials on tiles (toggle).
 - First-run flow: "Create a library" or "Join the team library" (pick folder on Drive).
-- Write `docs/TEAM_SETUP.md`: create shared drive folder → put `Swish Inspo.stash` there → each person installs Google Drive for desktop, chooses **Mirror** (recommended) or Stream → opens the library in Stash.
+- Write `docs/TEAM_SETUP.md`: create shared drive folder → put `Team Inspo.grails` there → each person installs Google Drive for desktop, chooses **Mirror** (recommended) or Stream → opens the library in Grails.
 - **Verify:** test harness that runs two `LibraryStore` instances on the same temp folder concurrently (simulating two Macs): 500 random adds/tags/moves each → after both settle + rescan, both indexes match and no item.json is invalid. Then manual test with a real Drive folder on two Macs if available.
 - Build an unsigned DMG (`Scripts/make-dmg.sh`), tag `v0.1.0` locally, ask Arjun before publishing.
 
@@ -260,14 +260,14 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
 #### M6 · Media formats (≈1 day)
 - GIF + video: animate/hover-scrub in grid (AVPlayerLayer only for the hovered/visible-at-large-zoom tiles; static thumbs otherwise). Expanded view: timeline, frame step (`,` `.`), mute, **capture frame** ⇧⌘S → new image item.
 - SVG (WKWebView-free: render via `NSImage(contentsOf:)` or CoreSVG), PDF (PDFKit page 1 thumb, page nav in expanded), RAW (ImageIO handles CR2/CR3/NEF/ARW/RAF/DNG), Illustrator `.ai` (PDF-compatible → PDFKit), HEIC/AVIF/WebP via ImageIO.
-- **Lottie** (`.json` with Lottie signature, `.lottie`): lottie-ios (`LottieAnimationView` on macOS) — static first frame thumb, plays on hover/expand. Swish-priority.
+- **Lottie** (`.json` with Lottie signature, `.lottie`): lottie-ios (`LottieAnimationView` on macOS) — static first frame thumb, plays on hover/expand. high priority.
 - Camera EXIF in Info panel. "Refresh thumbnail" for externally edited files.
 - **Verify:** fixtures for each type in `Tests/Fixtures/`; thumbnailer test produces a non-empty `thumb.jpg` for every fixture.
 
 #### M7 · Intelligence: colors, OCR, semantic search, similar, tag suggestions (≈2 days)
 - **Palette**: downscale to 64 px, k-means (k=6) in Lab, drop near-duplicates, store top 5 with weights. Color search: hex input or eyedropper (`NSColorSampler`) → items with any palette swatch ΔE2000 < threshold, ranked by weight. Color cards (`kind: color`) as first-class items.
 - **OCR**: `VNRecognizeTextRequest` (accurate, en + hi) → `ocrText` → FTS. Searching "flat 50% off" finds the screenshot.
-- **Embeddings**: MobileCLIP (start with S2; check `apple/ml-mobileclip` and the Core ML exports on Hugging Face for current model files). Download on first enable to `Application Support/Stash/models/`, compile with `MLModel.compileModel`, show size + progress in Settings → Intelligence. Background queue indexes items lacking `clip-s2.f16` (low priority, pauses on battery < 20%). Write the sidecar so teammates reuse it.
+- **Embeddings**: MobileCLIP (start with S2; check `apple/ml-mobileclip` and the Core ML exports on Hugging Face for current model files). Download on first enable to `Application Support/Grails/models/`, compile with `MLModel.compileModel`, show size + progress in Settings → Intelligence. Background queue indexes items lacking `clip-s2.f16` (low priority, pauses on battery < 20%). Write the sidecar so teammates reuse it.
 - **Semantic search**: text encoder → cosine vs all vectors (vDSP) → merge with FTS score (reciprocal rank fusion). Query "warm bar interior at night" works.
 - **Find similar** (right-click / `S`): nearest neighbours of the item's vector, shown as a result view with Back.
 - **Suggested tags**: embed each existing tag name as text ("a photo of {tag}"), score selected items' vectors, suggest top 5 above threshold in the tag popover. Fully on-device.
@@ -281,13 +281,13 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
 - **Verify:** XCUITest opens canvas on a 500-item collection, pans/zooms, drags an item, relaunches → position persisted.
 
 #### M9 · CLI + MCP (≈1 day)
-- `stash` CLI (swift-argument-parser), operates on the library directly via `StashKit` (app need not run): `stash search "query" [--similar ID] [--json]`, `stash add <path|url> [--collection X --tag Y]`, `stash tag <ids…> +a -b`, `stash open <id>` (deep link `stash://item/<id>`), `stash collections`. Settings → Developers → "Install command line tool" symlinks into `/usr/local/bin` (ask for auth via `NSAppleScript` admin or instruct user).
-- `stash mcp` = MCP stdio server (official Swift MCP SDK) exposing tools: `search` (text/semantic/color), `find_similar`, `get_item` (returns metadata + thumbnail as image content), `list_collections`, `list_tags`, `add_item`, `tag_items`, `add_to_collection`, `set_note`. Read-only mode flag `--read-only`.
-- Docs snippet for Claude Code: `claude mcp add stash -- /usr/local/bin/stash mcp --library "~/…/Swish Inspo.stash"`.
+- `grails` CLI (swift-argument-parser), operates on the library directly via `GrailsKit` (app need not run): `grails search "query" [--similar ID] [--json]`, `grails add <path|url> [--collection X --tag Y]`, `grails tag <ids…> +a -b`, `grails open <id>` (deep link `grails://item/<id>`), `grails collections`. Settings → Developers → "Install command line tool" symlinks into `/usr/local/bin` (ask for auth via `NSAppleScript` admin or instruct user).
+- `grails mcp` = MCP stdio server (official Swift MCP SDK) exposing tools: `search` (text/semantic/color), `find_similar`, `get_item` (returns metadata + thumbnail as image content), `list_collections`, `list_tags`, `add_item`, `tag_items`, `add_to_collection`, `set_note`. Read-only mode flag `--read-only`.
+- Docs snippet for Claude Code: `claude mcp add grails -- /usr/local/bin/grails mcp --library "~/…/Team Inspo.grails"`.
 - **Verify:** CLI integration tests on a temp library; MCP test using the SDK's in-process client: list tools, call `search`, call `tag_items`, re-read item.json.
 
 #### M10 · Eagle import, polish, release (≈1 day)
-- **Eagle import**: read `<lib>.library/metadata.json` (folder tree) + `images/<ID>.info/metadata.json` (name, ext, tags, folders, url, annotation, star) → create Stash items (copy or **connect in place** — user chooses), map folders → collections, `annotation` → note, `url` → source, star ≥ 4 → liked. Idempotent: re-import updates, doesn't duplicate (store `eagleId` in extras). Also a generic "import folder tree as collections".
+- **Eagle import**: read `<lib>.library/metadata.json` (folder tree) + `images/<ID>.info/metadata.json` (name, ext, tags, folders, url, annotation, star) → create Grails items (copy or **connect in place** — user chooses), map folders → collections, `annotation` → note, `url` → source, star ≥ 4 → liked. Idempotent: re-import updates, doesn't duplicate (store `eagleId` in extras). Also a generic "import folder tree as collections".
 - Trash UI with restore + empty; snapshots restore UI (pick a date → restore JSON).
 - Sparkle auto-update (appcast on GitHub Releases).
 - `Scripts/make-dmg.sh` with optional Developer ID signing + `notarytool` (env vars; skip if absent).
@@ -295,7 +295,7 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
 - **Verify:** fixture mini-Eagle library in tests imports with correct counts/tags/folders; full CI green; DMG installs on a clean user account.
 
 ### Phase 3 — Later (do not start without Arjun)
-Safari extension (`xcrun safari-web-extension-converter`), Firefox build of the extension, iOS share-sheet capture, Figma plugin "Send selection to Stash", Slack `/stash` search, comments on items, per-collection share links (static HTML export).
+Safari extension (`xcrun safari-web-extension-converter`), Firefox build of the extension, iOS share-sheet capture, Figma plugin "Send selection to Grails", Slack `/grails` search, comments on items, per-collection share links (static HTML export).
 
 ---
 
@@ -339,7 +339,7 @@ Main-thread rule: no disk I/O, image decode, or JSON parsing on main. `LibrarySt
 
 ---
 
-## 9. Kickoff prompt (paste into a Sonnet 5.5 session opened in `~/swish-stash`)
+## 9. Kickoff prompt (paste into a Sonnet 5.5 session opened in `~/grails`)
 
 ```
 Read PLAN.md fully. You are executing it. Start with M0, then continue milestone by milestone.

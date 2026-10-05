@@ -1,6 +1,6 @@
-name: Stash
+name: Grails
 options:
-  bundleIdPrefix: in.justswish
+  bundleIdPrefix: xyz.arjoon
   deploymentTarget:
     macOS: "14.0"
   createIntermediateGroups: true
@@ -12,79 +12,79 @@ settings:
     MACOSX_DEPLOYMENT_TARGET: "14.0"
     ENABLE_USER_SCRIPT_SANDBOXING: YES
 packages:
-  StashKit:
-    path: Packages/StashKit
+  GrailsKit:
+    path: Packages/GrailsKit
 targets:
-  Stash:
+  Grails:
     type: application
     platform: macOS
     sources:
-      - Apps/Stash
+      - Apps/Grails
       - path: Extensions/chrome
         type: folder
         buildPhase: resources
     dependencies:
-      - package: StashKit
+      - package: GrailsKit
     info:
-      path: Config/Stash-Info.plist
+      path: Config/Grails-Info.plist
       properties:
-        CFBundleDisplayName: Stash
+        CFBundleDisplayName: Grails
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.graphics-design
         NSHumanReadableCopyright: MIT licensed
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         CFBundleDocumentTypes:
-          - CFBundleTypeName: Stash Library
+          - CFBundleTypeName: Grails Library
             CFBundleTypeRole: Editor
             LSHandlerRank: Owner
             LSTypeIsPackage: true
-            LSItemContentTypes: [in.justswish.stash.library]
+            LSItemContentTypes: [xyz.arjoon.grails.library]
         UTExportedTypeDeclarations:
-          - UTTypeIdentifier: in.justswish.stash.library
-            UTTypeDescription: Stash Library
+          - UTTypeIdentifier: xyz.arjoon.grails.library
+            UTTypeDescription: Grails Library
             UTTypeConformsTo: [com.apple.package]
             UTTypeTagSpecification:
-              public.filename-extension: [stash]
-          - UTTypeIdentifier: in.justswish.stash.items
-            UTTypeDescription: Stash Items
+              public.filename-extension: [grails, stash]
+          - UTTypeIdentifier: xyz.arjoon.grails.items
+            UTTypeDescription: Grails Items
             UTTypeConformsTo: [public.data]
-          - UTTypeIdentifier: in.justswish.stash.collection
-            UTTypeDescription: Stash Collection
+          - UTTypeIdentifier: xyz.arjoon.grails.collection
+            UTTypeDescription: Grails Collection
             UTTypeConformsTo: [public.data]
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: in.justswish.stash
-        PRODUCT_NAME: Stash
+        PRODUCT_BUNDLE_IDENTIFIER: xyz.arjoon.grails
+        PRODUCT_NAME: Grails
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
-  StashCLI:
+  GrailsCLI:
     type: tool
     platform: macOS
-    sources: [Apps/StashCLI]
+    sources: [Apps/GrailsCLI]
     dependencies:
-      - package: StashKit
+      - package: GrailsKit
     settings:
       base:
-        PRODUCT_NAME: stash
+        PRODUCT_NAME: grails
         CODE_SIGN_IDENTITY: "-"
-  StashUITests:
+  GrailsUITests:
     type: bundle.ui-testing
     platform: macOS
-    sources: [Apps/StashUITests]
+    sources: [Apps/GrailsUITests]
     dependencies:
-      - target: Stash
+      - target: Grails
     settings:
       base:
         GENERATE_INFOPLIST_FILE: YES
         CODE_SIGN_IDENTITY: "-"
 schemes:
-  Stash:
+  Grails:
     build:
       targets:
-        Stash: all
-        StashCLI: all
+        Grails: all
+        GrailsCLI: all
     test:
-      targets: [StashUITests]
+      targets: [GrailsUITests]

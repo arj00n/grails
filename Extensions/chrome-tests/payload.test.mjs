@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { buildPayload, cleanTitle, dataUrlToBase64, isDirectVideoUrl, updateRecents } from "../chrome/lib/payload.js";
 
-test("image: http source is downloaded by Stash, with page context", () => {
+test("image: http source is downloaded by Grails, with page context", () => {
   const p = buildPayload({ kind: "image", srcUrl: "https://cdn.x.com/a.jpg", pageUrl: "https://x.com/post", title: "  A\n  photo " });
   assert.deepEqual(p, { title: "A photo", pageUrl: "https://x.com/post", mediaUrl: "https://cdn.x.com/a.jpg" });
 });

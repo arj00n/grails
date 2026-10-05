@@ -5,17 +5,17 @@
 ## Workspaces and sharing — 2026-10-05
 - **Workspaces** = libraries, now first-class: a registry (`Workspace`: library id, folder, colour, your own order) instead of 6 recents. Sidebar top is a
   popover (coloured tile, ⌃1–⌃9 via the Workspace menu, Locate for a folder that isn't mounted, colour / Show in Finder / Remove from List).
-- **Links**: `stash://open?lib=<library id>&c=|t=|i=` (`StashLink`) for a library (invite), collection, tag or item; Copy Link in the sidebar and item menus,
+- **Links**: `grails://open?lib=<library id>&c=|t=|i=` (`GrailsLink`) for a library (invite), collection, tag or item; Copy Link in the sidebar and item menus,
   File ▸ Copy Link to This View (⌥⌘L), Copy Invite Link, Join with Link…. The link carries the library id, not a path: a Mac that has the library switches to it,
-  one that doesn't is asked to pick the synced folder and it's checked against the id. `stash://` is registered in Info.plist; `StashAppDelegate` also opens `.stash` folders.
-- **Web page export** (`Share/WebExport.swift`, File ▸ Export as Web Page… ⌥⌘E, `stash-share` CLI): a folder + zip with `index.html` (grid with titled sections, canvas
+  one that doesn't is asked to pick the synced folder and it's checked against the id. `grails://` is registered in Info.plist; `GrailsAppDelegate` also opens `.grails` folders.
+- **Web page export** (`Share/WebExport.swift`, File ▸ Export as Web Page… ⌥⌘E, `grails-share` CLI): a folder + zip with `index.html` (grid with titled sections, canvas
   view with pan/zoom for clusters, lightbox, source links optional), `data.js`, `media/` (pictures at ≤1600 px, GIF/SVG as is, videos ≤40 MB) and `thumbs/`.
   Nothing is uploaded: you drop the folder on any static host (Cloudflare Pages, Netlify Drop, GitHub Pages) or send the zip.
 
 ## X posts, in-place cluster rename, similar-tag merging, smooth grid zoom — 2026-10-05
 - **Grid zoom** glides tiles between column counts (fractional column count in `TileLayout`, tiles lerp between the two neighbouring whole-column
   arrangements, anchored on the tile under the pointer / centre); on release it eases to a whole count. Headless-checked only (screen was locked).
-- **X posts** (`TweetImport.swift`): paste or import an x.com / twitter.com post link (⇧⌘I, ⌘V, `stash-import`, extension `POST /api/v1/imports
+- **X posts** (`TweetImport.swift`): paste or import an x.com / twitter.com post link (⇧⌘I, ⌘V, `grails-import`, extension `POST /api/v1/imports
   {source:"x", url}`); reads the public embed data (fxtwitter as a fallback): photos at `name=orig`, GIFs as mp4, best-bitrate video mp4. Items land loose
   (no collection) with the post as source link. The extension saves images on X at original size and routes video / GIF / post saves through the post link.
 - **Rename in place**: double-click a cluster name on the canvas or a section title in the grid (`InlineTitleField`); Return keeps, Esc cancels.
@@ -29,7 +29,7 @@
   they reorder with the others flowing around the pointer; onto another cluster they slot in at the pointer; onto empty canvas (or with ⌥) they become a new
   cluster. ⌘G groups the selection, ⌥⌘A tidies the blocks, ← → reorder, double-click a title to rename, right-click a title for tile size / dissolve.
   Blocks never overlap (`CanvasReflow` on cluster frames). Stored in `canvas/<key>.json` as `clusters` (older boards migrate into one cluster; old placements are
-  kept untouched so older Stash versions still read them). Merge is per cluster, newest wins; one undo step per edit.
+  kept untouched so older Grails versions still read them). Merge is per cluster, newest wins; one undo step per edit.
 - **Grid = sections.** With two or more clusters (and natural sort, no search) the grid shows each cluster as a titled section, in your arrangement order
   (`SectionedLayout`, header rows are `ItemKind.section` pseudo-items; selection ignores them). Items no cluster holds yet join the first.
 - **Auto-tag engine**: macOS 27's on-device language model with image input (`LanguageModelTagger`, falls back to the Vision classifier elsewhere). Names subject,
@@ -38,8 +38,8 @@
 - **Pinterest**: pins are resolved through the public widget endpoint (exact originals incl. PNG/WebP, source link as the item's page, video renditions: the `.mp4`
   is derived from the HLS stream). The feed only lists ~25 pins, so the Chrome extension gained "Import this board" (scrolls the logged-in tab, sends pin ids to
   `POST /api/v1/imports`). Videos get a poster thumbnail, size, duration, a ▶ badge and play in the preview.
-- **Dev tools that don't touch the screen**: `STASH_CANVAS_DEMO=<dir>` drives the canvas with synthetic events delivered to the view and renders PNGs;
-  `STASH_SNAPSHOT=<png>` renders the AppKit grid. (Don't use XCUITest screenshots while someone is using the Mac: they capture whatever is on top and click/type
+- **Dev tools that don't touch the screen**: `GRAILS_CANVAS_DEMO=<dir>` drives the canvas with synthetic events delivered to the view and renders PNGs;
+  `GRAILS_SNAPSHOT=<png>` renders the AppKit grid. (Don't use XCUITest screenshots while someone is using the Mac: they capture whatever is on top and click/type
   at screen coordinates.) The existing canvas UI tests describe the old free-form canvas and are stale; they were not run for this change.
 
 ## Black-and-glass redesign — 2026-10-04
@@ -49,8 +49,8 @@
   Tokens and modifiers live in `App/Glass.swift` (`Ink`, `.glassCard()`, `.glassPill()`, `GlassIconButton`, `WindowChrome` for the hidden title bar).
 - The grid keeps clear of open panels and scrolls under the top bar (`GridView(topInset:)`, scroll range is inset-aware: origin may be negative). The canvas
   goes under the panels but *fits* into what's uncovered (`contentInsets`).
-- Dev: `STASH_FLAT_GLASS=1` swaps glass for flat fills (measure blur cost: it was not the cause of any benchmark change). `ShotTests` renders real-image
-  screenshots (`TEST_RUNNER_STASH_SHOWCASE=<lib made by stash-fixture --from-folder …>`; output in the runner container tmp, see its SHOT: lines).
+- Dev: `GRAILS_FLAT_GLASS=1` swaps glass for flat fills (measure blur cost: it was not the cause of any benchmark change). `ShotTests` renders real-image
+  screenshots (`TEST_RUNNER_GRAILS_SHOWCASE=<lib made by grails-fixture --from-folder …>`; output in the runner container tmp, see its SHOT: lines).
 - Tests: view switcher is two buttons (`view-grid`, `view-canvas`); the grid's AX frame already starts below the inset (first tile ≈12 pt in).
 - Known env noise: masonry zoom benchmark shows 70–80 slow frames in Debug on this Mac while its load average is ~9 (same on the pre-redesign commit).
 
@@ -63,12 +63,12 @@
   commit 9770c07 on this display setup; passed earlier the same day).
 
 ## Import from Are.na / Pinterest — 2026-10-04
-- ⇧⌘I, ⌘K "Import from Are.na or Pinterest…", File menu, or `stash-import <link> [--into Lib.stash]` (no `--into` = list only, downloads nothing).
+- ⇧⌘I, ⌘K "Import from Are.na or Pinterest…", File menu, or `grails-import <link> [--into Lib.grails]` (no `--into` = list only, downloads nothing).
   Becomes a collection named after the board; re-importing only adds what's new (content-hash dedupe; dupes are filed into the collection too); one undo.
 - **Are.na**: public API v2 `channels/<slug>?per=100&page=n`, all pages. Image → file (original, falling back to large/display), Link/Media → link card, PDF/image/video
   attachments → file; Text, nested channels, other attachments are skipped and counted. **Not verified live**: after one successful probe, Are.na began
   answering every request from this machine with "403 Automated access blocked" and asked automated agents to stop, so no further live requests were made.
-  Code now identifies itself honestly (`Stash/0.1 …`, not a browser) and shows a specific "blocked" message. Try `stash-import <channel link>` yourself.
+  Code now identifies itself honestly (`Grails/0.1 …`, not a browser) and shows a specific "blocked" message. Try `grails-import <channel link>` yourself.
 - **Pinterest**: only the official public RSS feed (`/<user>/<board>.rss`) works without login: the latest ~25 pins, upgraded from 236 px to originals (falls back
   to 1200/736). Pinterest's JSON API answers scripts with 403 and logged-out board pages carry no pin data. `pin.it` short links are resolved. Verified live
   (list only: 25 pins, URLs well-formed); no pin images were downloaded outside stubbed tests. Full boards need the Chrome extension route (open the board while
@@ -89,14 +89,14 @@
   Tags are ordinary tags (sync, search, filter). `autoTags` records which ones the machine added (sparkle chip in the info
   panel); `autoTagged` stops re-runs, so a removed tag is never re-added. Only the user's own items run automatically
   (teammates' items are tagged by their owner); ⌘K "Auto-tag All Untagged Items" does everyone's, "Auto-tag N selected" redoes.
-  Auto-tagging bypasses undo. Dev: `STASH_AUTOTAG_STUB=a,b` fakes the classifier; with `STASH_LIBRARY` set it is off unless that
-  (or `STASH_AUTOTAG=1`) is set.
-- **Try it on your photos**: `cd Packages/StashKit && swift run -c release stash-tags --raw ~/Pictures/food/`.
+  Auto-tagging bypasses undo. Dev: `GRAILS_AUTOTAG_STUB=a,b` fakes the classifier; with `GRAILS_LIBRARY` set it is off unless that
+  (or `GRAILS_AUTOTAG=1`) is set.
+- **Try it on your photos**: `cd Packages/GrailsKit && swift run -c release grails-tags --raw ~/Pictures/food/`.
 - **Verified**: kit tests 107/107 (incl. real Vision on a system wallpaper); Node 10/10; full UI suite 36/36 on the 20k fixture
   (incl. 3 `AutoTagTests`); headless app run with the stub; Release strict benchmarks: grid square + masonry pass, canvas zoom/pan
   got 1–3 slow frames in 3 runs (budget 2; worst frame 43–50 ms while our own code peaked at 8 ms; machine load average was 8 with
   Spotlight at 119% CPU), so treat it as load noise, re-run on a quiet Mac.
-- **Tried on 197 Swish SKU photos** (webp, `stash-tags --simulate <folder>` imports into a throwaway library and runs the real pipeline,
+- **Tried on 197 product SKU photos** (webp, `grails-tags --simulate <folder>` imports into a throwaway library and runs the real pipeline,
   1.5 s): learned on its own to skip utensil, tableware, bowl, wood processed, food; 165/190 items get tags (avg ≈3.6 before pruning).
   What's left is coarse (plate, spoon, drinking glass, burrito, hamburger…): Vision has no dish vocabulary (gulab jamun → nothing).
   Dish-level tags need a CLIP-style model with a custom vocabulary (PLAN M7). Untested on decor, graphics, motion (no such assets here).
@@ -127,7 +127,7 @@ Works (79 kit tests incl. the two-Mac harness, 5 team UI tests; DMG builds and l
   no temp files or conflict copies remain, nothing missing. Plain local files can't make sync-conflict copies, so
   concurrent edits to the *same* item may lose one update here (conflict-copy merging is covered separately).
 - `docs/TEAM_SETUP.md` (shared drive setup, Mirror vs Stream, how sync/conflicts behave, troubleshooting).
-- `Scripts/make-dmg.sh` → `dist/Stash-0.1.0.dmg` (6.3 MB, ad-hoc signed so it launches on Apple Silicon; set
+- `Scripts/make-dmg.sh` → `dist/Grails-0.1.0.dmg` (6.3 MB, ad-hoc signed so it launches on Apple Silicon; set
   `DEVELOPER_ID` and `NOTARY_PROFILE` to sign + notarize). Verified: mounts, version 0.1.0, launches from the image.
 - Tile accessibility labels (VoiceOver reads item names).
 
@@ -149,7 +149,7 @@ Works (71 kit tests, 10 Node tests, 3 UI tests, plus a real-Chrome end-to-end sc
 - **Paste** `⌘V` in the grid: files, folders, image data (screenshots), or web URLs. A URL to an image/video file
   is downloaded as media (with the page as Referer); any other URL becomes a **link card**. `⌥⌘V` forces a link;
   `⇧⌘V` sends the clipboard to the Inbox regardless of the current view. Undoable as one action.
-- **Menu bar item** (drop zone): drop files, images or links on it → Inbox. Menu: Open Stash, Save Clipboard to Inbox,
+- **Menu bar item** (drop zone): drop files, images or links on it → Inbox. Menu: Open Grails, Save Clipboard to Inbox,
   Hide Dock Icon, Quit. Dock icon can be hidden in Settings (the menu bar item then restores the window).
 - **Link cards**: title + site + preview image from Open Graph / Twitter card / `<title>` metadata (regex parser,
   entities, relative image URLs). Three looks per link (right-click ▸ Show Link As): preview image, page snapshot,
@@ -169,8 +169,8 @@ Works (71 kit tests, 10 Node tests, 3 UI tests, plus a real-Chrome end-to-end sc
   `Extensions.loadUnpacked`, image/link/page saves and a real ⌥-click all landed in the app; a wrong token is refused.
 
 Run it: `cd Extensions/chrome-tests && node --test *.test.mjs`; `Extensions/e2e/run.sh` (needs Chrome + a Debug build).
-Link tests need `/private/tmp/stash-e2e/{page.html,page2.html,hero.png}`; `run.sh` recreates hero.png, the HTML files are in
-`Extensions/e2e/` (copy them to /private/tmp/stash-e2e/).
+Link tests need `/private/tmp/grails-e2e/{page.html,page2.html,hero.png}`; `run.sh` recreates hero.png, the HTML files are in
+`Extensions/e2e/` (copy them to /private/tmp/grails-e2e/).
 
 ## M3 organize — done 2026-10-03
 Works (49 kit tests, 17 UI tests; the plan's scenario "create collection → add 3 items → tag them → ⌘Z ×2" is
@@ -195,7 +195,7 @@ Works (49 kit tests, 17 UI tests; the plan's scenario "create collection → add
   conflict detection (reserved Mac shortcuts, fixed keys, other actions). Hold ⌘ for 1 s for the cheat sheet.
 - Drag and drop: items → collection / tag / Trash rows; files → collection / tag rows (import there); collections →
   collection/folder rows (reorder / move in).
-- `.stash` is registered as a package document type; custom drag types are exported in `Config/Stash-Info.plist`.
+- `.grails` is registered as a package document type; custom drag types are exported in `Config/Grails-Info.plist`.
 
 Perf after M3 (Release, 20k fixture): 0–1 frames over 33 ms out of ~2,230 (worst 26–38 ms); launch 0.46–0.66 s;
 memory 91–191 MB. The Release gate allows ≤ 2 dropped frames (see `GridTests`); zoom steps used to cost 35–46 ms
@@ -203,7 +203,7 @@ until the toolbar slider was isolated in `ZoomControl`.
 
 ## M2 grid, sidebar, info panel — done 2026-10-03
 Works (verified by 8 XCUITests on a 20k-item fixture + screenshots in `docs/screenshots/`):
-- Opens a library at launch (`STASH_LIBRARY` env, last used, or `~/Pictures/Stash Library.stash`); shows the existing
+- Opens a library at launch (`GRAILS_LIBRARY` env, last used, or `~/Pictures/Grails Library.grails`); shows the existing
   index immediately and rescans in the background.
 - NSCollectionView grid with two custom layouts: **Square** (arithmetic, O(1) per tile) and **Masonry**
   (column packing, cached until size/zoom/data changes). Both track window width.
@@ -221,7 +221,7 @@ Works (verified by 8 XCUITests on a 20k-item fixture + screenshots in `docs/scre
 - Settings: appearance, grid background, tile spacing, corner radius, "added by" name, library location/open/new.
 - Kit additions: `ItemQuery.unfiled`, camera EXIF capture on import, `FolderScanner`, deterministic millisecond dates.
 
-Perf on the 20k fixture (M-series, `STASH_BENCH=1` drives an in-app scroll + zoom sweep; ~2,250 frames at 120 Hz):
+Perf on the 20k fixture (M-series, `GRAILS_BENCH=1` drives an in-app scroll + zoom sweep; ~2,250 frames at 120 Hz):
 | Check | Result | Budget |
 |---|---|---|
 | Frames over 33 ms, Release, square | 0 (worst 25 ms) | 0 |
@@ -233,16 +233,16 @@ Perf on the 20k fixture (M-series, `STASH_BENCH=1` drives an in-app scroll + zoo
 
 How to run the UI suite (needs the fixture):
 ```bash
-Scripts/gen-fixture-library.sh /tmp/Fixture20k.stash 20000
-STASH_FIXTURE=/tmp/Fixture20k.stash TEST_RUNNER_STASH_FIXTURE=/tmp/Fixture20k.stash \
-  xcodebuild -scheme Stash -destination 'platform=macOS' test
-# strict zero-hitch gate: add -configuration Release and STASH_BENCH_STRICT=1 TEST_RUNNER_STASH_BENCH_STRICT=1
+Scripts/gen-fixture-library.sh /tmp/Fixture20k.grails 20000
+GRAILS_FIXTURE=/tmp/Fixture20k.grails TEST_RUNNER_GRAILS_FIXTURE=/tmp/Fixture20k.grails \
+  xcodebuild -scheme Grails -destination 'platform=macOS' test
+# strict zero-hitch gate: add -configuration Release and GRAILS_BENCH_STRICT=1 TEST_RUNNER_GRAILS_BENCH_STRICT=1
 ```
-Without STASH_FIXTURE the grid tests skip; the launch test always runs.
+Without GRAILS_FIXTURE the grid tests skip; the launch test always runs.
 
 ## M1 library format + index — done 2026-10-03
 Works (22 tests in `swift test`, plus a gated perf test):
-- `Item` / `StashCollection` / `LibraryManifest` Codable models; unknown top-level fields are preserved on rewrite.
+- `Item` / `GrailsCollection` / `LibraryManifest` Codable models; unknown top-level fields are preserved on rewrite.
 - ULID, fractional index keys, atomic writes (temp + rename), ISO-8601 dates with millisecond precision.
 - `LibraryStore` actor: create/open, add item (copy, SHA-256, dimensions, 512px JPEG thumb), update, soft delete,
   restore, empty trash → `.trash/`, purge after 30 days, collections, `rescan()`, daily snapshots.
@@ -251,9 +251,9 @@ Works (22 tests in `swift test`, plus a gated perf test):
   FTS5 with prefix search, numeric-aware name sort, `rebuild(from:)`. Corrupt index file → discarded and rebuilt.
 - Sync conflict copies (`item (1).json`, `… conflicted copy …`, `item 2.json`) merge into `item.json`:
   union of tags and collections, newest wins for the rest. Collection copies: newest wins.
-- Fixture generator: `Scripts/gen-fixture-library.sh <out.stash> <count>`.
+- Fixture generator: `Scripts/gen-fixture-library.sh <out.grails> <count>`.
 
-Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter PerformanceTests`):
+Perf, 20k items, debug build, M-series (`GRAILS_PERF=1 swift test --filter PerformanceTests`):
 | Check | Result | Budget |
 |---|---|---|
 | Index rebuild from disk | 2.0 s | < 10 s |
@@ -261,17 +261,17 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 | No-op rescan | 1.2 s | (none; watch in M5) |
 
 ## Decisions
-- CLI target is named `StashCLI` (product name `stash`). A target named `stash` collides with `Stash`
-  on case-insensitive filesystems (`Stash.build` vs `stash.build`) and breaks the build.
+- CLI target is named `GrailsCLI` (product name `grails`). A target named `grails` collides with `Grails`
+  on case-insensitive filesystems (`Grails.build` vs `grails.build`) and breaks the build.
 - UI tests run with the ad-hoc signing set in `project.yml`; `CODE_SIGNING_ALLOWED=NO` kills the test runner.
   Build-only commands can still use `CODE_SIGNING_ALLOWED=NO`.
 - If the UI test runner fails to link with "Operation not permitted", delete
-  `DerivedData/Stash-*/Build/Products/Debug/StashUITests-Runner.app` and rerun.
+  `DerivedData/Grails-*/Build/Products/Debug/GrailsUITests-Runner.app` and rerun.
 - Screenshots via `screencapture` fail in this environment (no screen-recording permission);
   use XCUITest assertions for UI verification instead.
-- Snapshots are `.snapshots/<yyyy-MM-dd>.stashsnap` (LZFSE-compressed JSON of every metadata file), not zip:
+- Snapshots are `.snapshots/<yyyy-MM-dd>.grailssnap` (LZFSE-compressed JSON of every metadata file), not zip:
   no zip library in the allowed dependency list and `Process`/`ditto` is fragile. Restore UI reads this format (M10).
-- Fixture generator is the `stash-fixture` executable target + a shell wrapper, not a `.swift` script,
+- Fixture generator is the `grails-fixture` executable target + a shell wrapper, not a `.swift` script,
   because a script can't import the local package.
 - Added `ItemKind.file` as the fallback for unrecognised file types (not in the PLAN kinds list).
 - Thumbnails of transparent images are flattened onto white (JPEG has no alpha). Revisit in M6 if it looks bad on dark backgrounds.
@@ -281,7 +281,7 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 
 ## Testing notes (learned the hard way)
 - Every grid-assuming UI test must pass `-viewMode grid`: `viewMode` persists in UserDefaults, so a canvas test leaves the next launch in Canvas.
-  CaptureTests use API port 47871 because an installed /Applications/Stash.app owns the default 47823 (401s otherwise).
+  CaptureTests use API port 47871 because an installed /Applications/Grails.app owns the default 47823 (401s otherwise).
 - UI tests need an unlocked, awake screen. "Timed out while enabling automation mode" + `screencapture` failing with
   "could not create image from display" means the Mac is locked: nothing to fix in the code.
 - **Never use `typeText` in UI tests.** On this OS it can leave a stuck ⌘ flag on later key events: letters stop
@@ -290,12 +290,12 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
 - Pin persisted UI state with launch arguments (`-zoomStep 2 -sidebar.expandCollections 1 …`). A click on a sidebar
   section header collapses it and the collapsed state persists into the next run.
 - A container's `accessibilityIdentifier` overrides its children's. Put identifiers on the leaf views.
-- UI tests that mutate data use `STASH_SEED=<n> STASH_SEED_PLAIN=1` (a throwaway library with no collections or likes)
-  so they never touch the shared 20k fixture. `STASH_PANEL=commandK|tags|move|note` opens a panel at launch.
+- UI tests that mutate data use `GRAILS_SEED=<n> GRAILS_SEED_PLAIN=1` (a throwaway library with no collections or likes)
+  so they never touch the shared 20k fixture. `GRAILS_PANEL=commandK|tags|move|note` opens a panel at launch.
 - Layout-loop crash: "more Update Constraints passes than views". Cause: SwiftUI content with a fixed minimum width
   (a 600 pt panel, a rigid filter bar) inside the detail pane when the info panel shrinks it. Keep overlays in
   `.overlay`, use `maxWidth` not `width`, let bars scroll. Debug builds write uncaught-exception reasons and how the
-  process ended to `/private/tmp/stash-crash.txt` (`DebugCrashLog.swift`).
+  process ended to `/private/tmp/grails-crash.txt` (`DebugCrashLog.swift`).
 - The UI test runner is sandboxed: it can't read files the app writes. The app exposes dev telemetry through an
   invisible accessibility element (`hitch-report`) instead.
 - Every accessibility query stalls the app's main thread. Never poll the UI tree while a perf benchmark runs; the
@@ -304,14 +304,14 @@ Perf, 20k items, debug build, M-series (`STASH_PERF=1 swift test --filter Perfor
   `app.collectionViews["grid"]` (`scrollViews.firstMatch` is the sidebar).
 - Launch arguments reach UserDefaults as strings: use `integer(forKey:)`, not `as? Int`.
 - Window screenshots: the UI test `testScreenshots` writes PNGs to the runner container
-  (`~/Library/Containers/in.justswish.StashUITests.xctrunner/Data/tmp/`); `screencapture` is blocked here.
+  (`~/Library/Containers/xyz.arjoon.GrailsUITests.xctrunner/Data/tmp/`); `screencapture` is blocked here.
 
 ## Known gaps (M5)
 - Real Google Drive behaviour (event latency, Stream placeholders, `item (1).json` conflict naming) is modelled, not
   observed. First real-world run may need tweaks to `ConflictMerger.isItemConflictCopy` naming patterns.
-- The app isn't notarized: first launch needs right-click ▸ Open. Needs a Developer ID from Swish to fix.
+- The app isn't notarized: first launch needs right-click ▸ Open. Needs a a Developer ID to fix.
 - No in-app "Rebuild index" button yet (the index rebuilds itself when it can't be opened; deleting
-  `~/Library/Application Support/Stash/index/<id>.sqlite` forces it).
+  `~/Library/Application Support/Grails/index/<id>.sqlite` forces it).
 - Folder-level moves of the library while the app is open aren't detected until the next launch.
 
 ## Known gaps (M4)

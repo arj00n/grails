@@ -9,9 +9,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: brew install xcodegen
-      - name: Test StashKit
-        run: cd Packages/StashKit && swift test
+      - name: Test GrailsKit
+        run: cd Packages/GrailsKit && swift test
       - name: Build app
         run: |
           xcodegen
-          xcodebuild -scheme Stash -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+          xcodebuild -scheme Grails -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO

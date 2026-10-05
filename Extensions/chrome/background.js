@@ -1,4 +1,4 @@
-import { StashClient, StashError } from "./lib/client.js";
+import { GrailsClient, GrailsError } from "./lib/client.js";
 import { buildBoardImport } from "./lib/pinterest.js";
 import { buildPayload, dataUrlToBase64, isDirectVideoUrl, isXPage, menuTitleFor, statusUrl, updateRecents } from "./lib/payload.js";
 
@@ -10,7 +10,7 @@ const store = {
   async set(patch) { await chrome.storage.local.set(patch); },
 };
 
-export const client = new StashClient({ getSettings: () => store.get(), setSettings: (p) => store.set(p) });
+export const client = new GrailsClient({ getSettings: () => store.get(), setSettings: (p) => store.set(p) });
 
 // ---- Context menus --------------------------------------------------------------------------------------------
 
@@ -18,10 +18,10 @@ async function rebuildMenus() {
   await chrome.contextMenus.removeAll();
   const { recents } = await store.get();
   const contexts = ["image", "video", "link", "page"];
-  chrome.contextMenus.create({ id: "stash", title: "Save to Stash", contexts });
-  chrome.contextMenus.create({ id: "stash:inbox", parentId: "stash", title: "Inbox", contexts });
+  chrome.contextMenus.create({ id: "grails", title: "Save to Grails", contexts });
+  chrome.contextMenus.create({ id: "grails:inbox", parentId: "grails", title: "Inbox", contexts });
   for (const c of recents) {
-    chrome.contextMenus.create({ id: `stash:c:${c.id}`, parentId: "stash", title: c.name, contexts });
+    chrome.contextMenus.create({ id: `grails:c:${c.id}`, parentId: "grails", title: c.name, contexts });
   }
 }
 
@@ -38,8 +38,8 @@ function kindFor(info) {
 
 export async function handleMenuClick(info, tab) {
   const id = String(info.menuItemId);
-  if (!id.startsWith("stash")) return;
-  const collectionId = id.startsWith("stash:c:") ? id.slice(8) : undefined;
+  if (!id.startsWith("grails")) return;
+  const collectionId = id.startsWith("grails:c:") ? id.slice(8) : undefined;
   const kind = kindFor(info);
   await saveFromTab({ kind, info, tab, collectionId });
 }
@@ -53,7 +53,7 @@ chrome.commands.onCommand.addListener(async (command, tab) => {
   }
 });
 
-// ---- Gathering bytes the page can see but Stash can't download ------------------------------------------------
+// ---- Gathering bytes the page can see but Grails can't download ------------------------------------------------
 
 async function inPage(tab, frameId, fn, args) {
   try {
@@ -84,13 +84,13 @@ function pageVideoInfo(src) {
   return { poster: v.poster || null, frame };
 }
 
-/** On X, videos and GIFs stream in pieces and can't be saved from the page: Stash reads the post itself instead. */
+/** On X, videos and GIFs stream in pieces and can't be saved from the page: Grails reads the post itself instead. */
 async function xPostFor({ kind, info, tab }) {
   if (!isXPage(tab?.url || info.pageUrl)) return null;
   if (kind === "link") return statusUrl(info.linkUrl);
   if (kind === "page") return statusUrl(tab?.url || info.pageUrl);
   if (kind !== "video") return null;
-  const tapped = tab ? await inPage(tab, info.frameId, () => window.__stashLastTweet) : undefined;
+  const tapped = tab ? await inPage(tab, info.frameId, () => window.__grailsLastTweet) : undefined;
   return statusUrl(tapped) || statusUrl(tab?.url || info.pageUrl);
 }
 
@@ -99,10 +99,10 @@ async function saveFromTab({ kind, info, tab, collectionId, altClickImage }) {
   if (post) {
     try {
       await client.importBoard({ source: "x", url: post });
-      notify(tab, true, "Saving the post's media to Stash");
+      notify(tab, true, "Saving the post's media to Grails");
       return { ok: true };
     } catch (e) {
-      notify(tab, false, e instanceof StashError ? e.message : String(e));
+      notify(tab, false, e instanceof GrailsError ? e.message : String(e));
       return null;
     }
   }
@@ -128,10 +128,10 @@ async function saveFromTab({ kind, info, tab, collectionId, altClickImage }) {
   try {
     const result = await client.save(payload);
     await rememberSaved(result, collectionId);
-    notify(tab, true, result.duplicate ? "Already in Stash" : "Saved to Stash");
+    notify(tab, true, result.duplicate ? "Already in Grails" : "Saved to Grails");
     return result;
   } catch (e) {
-    notify(tab, false, e instanceof StashError ? e.message : String(e));
+    notify(tab, false, e instanceof GrailsError ? e.message : String(e));
   }
 }
 
@@ -147,7 +147,7 @@ async function rememberSaved(result, collectionId) {
 }
 
 function notify(tab, ok, text) {
-  if (tab?.id !== undefined) chrome.tabs.sendMessage(tab.id, { type: "stash-toast", ok, text }).catch(() => {});
+  if (tab?.id !== undefined) chrome.tabs.sendMessage(tab.id, { type: "grails-toast", ok, text }).catch(() => {});
   chrome.action.setBadgeBackgroundColor({ color: ok ? "#30A46C" : "#E5484D" });
   chrome.action.setBadgeText({ text: ok ? "✓" : "!" });
   setTimeout(() => chrome.action.setBadgeText({ text: "" }), 2500);
@@ -167,10 +167,10 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
       if (!body) { notify(sender.tab, false, "That doesn't look like a Pinterest board."); respond(null); return; }
       try {
         const r = await client.importBoard(body);
-        notify(sender.tab, true, `Sent ${r.count} pins to Stash. It's importing them now.`);
+        notify(sender.tab, true, `Sent ${r.count} pins to Grails. It's importing them now.`);
         respond({ ok: true, count: r.count });
       } catch (e) {
-        notify(sender.tab, false, e instanceof StashError ? e.message : String(e));
+        notify(sender.tab, false, e instanceof GrailsError ? e.message : String(e));
         respond({ ok: false, error: String(e.message || e) });
       }
     } else if (msg.type === "ping") {
@@ -183,4 +183,4 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
 });
 
 // Exposed for tests that drive the service worker over the DevTools protocol.
-globalThis.__stash = { handleMenuClick, saveFromTab, client, menuTitleFor };
+globalThis.__grails = { handleMenuClick, saveFromTab, client, menuTitleFor };
