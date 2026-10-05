@@ -113,18 +113,37 @@ struct OnboardingDemo {
         setup.demo(browsers: installed, selected: pick, opened: true)
         await wait(400)
         snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-waiting")
-        app.extensionPaired = true
+        setup.demo(browsers: installed, selected: pick, opened: true, connected: true)
         await wait(400)
         snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-connected")
-        app.extensionPaired = false
         setup.close()
-        model.startImport()
-        check(model.step == .arriving, "Import goes on to Arriving")
 
-        // Arriving: the wall takes the pictures as they land
+        // a Pinterest board that needs the browser while the extension isn't connected: the import waits for it, then goes by itself
         let wall = WallModel()
         let arrivingSlots = Mosaic.layout(seed: model.seed, size: ArrivingFrame.wall(size))
         wall.configure(slots: arrivingSlots, reserved: nil)
+        var opened: [String] = []
+        app.browserOpener = { opened.append($0) }
+        app.importModel.useBrowser("pinterest:ana/interiors")
+        app.extensionPaired = false
+        model.startImport()
+        check(app.importModel.phase == .composing && setup.isOpen && setup.continueImport, "an import that needs the extension opens the sheet first, and doesn't start")
+        check(model.step == .importing, "the screen stays on Import meanwhile")
+        setup.demo(browsers: installed, selected: pick, opened: true)             // Install was clicked
+        _ = app.apiServer?.pairing.open(origin: "chrome-extension://demo")        // the extension asks to connect
+        await until(10) { app.importModel.phase == .running }
+        check(app.extensionPaired && !setup.isOpen, "the extension is let in with no second question and the sheet gets out of the way")
+        check(model.step == .arriving, "the import goes on to Arriving by itself")
+        check(app.importModel.pendingBrowser.count == 1, "the board Chrome still has to scroll is a row from the start (\(app.importModel.pendingBrowser.count))")
+        check(opened.first?.contains("#grails=") == true, "Chrome is opened on that board with the job in the address: \(opened.first ?? "nothing")")
+        await wait(500)
+        snap(ArrivingScreen(model: model, app: app, wall: wall, slots: arrivingSlots, size: size, t: 10), "arriving-pending")
+        // Chrome hands the board over, then says it is done
+        await app.importModel.receive(BoardImportRequest(boards: [ExtensionBoard(url: "https://www.pinterest.com/ana/interiors/", name: "Interiors", pins: (0..<6).map { ExtensionPin(id: "\(7000 + $0)", image: "https://i.pinimg.com/236x/aa/bb/cc/pin\(900 + $0).jpg") })]))
+        check(app.importModel.pendingBrowser.isEmpty, "the row becomes a normal one once Chrome has delivered the board")
+        if let n = app.importModel.collectNonce { app.importModel.collectDone(nonce: n) }
+
+        // Arriving: the wall takes the pictures as they land
         var shots = 0
         var placed = Set<String>()
         while app.importModel.phase == .running, shots < 3 {

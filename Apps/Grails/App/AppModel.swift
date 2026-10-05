@@ -163,6 +163,8 @@ final class AppModel {
     var importPanelOpen = false
     /// A browser extension asking to be paired (answered with Allow).
     var pairRequest: PairingBroker.Request?
+    /// How a page is opened in the browser; the demo swaps it for a recorder.
+    @ObservationIgnored var browserOpener: (String) -> Void = { if let u = URL(string: $0) { NSWorkspace.shared.open(u) } }
     /// The "Add the extension" sheet.
     let extensionSetup = ExtensionSetup()
     var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")

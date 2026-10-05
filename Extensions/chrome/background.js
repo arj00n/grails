@@ -25,8 +25,10 @@ async function rebuildMenus() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(() => { rebuildMenus(); pairIfNeeded(); });
-chrome.runtime.onStartup.addListener(() => { rebuildMenus(); pairIfNeeded(); });
+chrome.runtime.onInstalled.addListener(() => { rebuildMenus(); pairIfNeeded(); chrome.alarms.create("pair", { periodInMinutes: 0.5 }); });
+chrome.runtime.onStartup.addListener(() => { rebuildMenus(); pairIfNeeded(); chrome.alarms.create("pair", { periodInMinutes: 0.5 }); });
+// Until it is connected, ask again every half minute: Grails shows (or, mid-setup, grants) the request, so nothing is typed or pasted.
+chrome.alarms.onAlarm.addListener((a) => { if (a.name === "pair") pairIfNeeded(); });
 
 /** No token yet: ask Grails to pair (the person clicks Allow in the app). Quietly gives up if the app isn't running. */
 async function pairIfNeeded() {
@@ -188,6 +190,13 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         notify(sender.tab, false, e instanceof GrailsError ? e.message : String(e));
         respond({ ok: false, error: String(e.message || e) });
       }
+    } else if (msg.type === "fonts") {
+      const b64 = async (file) => {
+        const bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL(file))).arrayBuffer());
+        let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return btoa(bin);
+      };
+      try { respond({ vcr: await b64("fonts/VCR_OSD_MONO_1.001.ttf"), grotesk: await b64("fonts/AlteHaasGroteskRegular.ttf") }); } catch { respond({}); }
     } else if (msg.type === "ping") {
       try { respond({ ok: true, ...(await client.ping()) }); } catch (e) { respond({ ok: false, kind: e.kind, error: e.message }); }
     } else if (msg.type === "collections") {

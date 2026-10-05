@@ -209,6 +209,8 @@ struct ImportStep: View {
                 }
             }
             .frame(width: 560)
+            // the import may have to wait for the extension sheet: the screen follows once it actually runs
+            .onChange(of: importer.phase) { _, phase in if phase == .running { model.go(.arriving) } }
         }
     }
 }

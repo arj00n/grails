@@ -36,21 +36,66 @@
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   let collecting = false;
 
-  /** A small panel in Grails' colours: where we are, and a way to stop. */
+  // ---- The app's look, inside a shadow root so the page's styles can't touch it and ours can't touch the page ------------
+  // Tokens are the app's (GrailsDesign/Tokens.swift), light and dark following the system; the fonts are the app's too, handed over by the
+  // extension's worker and registered under names of our own.
+  const CSS = `
+    :host { all: initial; }
+    :root, .ui { --canvas:#fff; --surface:#f7f7f7; --hairline:#dedede; --text:#000; --secondary:#696969; --positive:#238020; --destructive:#b93d3d; --shadow:rgba(0,0,0,.08); }
+    @media (prefers-color-scheme: dark) { .ui { --canvas:#000; --surface:#1a1a1a; --hairline:#333; --text:#fff; --secondary:#b2b2b2; --positive:#98dc89; --destructive:#eb6864; --shadow:rgba(0,0,0,.5); } }
+    .ui { position: fixed; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 6px;
+          background: var(--surface); color: var(--text); border: 1px solid var(--hairline); box-shadow: 0 8px 12px var(--shadow);
+          font: 13px/1.3 "Grails Grotesk", -apple-system, system-ui, sans-serif; opacity: 1; transition: opacity .15s ease-out; }
+    .tag { font: 12px "Grails VCR", ui-monospace, Menlo, monospace; color: var(--secondary); }
+    .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--positive); flex: none; }
+    .dot.bad { background: var(--destructive); }
+    button { font: inherit; font-size: 12px; height: 24px; padding: 0 10px; border: 0; border-radius: 4px; background: var(--text); color: var(--canvas); cursor: pointer; }
+    button:hover { opacity: .85; }
+  `;
+
+  let fontsReady = null;
+  /** The app's two typefaces, from the extension's own files, as fonts the page can use (named so they never clash with the page's). */
+  function loadFonts() {
+    fontsReady ||= (async () => {
+      try {
+        const r = await chrome.runtime.sendMessage({ type: "fonts" });
+        const face = (name, b64) => {
+          const bin = atob(b64), bytes = new Uint8Array(bin.length);
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          return new FontFace(name, bytes.buffer).load().then((f) => document.fonts.add(f));
+        };
+        if (r?.vcr && r?.grotesk) await Promise.all([face("Grails VCR", r.vcr), face("Grails Grotesk", r.grotesk)]);
+      } catch { /* the system fonts will do */ }
+    })();
+    return fontsReady;
+  }
+
+  /** A card in the corner, in the app's look. Returns the pieces to fill in. */
+  function makeCard(id) {
+    document.getElementById(id)?.remove();
+    const host = document.createElement("div");
+    host.id = id;
+    host.style.cssText = "all: initial; position: fixed; z-index: 2147483647; right: 0; bottom: 0;";
+    const root = host.attachShadow({ mode: "closed" });
+    const style = document.createElement("style");
+    style.textContent = CSS;
+    const card = document.createElement("div");
+    card.className = "ui";
+    root.append(style, card);
+    document.documentElement.appendChild(host);
+    loadFonts();
+    return { host, card };
+  }
+
+  /** The progress panel: where we are, and a way to stop. */
   function makePanel() {
-    const panel = document.createElement("div");
-    Object.assign(panel.style, {
-      position: "fixed", right: "16px", bottom: "16px", zIndex: 2147483647, padding: "10px 12px", borderRadius: "6px", display: "flex", gap: "12px", alignItems: "center",
-      font: "13px -apple-system, system-ui, sans-serif", color: "#fff", background: "#1a1a1a", border: "1px solid #333", boxShadow: "0 8px 24px rgba(0,0,0,.5)",
-    });
+    const { host, card } = makeCard("__grails_panel");
+    const tag = Object.assign(document.createElement("span"), { className: "tag", textContent: "GRAILS" });
     const label = document.createElement("span");
-    const stop = document.createElement("button");
-    stop.textContent = "Stop";
-    Object.assign(stop.style, { font: "inherit", padding: "4px 10px", borderRadius: "4px", border: "0", cursor: "pointer", background: "#fff", color: "#000" });
-    const state = { stopped: false, label, stop, panel };
+    const stop = Object.assign(document.createElement("button"), { textContent: "Stop" });
+    const state = { stopped: false, label, stop, panel: host };
     stop.onclick = () => { state.stopped = true; };
-    panel.append(label, stop);
-    document.documentElement.appendChild(panel);
+    card.append(tag, label, stop);
     return state;
   }
 
@@ -140,18 +185,12 @@
     if (msg.type === "collect-board-job") { collectForJob(msg.index, msg.of).then(respond); return true; }
     if (msg.type === "list-boards") { listBoards(msg.user).then(respond); return true; }
     if (msg.type !== "grails-toast") return;
-    let el = document.getElementById("__grails_toast");
-    el?.remove();
-    el = document.createElement("div");
-    el.id = "__grails_toast";
-    el.textContent = msg.text;
-    Object.assign(el.style, {
-      position: "fixed", right: "18px", bottom: "18px", zIndex: 2147483647, padding: "9px 14px", borderRadius: "10px",
-      font: "13px -apple-system, system-ui, sans-serif", color: "#fff", background: msg.ok ? "#1f7a4f" : "#b4232a",
-      boxShadow: "0 6px 24px rgba(0,0,0,.3)", opacity: "0", transition: "opacity .15s",
-    });
-    document.documentElement.appendChild(el);
-    requestAnimationFrame(() => { el.style.opacity = "1"; });
-    setTimeout(() => { el.style.opacity = "0"; setTimeout(() => el.remove(), 200); }, 2200);
+    const { host, card } = makeCard("__grails_toast");
+    card.style.opacity = "0";
+    const dot = Object.assign(document.createElement("span"), { className: "dot" + (msg.ok ? "" : " bad") });
+    const text = Object.assign(document.createElement("span"), { textContent: msg.text });
+    card.append(dot, text);
+    requestAnimationFrame(() => { card.style.opacity = "1"; });
+    setTimeout(() => { card.style.opacity = "0"; setTimeout(() => host.remove(), 200); }, 2600);
   });
 })();

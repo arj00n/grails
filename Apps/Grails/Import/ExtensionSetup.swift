@@ -46,15 +46,21 @@ final class ExtensionSetup {
     var isOpen = false
     private(set) var browsers: [ChromiumBrowser] = []
     var selected = Set<String>()
+    /// Opened because an import needs the extension: once it connects, the import starts by itself.
+    var continueImport = false
+    /// An extension connected while the sheet was open.
+    var connected = false
     /// Install was clicked: the browsers were opened and we are waiting for the extension to ask to connect.
     private(set) var opened = false
 
     var unpacked: Bool { ExtensionInstall.storeURL == nil }
     var chosen: [ChromiumBrowser] { browsers.filter { selected.contains($0.id) } }
 
-    func open() {
+    func open(continueImport: Bool = false) {
         browsers = ChromiumBrowser.installed()
+        self.continueImport = continueImport
         opened = false
+        connected = false
         let def = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!).flatMap { url in browsers.first { $0.url == url } }
         selected = Set([def ?? browsers.first].compactMap { $0?.id })
         isOpen = true
@@ -65,8 +71,8 @@ final class ExtensionSetup {
     func toggle(_ id: String) { if selected.contains(id) { selected.remove(id) } else { selected.insert(id) } }
 
     /// For the demo: a fixed set of browsers and a state to show.
-    func demo(browsers: [ChromiumBrowser], selected: Set<String>, opened: Bool) {
-        self.browsers = browsers; self.selected = selected; self.opened = opened; isOpen = true
+    func demo(browsers: [ChromiumBrowser], selected: Set<String>, opened: Bool, connected: Bool = false) {
+        self.browsers = browsers; self.selected = selected; self.opened = opened; self.connected = connected; isOpen = true
     }
 
     /// Opens the extension's page in each chosen browser: the store listing, or (until there is one) the extensions page, with the
@@ -91,7 +97,7 @@ struct ExtensionModal: View {
 
     private enum Stage { case choose, waiting, allow, connected }
     private var stage: Stage {
-        if model.extensionPaired { return .connected }
+        if setup.connected { return .connected }
         if model.pairRequest != nil { return .allow }
         return setup.opened ? .waiting : .choose
     }

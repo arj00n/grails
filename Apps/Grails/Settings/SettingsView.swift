@@ -165,51 +165,22 @@ struct ShortcutsSettings: View {
 
 struct ExtensionsSettings: View {
     var model: AppModel
-    @State private var token = ""
-    @State private var reveal = false
-    @State private var confirmRegenerate = false
-
-    private var extensionFolder: URL? { Bundle.main.resourceURL?.appendingPathComponent("chrome", isDirectory: true) }
+    @State private var confirmDisconnect = false
 
     var body: some View {
         Form {
             Section("Browser extension") {
-                LabeledContent("Status") { Text(model.apiStatus).textSelection(.enabled) }
+                LabeledContent("Status") { Text(model.extensionPaired ? "Connected" : "Not connected") }
                 LabeledContent("Library") { Text(model.libraryName) }
-                LabeledContent("Pairing code") {
-                    HStack {
-                        Text(reveal ? token : String(repeating: "•", count: 24)).font(.system(.callout, design: .monospaced)).lineLimit(1).truncationMode(.middle)
-                        Button(reveal ? "Hide" : "Show") { reveal.toggle() }
-                        Button("Copy") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(token, forType: .string)
-                        }
-                        .accessibilityIdentifier("copy-pairing-code")
-                    }
+                HStack {
+                    Button(model.extensionPaired ? "Add to another browser…" : "Install extension…") { model.extensionSetup.open() }
+                        .accessibilityIdentifier("settings-install-extension")
+                    if model.extensionPaired { Button("Disconnect…") { confirmDisconnect = true } }
                 }
-                Button("Generate a new code…") { confirmRegenerate = true }
-            }
-            Section("Install the Chrome extension") {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("1. Open chrome://extensions and turn on Developer mode.")
-                    Text("2. Click Load unpacked and choose the folder below.")
-                    Text("3. Click the Grails toolbar button, paste the pairing code, and you're set.")
-                    HStack {
-                        Button("Show extension folder") {
-                            if let u = extensionFolder { NSWorkspace.shared.activateFileViewerSelecting([u]) }
-                        }
-                        .disabled(extensionFolder.map { !FileManager.default.fileExists(atPath: $0.path) } ?? true)
-                        Button("Copy folder path") {
-                            if let u = extensionFolder { NSPasteboard.general.clearContents(); NSPasteboard.general.setString(u.path, forType: .string) }
-                        }
-                    }
-                }
-                .font(.grailsBody(13))
             }
         }
-        .onAppear { token = model.tokens.token() }
-        .confirmationDialog("Generate a new pairing code?", isPresented: $confirmRegenerate) {
-            Button("Generate", role: .destructive) { token = model.tokens.regenerate() }
-        } message: { Text("Extensions using the old code will stop working until you paste the new one.") }
+        .confirmationDialog("Disconnect the browser extension?", isPresented: $confirmDisconnect) {
+            Button("Disconnect", role: .destructive) { model.disconnectExtensions() }
+        } message: { Text("It asks to connect again the next time it runs.") }
     }
 }

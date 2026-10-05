@@ -1,15 +1,47 @@
-:root { color-scheme: light dark; --bg: #fff; --fg: #1c1c1e; --muted: #6e6e73; --line: #d8d8dc; --accent: #3e63dd; }
-@media (prefers-color-scheme: dark) { :root { --bg: #232326; --fg: #f2f2f4; --muted: #9a9aa2; --line: #3a3a3f; } }
-body { width: 320px; margin: 0; padding: 14px; background: var(--bg); color: var(--fg); font: 13px -apple-system, system-ui, sans-serif; }
-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-header #status { margin-left: auto; color: var(--muted); font-size: 12px; }
-.dot { width: 9px; height: 9px; border-radius: 50%; background: #aaa; }
-.dot.ok { background: #30a46c; } .dot.bad { background: #e5484d; }
-label { display: block; margin: 6px 0 3px; color: var(--muted); font-size: 12px; }
-input, select { width: 100%; box-sizing: border-box; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: inherit; }
-button { margin-top: 8px; padding: 7px 12px; border-radius: 7px; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; }
-button.primary { width: 100%; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-.error { color: #e5484d; min-height: 1em; margin: 6px 0 0; }
-.hint { color: var(--muted); font-size: 12px; line-height: 1.4; }
-h3 { margin: 12px 0 4px; font-size: 12px; color: var(--muted); font-weight: 600; }
-ul { list-style: none; margin: 0; padding: 0; } li { padding: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The app's own look: Are.na greys, VCR OSD Mono for titles, Alte Haas Grotesk for text, flat surfaces, 4 px corners.
+   Values are the app's tokens (GrailsDesign/Tokens.swift), light and dark following the system. */
+@font-face { font-family: "Grails VCR"; src: url("fonts/VCR_OSD_MONO_1.001.ttf"); }
+@font-face { font-family: "Grails Grotesk"; src: url("fonts/AlteHaasGroteskRegular.ttf"); }
+
+:root {
+  color-scheme: light dark;
+  --canvas: #fff; --surface: #f7f7f7; --fill: #ededed; --fill-strong: #dedede; --hairline: #dedede;
+  --text: #000; --secondary: #696969; --tertiary: #999; --positive: #238020; --destructive: #b93d3d; --focus: #3d46c2;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #000; --surface: #1a1a1a; --fill: #333; --fill-strong: #4f4f4f; --hairline: #333;
+    --text: #fff; --secondary: #b2b2b2; --tertiary: #696969; --positive: #98dc89; --destructive: #eb6864; --focus: #5e6dee;
+  }
+}
+
+* { box-sizing: border-box; }
+body { width: 300px; margin: 0; padding: 16px; background: var(--canvas); color: var(--text); font: 14px/1.35 "Grails Grotesk", -apple-system, system-ui, sans-serif; }
+
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+h1 { margin: 0; font: 16px "Grails VCR", ui-monospace, Menlo, monospace; letter-spacing: 0; color: var(--text); }
+h2 { margin: 18px 0 6px; font: 12px "Grails VCR", ui-monospace, Menlo, monospace; color: var(--secondary); font-weight: normal; }
+#status { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--secondary); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--tertiary); }
+.dot.ok { background: var(--positive); }
+.dot.bad { background: var(--destructive); }
+
+p { margin: 0 0 12px; color: var(--secondary); font-size: 13px; }
+
+button { display: block; width: 100%; height: 32px; padding: 0 12px; border: 0; border-radius: 4px; background: var(--fill); color: var(--text); font: inherit; font-size: 13px; cursor: pointer; }
+button:hover { background: var(--fill-strong); }
+button.primary { background: var(--text); color: var(--canvas); }
+button.primary:hover { opacity: .85; background: var(--text); }
+button:disabled { opacity: .35; cursor: default; }
+button:focus-visible, select:focus-visible { outline: 1px solid var(--focus); outline-offset: 1px; }
+
+.row { display: flex; align-items: center; gap: 8px; margin: 8px 0; color: var(--secondary); font-size: 12px; }
+select { flex: 1; height: 28px; padding: 0 8px; border: 0; border-radius: 4px; background: var(--fill); color: var(--text); font: inherit; font-size: 13px; }
+#board { margin-top: 8px; }
+
+ul { list-style: none; margin: 0; padding: 0; }
+li { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid var(--hairline); font-size: 13px; }
+li:first-child { border-top: 0; }
+li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+li span:last-child { color: var(--secondary); font-size: 12px; flex: none; }
+.empty { color: var(--tertiary); font-size: 13px; }

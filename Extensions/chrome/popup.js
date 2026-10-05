@@ -2,29 +2,48 @@ import { parseBoardUrl } from "./lib/pinterest.js";
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg);
 
+let waiting = false;
+
+function show({ dot, text, connect, actions }) {
+  $("dot").className = "dot " + (dot || "");
+  $("statusText").textContent = text;
+  $("connect").hidden = !connect;
+  $("actions").hidden = !actions;
+}
+
 async function refresh() {
-  const { token, lastSaved } = await chrome.storage.local.get({ token: "", lastSaved: [] });
-  $("token").value = token;
   const r = await send({ type: "ping" });
-  const connected = r?.ok;
-  $("dot").className = "dot " + (connected ? "ok" : "bad");
-  $("status").textContent = connected ? `Connected · ${r.library || "Grails"}` : r?.kind === "offline" ? "Grails isn't running" : "Not connected";
-  $("pair").hidden = connected;
-  $("actions").hidden = !connected;
-  $("error").textContent = connected || !token ? "" : r?.error || "";
-  if (connected) {
+  if (r?.ok) {
+    waiting = false;
+    show({ dot: "ok", text: r.library || "Connected", actions: true });
     const c = await send({ type: "collections" });
     const sel = $("collection");
     sel.length = 1;
     for (const col of (c?.collections || []).filter((x) => x.kind !== "folder")) sel.add(new Option(col.name, col.id));
-    $("recent").replaceChildren(...lastSaved.map((s) => Object.assign(document.createElement("li"), { textContent: `${s.kind === "link" ? "🔗" : "🖼"} ${s.name}` })));
+    const { lastSaved } = await chrome.storage.local.get({ lastSaved: [] });
+    $("recent").replaceChildren(...(lastSaved.length ? lastSaved : [null]).map((s) => {
+      const li = document.createElement("li");
+      if (!s) { li.className = "empty"; li.textContent = "Nothing yet"; return li; }
+      const name = document.createElement("span"), kind = document.createElement("span");
+      name.textContent = s.name; kind.textContent = s.kind === "link" ? "Link" : s.kind === "page" ? "Page" : "Image";
+      li.append(name, kind);
+      return li;
+    }));
+  } else if (r?.kind === "offline") {
+    show({ dot: "bad", text: "Grails isn't running", connect: true });
+    $("connectText").textContent = "Open Grails on this Mac, then connect.";
+    $("connectButton").hidden = true;
+  } else {
+    show({ dot: "", text: waiting ? "Waiting for Grails" : "Not connected", connect: true });
+    $("connectText").textContent = waiting ? "Click Allow in Grails." : "Connect this browser to Grails on this Mac.";
+    $("connectButton").hidden = waiting;
   }
 }
 
-$("connect").addEventListener("click", async () => {
-  const typed = $("token").value.trim();
-  if (typed) await chrome.storage.local.set({ token: typed });
-  else await send({ type: "pair" });            // no code: Grails asks you to Allow
+$("connectButton").addEventListener("click", async () => {
+  waiting = true;
+  await refresh();
+  await send({ type: "pair" });             // Grails shows Allow; this resolves when it is answered
   await refresh();
 });
 $("importBoard").addEventListener("click", async () => {
@@ -44,3 +63,5 @@ $("savePage").addEventListener("click", async () => {
   $("board").hidden = !(tab?.url && parseBoardUrl(tab.url));
 })();
 refresh();
+// while it isn't connected, notice when Grails answers (the extension also asks by itself)
+setInterval(() => { if (!$("connect").hidden) refresh(); }, 2000);

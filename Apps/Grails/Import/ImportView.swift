@@ -63,6 +63,7 @@ struct ImportView: View {
                     if row.status == .ready, !row.children.isEmpty { ChildRows(model: model, row: row) }
                 }
             } else {
+                ForEach(model.pendingBrowser) { PendingRow(model: model, board: $0) }
                 ForEach(model.order, id: \.self) { id in if let t = model.tasks[id] { TaskRow(model: model, task: t) } }
             }
         }
@@ -190,6 +191,26 @@ private struct ChildRows: View {
     }
 }
 
+/// A board Chrome is yet to bring: there from the start, so the screen shows what is coming and what it is waiting for.
+private struct PendingRow: View {
+    var model: ImportModel
+    let board: BoardCandidate
+
+    var body: some View {
+        let scrolled = model.collecting[board.id] ?? 0
+        RowFrame(covers: board.covers, title: board.name, subtitle: board.count.map { "\($0.formatted()) pins" }) {
+            if model.browserStalled {
+                Text("Chrome didn't answer").font(.grailsBody(12)).foregroundStyle(Ink.destructive)
+                SmallButton(label: "Retry") { model.retryBrowser() }
+                SmallButton(label: "Set up") { model.app?.extensionSetup.open() }
+            } else {
+                Text(scrolled > 0 ? "Scrolling \(scrolled.formatted())" : "Waiting for Chrome").font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
+                    .lineLimit(1).fixedSize()
+            }
+        }
+    }
+}
+
 private struct TaskRow: View {
     var model: ImportModel
     let task: BoardTask
@@ -197,7 +218,7 @@ private struct TaskRow: View {
     var body: some View {
         let p = RowPresenter.row(task)
         RowFrame(covers: task.candidate.covers, title: task.candidate.name, subtitle: p.detail) {
-            Text(p.label).font(.grailsBody(12)).monospacedDigit()
+            Text(p.label).font(.grailsBody(12)).monospacedDigit().lineLimit(1).fixedSize()
                 .foregroundStyle(task.state == .done ? Ink.positive : (isProblem ? Ink.destructive : Ink.secondary))
             if let action = p.action { actionButton(action) }
         }

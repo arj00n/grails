@@ -202,7 +202,10 @@ final class ImportModel {
         guard !boards.isEmpty else { return }
         let direct = boards.filter { $0.via != .browser }
         let browser = boards.filter { $0.via == .browser }
+        // boards that need the extension can't start without it: ask for it first, and carry on by itself once it is connected
+        if !browser.isEmpty, !app.extensionPaired { app.extensionSetup.open(continueImport: true); return }
         let job = ImportJob(libraryId: app.libraryID, boards: direct)
+        pendingBrowser = browser
         run(job, store: store, service: service, keepOpen: !browser.isEmpty)
         if !browser.isEmpty { collect(browser) }
     }
@@ -211,8 +214,14 @@ final class ImportModel {
 
     var extensionPaired: Bool { app?.extensionPaired ?? false }
     @ObservationIgnored private var listNonce: String?
-    @ObservationIgnored private var collectNonce: String?
-    private(set) var collecting: [String: Int] = [:]          // board url → pins scrolled so far
+    @ObservationIgnored private(set) var collectNonce: String?
+    private(set) var collecting: [String: Int] = [:]          // board id → pins scrolled so far
+    /// Boards that only the browser extension can bring in full, until it hands each one over: shown as rows from the first second,
+    /// so the screen is never empty while Chrome is still scrolling.
+    private(set) var pendingBrowser: [BoardCandidate] = []
+    /// Chrome hasn't touched the first board in a while: the extension may be missing, asleep or blocked.
+    private(set) var browserStalled = false
+    @ObservationIgnored private var stallWatch: Task<Void, Never>?
     /// The last board the extension sent that could not be read (dev demos print it).
     private(set) var lastReceiveError: String?
 
@@ -249,17 +258,26 @@ final class ImportModel {
         let nonce = server.jobs.create(.collect(boards: urls))
         collectNonce = nonce
         for b in boards { collecting[b.id] = 0 }
+        browserStalled = false
         app.openInBrowser(urls[0] + "#grails=\(nonce)")
+        stallWatch?.cancel()
+        stallWatch = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(25))
+            guard let self, !Task.isCancelled else { return }
+            if self.collecting.values.allSatisfy({ $0 == 0 }), !self.pendingBrowser.isEmpty { self.browserStalled = true }
+        }
     }
 
     func collectProgress(nonce: String, board: String, scrolled: Int) {
         guard nonce == collectNonce else { return }
-        if let ref = LinkHarvester.harvest(board).first, case .board(let r) = ref { collecting[BoardCandidate.id(for: r)] = scrolled }
+        if let ref = LinkHarvester.harvest(board).first, case .board(let r) = ref { collecting[BoardCandidate.id(for: r)] = scrolled; browserStalled = false }
     }
 
     func collectDone(nonce: String) {
         guard nonce == collectNonce else { return }
         collectNonce = nil
+        pendingBrowser = []
+        stallWatch?.cancel()
         Task { await runner?.closeInput() }
     }
 
@@ -269,6 +287,7 @@ final class ImportModel {
         var tasks: [BoardTask] = []
         for b in request.allBoards where !b.pins.isEmpty {
             guard case .board(let ref)? = LinkHarvester.harvest(b.url).first, case .pinterest(let user, _) = ref else { continue }
+            pendingBrowser.removeAll { $0.id == BoardCandidate.id(for: ref) }
             let images = Dictionary(b.pins.compactMap { p in p.image.map { (p.id, $0) } }, uniquingKeysWith: { a, _ in a })
             do {
                 let remote = try await BoardImporter(loader: loader).fetchPinterestPins(ids: b.pins.map(\.id), ref: ref, name: b.name ?? ref.webURL.lastPathComponent, author: user, images: images)
@@ -330,7 +349,22 @@ final class ImportModel {
         }
     }
 
-    func stopAll() { Task { await runner?.stopEverything() } }
+    /// Chrome never answered: open the first board in the browser again.
+    func retryBrowser() {
+        guard let app, let server = app.apiServer, let first = pendingBrowser.first else { return }
+        let nonce = server.jobs.create(.collect(boards: pendingBrowser.map { $0.ref.webURL.absoluteString }))
+        collectNonce = nonce
+        browserStalled = false
+        app.openInBrowser(first.ref.webURL.absoluteString + "#grails=\(nonce)")
+        stallWatch?.cancel()
+        stallWatch = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(25))
+            guard let self, !Task.isCancelled else { return }
+            if self.collecting.values.allSatisfy({ $0 == 0 }), !self.pendingBrowser.isEmpty { self.browserStalled = true }
+        }
+    }
+
+    func stopAll() { pendingBrowser = []; stallWatch?.cancel(); Task { await runner?.stopEverything() } }
     func stop(_ boardID: String) { Task { await runner?.stop(board: boardID) } }
 
     /// Takes back what this job added: the pictures go to the Trash, and the collections it made go if they are empty.
@@ -342,7 +376,7 @@ final class ImportModel {
 
     func reset() {
         rows = []; phase = .composing; tasks = [:]; order = []; arrivals = []; arrivedCount = 0; finishedJob = nil
-        queue = []
+        queue = []; pendingBrowser = []; browserStalled = false; stallWatch?.cancel()
     }
 }
 

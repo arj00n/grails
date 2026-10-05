@@ -170,7 +170,7 @@ final class OnboardingModel {
     func startImport() {
         guard let app else { return }
         app.importModel.opensFirstCollection = true
-        app.importModel.start()
+        app.importModel.start()                     // may open the extension sheet first; the screen follows once it runs
         if app.importModel.isRunning { go(.arriving) }
     }
 

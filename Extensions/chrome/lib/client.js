@@ -22,7 +22,7 @@ export class GrailsClient {
 
   async _request(method, path, body) {
     const { token, port } = await this.getSettings();
-    if (!token) throw new GrailsError("unauthorized", "Paste the pairing code from Grails ▸ Settings ▸ Extensions.", 401);
+    if (!token) throw new GrailsError("unauthorized", "Not connected to Grails yet.", 401);
     const ports = [port || DEFAULT_PORT];
     for (let p = DEFAULT_PORT; p < DEFAULT_PORT + PORT_SPAN; p++) if (!ports.includes(p)) ports.push(p);
     let lastNetworkError;

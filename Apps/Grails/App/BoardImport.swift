@@ -61,6 +61,20 @@ extension AppModel {
         pairRequest = nil
         extensionPaired = true
         UserDefaults.standard.set(true, forKey: "extensionPaired")
+        if extensionSetup.isOpen { extensionSetup.connected = true }
+        // an import was waiting for this: the sheet gets out of the way and the import starts
+        if extensionSetup.continueImport {
+            extensionSetup.continueImport = false
+            extensionSetup.close()
+            importModel.start()
+        }
+    }
+
+    /// Forgets the pairing: a new code that no extension knows. Extensions ask to connect again.
+    func disconnectExtensions() {
+        _ = tokens.regenerate()
+        extensionPaired = false
+        UserDefaults.standard.set(false, forKey: "extensionPaired")
     }
 
     func denyPairing(_ request: PairingBroker.Request) {
@@ -70,8 +84,7 @@ extension AppModel {
 
     /// Opens a page in the default browser (the one the extension lives in).
     func openInBrowser(_ link: String) {
-        guard let url = URL(string: link) else { return }
-        NSWorkspace.shared.open(url)
+        browserOpener(link)
     }
 
     /// Puts the extension where it will stay (it survives app updates) and returns that folder.
