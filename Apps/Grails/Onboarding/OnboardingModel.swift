@@ -252,5 +252,6 @@ final class OnboardingModel {
         // the first thing the library shows is a calm grid, never a canvas that has to fit itself around items still arriving
         if app?.viewMode == .canvas { app?.viewMode = .grid }
         withAnimation(.easeOut(duration: Motion.standard)) { app?.onboarding = nil }
+        if remember, !returning { app?.greetAfterOnboarding() }
     }
 }

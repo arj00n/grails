@@ -163,6 +163,14 @@ struct OnboardingDemo {
         check(app.viewMode == .grid, "the library opens as a grid")
         check(OnboardingState.load(UserDefaults(suiteName: "xyz.arjoon.grails.onboarding-demo")!).done, "finished is remembered")
         check(app.toast?.hasPrefix("Imported") == true, "toast: \(app.toast ?? "none")")
+        // the welcome: the tiles settle (a tick the grid answers), then the card
+        let tick = app.settleTick
+        app.greetAfterOnboarding()
+        check(app.settleTick == tick + 1 && app.welcome == nil, "settling starts at once and the card waits for it")
+        await until(4) { app.welcome != nil }
+        check(app.welcome?.library == app.libraryName, "the welcome card follows with the library's name: \(app.welcome?.library ?? "none")")
+        snap(ZStack { WelcomeCard(model: app, request: app.welcome ?? WelcomeRequest(library: "Library")) }, "welcome")
+        app.welcome = nil
         fixture.stop()
         say(failed ? "FAIL" : "PASS")
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_DEMO_QUIT"] != nil { NSApp.terminate(nil) }

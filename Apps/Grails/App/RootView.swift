@@ -242,6 +242,7 @@ struct RootView: View {
         if let onboarding = model.onboarding { OnboardingView(model: onboarding) }
         if model.previewID != nil { PreviewPage(model: model) }
         if model.importPanelOpen { ImportPanel(model: model) }
+        if let w = model.welcome { WelcomeCard(model: model, request: w).transition(.opacity) }
         if model.extensionSetup.isOpen { ExtensionModal(model: model) }
         if let req = model.pairRequest, !model.importPanelOpen, !model.extensionSetup.isOpen { PairPrompt(model: model, request: req) }
         if let panel = model.panel { PanelHost(model: model, panel: panel) }

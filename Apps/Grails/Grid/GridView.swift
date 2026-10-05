@@ -100,6 +100,8 @@ struct GridView: NSViewRepresentable {
         private var settleWork: DispatchWorkItem?
         private var zoomAnimation: ZoomAnimation?
         private var lastZoomTick = 0
+        private var lastSettleTick = 0
+        private var settleUntil = Date.distantPast
         private var mode: GridLayoutMode = .square
         private var cornerRadius: CGFloat = 8
         private var focusTick = 0
@@ -144,6 +146,7 @@ struct GridView: NSViewRepresentable {
                 if delta != 0 { stepColumns(delta) }
             }
             applyModelWidth()
+            if lastSettleTick != model.settleTick { lastSettleTick = model.settleTick; settleUntil = Date().addingTimeInterval(3) }
 
             if cv.collectionViewLayout !== activeLayout { cv.collectionViewLayout = activeLayout }
             if needsData {
@@ -203,6 +206,36 @@ struct GridView: NSViewRepresentable {
             if focusTick != model.focusGridTick {
                 focusTick = model.focusGridTick
                 cv.window?.makeFirstResponder(cv)
+            }
+            runSettleIfDue(cv)
+        }
+
+        /// Right out of onboarding the visible pictures settle in one after another (a short rise and fade, ease-out, no bounce). If the
+        /// pictures haven't been laid out yet, the next update tries again for a few seconds.
+        private func runSettleIfDue(_ cv: NSCollectionView) {
+            guard Date() < settleUntil else { return }
+            cv.layoutSubtreeIfNeeded()
+            let cells = cv.visibleItems().compactMap { $0 as? ThumbCell }
+            guard !cells.isEmpty else { return }
+            settleUntil = .distantPast
+            let reduce = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            let ordered = cells.sorted { ($0.view.frame.minY, $0.view.frame.minX) < ($1.view.frame.minY, $1.view.frame.minX) }
+            let now = CACurrentMediaTime()
+            for (i, cell) in ordered.enumerated() {
+                guard let layer = cell.view.layer else { continue }
+                let begin = now + 0.15 + (reduce ? 0 : min(Double(i) * 0.03, 0.9))
+                let curve = CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+                let fade = CABasicAnimation(keyPath: "opacity")
+                fade.fromValue = 0; fade.toValue = 1; fade.duration = reduce ? 0.12 : 0.35
+                let rise = CABasicAnimation(keyPath: "position.y")
+                rise.fromValue = 12; rise.toValue = 0; rise.isAdditive = true; rise.duration = 0.45
+                let group = CAAnimationGroup()
+                group.animations = reduce ? [fade] : [fade, rise]
+                group.duration = reduce ? 0.12 : 0.45
+                group.beginTime = begin
+                group.fillMode = .backwards
+                group.timingFunction = curve
+                layer.add(group, forKey: "settle")
             }
         }
 

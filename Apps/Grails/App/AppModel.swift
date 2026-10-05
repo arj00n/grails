@@ -161,6 +161,9 @@ final class AppModel {
     var previewSetVersion = 0
     var workspaceMenuOpen = false
     var importPanelOpen = false
+    /// Right out of onboarding: the tiles settle in, then this welcome card.
+    var welcome: WelcomeRequest?
+    var settleTick = 0
     /// A browser extension asking to be paired (answered with Allow).
     var pairRequest: PairingBroker.Request?
     @ObservationIgnored var lastImportReload = Date.distantPast
