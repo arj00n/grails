@@ -1,6 +1,7 @@
 import GrailsKit
 import SwiftUI
 
+/// The inspector: the one selected item in full, a count and size for several, the view's totals for none.
 struct InfoPanel: View {
     var model: AppModel
 
@@ -8,11 +9,17 @@ struct InfoPanel: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if model.selection.count > 1 {
-                    Text("\(model.selection.count) items selected").font(.headline)
+            VStack(alignment: .leading, spacing: 12) {
+                if let id = selectedID {
+                    InfoBlock(model: model, itemID: id)
+                } else if model.selection.count > 1 {
+                    let chosen = model.selectedSummaries
+                    Text("\(model.selection.count) selected").font(.system(size: 15, weight: .semibold))
+                    let bytes = chosen.reduce(Int64(0)) { $0 + ($1.bytes ?? 0) }
+                    if bytes > 0 { Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)).font(.system(size: 12)).foregroundStyle(Ink.secondary) }
                 } else {
-                    ItemDetails(model: model, itemID: selectedID)
+                    Text(model.title).font(.system(size: 15, weight: .semibold))
+                    Text(model.countLabel).font(.system(size: 12)).foregroundStyle(Ink.secondary)
                 }
             }
             .padding(16)

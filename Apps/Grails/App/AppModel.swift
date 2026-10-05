@@ -148,6 +148,9 @@ final class AppModel {
     /// Total column steps requested since the last call (rapid presses arrive in one update).
     func takeColumnDelta() -> Int { defer { pendingColumnDelta = 0 }; return pendingColumnDelta }
     var previewID: String?
+    /// The items the preview pages through (see PreviewSet): fixed when it opens.
+    var previewSet: PreviewSet?
+    var previewSetVersion = 0
     var panel: Panel?
     var prompt: PromptRequest?
     var confirm: ConfirmRequest?
@@ -307,6 +310,7 @@ final class AppModel {
                     try? FixtureLibrary.writeRemoteItem(into: layout, name: "Remote item", addedBy: "ben")
                 }
             }
+            if ProcessInfo.processInfo.environment["GRAILS_PREVIEW_DEMO"] != nil, let first = items.first { openPreview(first.id) }
             if ProcessInfo.processInfo.environment["GRAILS_AUTOLIKE"] != nil, let first = items.first {
                 toggleLike(ids: [first.id])
             }
@@ -840,16 +844,8 @@ final class AppModel {
 
     // MARK: Preview / focus
 
-    func openPreview(_ id: String) { previewID = id }
-    func closePreview() { previewID = nil; focusGridTick += 1 }
     func closePanel() { panel = nil; focusGridTick += 1 }
     func focusGridTick_bump() { focusGridTick += 1 }
-
-    func stepPreview(_ delta: Int) {
-        guard let id = previewID, let i = items.firstIndex(where: { $0.id == id }) else { return }
-        let n = i + delta
-        if items.indices.contains(n) { previewID = items[n].id; selection = [items[n].id] }
-    }
 
     func originalURL(for s: ItemSummary) -> URL? {
         guard let layout else { return nil }

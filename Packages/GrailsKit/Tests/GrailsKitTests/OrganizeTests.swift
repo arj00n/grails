@@ -257,3 +257,63 @@ extension Sequence {
         #expect(GrailsLink(url: URL(string: "stash://open?lib=01J9&name=Old")!)?.library == "01J9")
     }
 }
+
+@Suite struct ItemInfoTests {
+    @Test func saysTheSameThingsInTheSameOrder() {
+        var item = Item(kind: .video, name: "Kunsthalle reel", ext: "mp4", bytes: 24_000_000, width: 1920, height: 1080, durationSec: 42,
+                        source: ItemSource(url: "https://www.kunsthalle.ch/reel.mp4", pageUrl: "https://www.kunsthalle.ch/shows/1", author: "Studio"),
+                        tags: ["poster", "swiss", "Grid"], collections: ["c2": "b", "c1": "a"], palette: [PaletteColor(hex: "#112233", weight: 0.5)], addedBy: "ana")
+        item.extras["autoTags"] = .array([.string("swiss")])
+        let info = ItemInfo.make(item: item) { ["c1": "Zebra", "c2": "Apple"][$0] }
+        #expect(info.facts.hasPrefix("0:42 · 1920 × 1080 · MP4 · "))                        // a video leads with its length
+        #expect(info.site == "www.kunsthalle.ch" || info.site == "kunsthalle.ch")
+        #expect(info.sourceURL?.absoluteString == "https://www.kunsthalle.ch/shows/1")
+        #expect(info.author == "Studio")
+        #expect(info.tags.map(\.name) == ["poster", "swiss", "Grid"])
+        #expect(info.tags.map(\.automatic) == [false, true, false])                         // your own tags and the machine's
+        #expect(info.collections.map(\.name) == ["Apple", "Zebra"])
+        #expect(info.palette == ["#112233"])
+        #expect(info.editedBy == nil)
+    }
+
+    @Test func aPictureHasNoLengthAndNoSourceIsFine() {
+        let item = Item(kind: .image, name: "p", ext: "jpg", width: 800, height: 600, addedBy: "ana")
+        let info = ItemInfo.make(item: item) { _ in nil }
+        #expect(info.facts == "800 × 600 · JPG")
+        #expect(info.site == nil && info.sourceURL == nil && info.author == nil)
+        #expect(info.camera.isEmpty)
+    }
+}
+
+@Suite struct PreviewSetTests {
+    private func summary(_ id: String, kind: ItemKind = .image) -> ItemSummary {
+        ItemSummary(id: id, kind: kind, name: id, ext: "jpg", width: 10, height: 10, bytes: 1, liked: false, addedAt: .grailsNow, addedBy: "a",
+                    deletedAt: nil, site: nil, linkDisplay: nil, badge: nil)
+    }
+
+    @Test func skipsSectionHeadersAndFindsPositionsDirectly() {
+        let set = PreviewSet([summary("a"), .sectionHeader(id: "s", title: "T", count: 2), summary("b"), summary("c")])
+        #expect(set.count == 3)
+        #expect(set.position(of: "b") == 1 && set.position(of: "s") == nil)
+        #expect(set[2]?.id == "c" && set[3] == nil && set[-1] == nil)
+    }
+
+    @Test func survivesDeletionWhileOpen() {
+        var set = PreviewSet(["a", "b", "c", "d"].map { summary($0) })
+        let now = set.drop(where: { $0 == "b" }, keepingPosition: 1)          // on "b" when it goes: land on "c"
+        #expect(now == 1 && set[1]?.id == "c" && set.count == 3)
+        let end = set.drop(where: { $0 == "d" }, keepingPosition: 2)           // on the last when it goes: land on the new last
+        #expect(end == 1 && set[1]?.id == "c")
+        let before = set.drop(where: { $0 == "a" }, keepingPosition: 1)        // an earlier one goes: still on "c"
+        #expect(before == 0 && set[0]?.id == "c")
+        let none = set.drop(where: { _ in true }, keepingPosition: 0)
+        #expect(none == nil && set.count == 0)
+    }
+
+    @Test func lookupsStayFastAtTwentyThousand() {
+        let set = PreviewSet((0..<20_000).map { summary("id\($0)") })
+        let start = Date()
+        for i in stride(from: 0, to: 20_000, by: 7) { _ = set.position(of: "id\(i)") }
+        #expect(Date().timeIntervalSince(start) < 0.5)
+    }
+}
