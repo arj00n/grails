@@ -1,10 +1,9 @@
 import AppKit
-import CoreText
 import GrailsDesign
 import SwiftUI
 
-/// Hello's background: coloured characters and dither drifting slowly, stirred by the pointer. One view, a few batched draw calls a
-/// frame (characters and dither cells are grouped by colour), 30 frames a second, and still when Reduce Motion is on.
+/// Hello's background: coloured dither pixels drifting slowly, stirred by the pointer. One view, one bitmap a frame, 30 frames a second,
+/// and still when Reduce Motion is on.
 final class AsciiWallView: NSView {
     var reduceMotion = false { didSet { restart() } }
     /// The middle, where the title stands: the field steps back there once the sweep is done (view coordinates, top left origin).
@@ -22,31 +21,9 @@ final class AsciiWallView: NSView {
 
     // MARK: Drawing (shared with headless snapshots)
 
+    /// The field is worked out on a coarse grid of cells (10 × 20 pt) and drawn as small dither pixels between them.
     struct Metrics {
-        let font: CTFont
-        let cellW: CGFloat, cellH: CGFloat, ascent: CGFloat
-        let glyphs: [CGGlyph]
-
-        init() {
-            let ns = NSFont.grailsDisplay(16)
-            font = ns as CTFont
-            var m: UniChar = 0x4D
-            var g: CGGlyph = 0
-            CTFontGetGlyphsForCharacters(font, &m, &g, 1)
-            var adv = CGSize.zero
-            CTFontGetAdvancesForGlyphs(font, .horizontal, &g, &adv, 1)
-            cellW = max(adv.width, 8)
-            cellH = (ns.ascender - ns.descender + 4).rounded()
-            ascent = ns.ascender
-            var out: [CGGlyph] = []
-            for ch in AsciiField.ramp {
-                var u = Array(String(ch).utf16)
-                var gl = [CGGlyph](repeating: 0, count: u.count)
-                CTFontGetGlyphsForCharacters(font, &u, &gl, u.count)
-                out.append(gl.first ?? 0)
-            }
-            glyphs = out
-        }
+        let cellW: CGFloat = 10, cellH: CGFloat = 20
     }
 
     nonisolated(unsafe) static let metrics = Metrics()
@@ -62,8 +39,7 @@ final class AsciiWallView: NSView {
         return (c.redComponent, c.greenComponent, c.blueComponent)
     }
 
-    /// Paints the field for one moment into `ctx`, which must have its origin at the top left (flipped). Two layers: ordered dither in
-    /// small square pixels, then characters over the brighter cells.
+    /// Paints the field for one moment into `ctx`, which must have its origin at the top left (flipped). Ordered dither in small square pixels.
     static func draw(_ ctx: CGContext, size: CGSize, t: Double, touches: [AsciiField.Touch], dark: Bool, centre: CGRect?) {
         let m = metrics
         let cols = Int(ceil(size.width / m.cellW)), rows = Int(ceil(size.height / m.cellH))
@@ -126,30 +102,6 @@ final class AsciiWallView: NSView {
             ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(pw) * px, height: CGFloat(ph) * px))
             ctx.restoreGState()
         }
-
-        // 3. characters over the brighter cells, batched by colour
-        var batches: [Int: (glyphs: [CGGlyph], at: [CGPoint])] = [:]
-        for row in 0..<rows {
-            for col in 0..<cols {
-                let v = Double(value[row * cols + col])
-                let level = AsciiField.level(value: v, col: col, row: row)
-                guard level >= 2 else { continue }
-                let key = Int(tone[row * cols + col])
-                // text space is flipped with the text matrix below, so y runs the other way
-                batches[key, default: ([], [])].glyphs.append(m.glyphs[level])
-                batches[key, default: ([], [])].at.append(CGPoint(x: CGFloat(col) * m.cellW, y: -(CGFloat(row) * m.cellH + m.ascent + 2)))
-            }
-        }
-        ctx.saveGState()
-        ctx.textMatrix = CGAffineTransform(scaleX: 1, y: -1)
-        for (key, batch) in batches {
-            let c = rgb(hue: key / 3, shade: key % 3, dark: dark)
-            // characters are a lighter touch than the dither under them: lifted towards white in the dark, deepened in the light
-            let k: CGFloat = dark ? 0.35 : -0.25
-            ctx.setFillColor(red: min(max(c.r + k * (1 - c.r), 0), 1), green: min(max(c.g + k * (1 - c.g), 0), 1), blue: min(max(c.b + k * (1 - c.b), 0), 1), alpha: 1)
-            CTFontDrawGlyphs(m.font, batch.glyphs, batch.at, batch.glyphs.count, ctx)
-        }
-        ctx.restoreGState()
     }
 
     /// For headless snapshots: the field at time `t` with the pointer at `pointer` (view points) as an image.
