@@ -12,7 +12,7 @@ everyone who opens it sees the same collection. There is no server to run.
 
 ## Everyone else
 1. Install Grails and Google Drive for desktop (same shared drive).
-2. Open Grails. On first launch choose **Join the team library** and pick `Team Inspo.grails` on the shared drive.
+2. Open Grails. On first launch press **Start**, then pick `Team Inspo` under *Where it lives*: it shows as **Found** once the shared drive has synced (or use **Other folder** / **Join with link**). A library that already has pictures goes straight in.
    (Later: library name at the top of the sidebar ▸ **Open Library…**.)
 3. Set your name in **Settings ▸ Library** — it appears as "added by" on everything you save.
 4. Optional: **Settings ▸ Extensions** to install the Chrome extension and save from the browser in one click.
@@ -49,7 +49,7 @@ In Drive for desktop ▸ Preferences ▸ Google Drive, choose how the shared dri
 | A teammate's saves don't show up | Check the Drive menu bar icon (is it syncing / offline?), then press **⌘R**. |
 | Thumbnails are grey, with a cloud badge | Stream mode: the file isn't on your Mac yet. Open it (Space) or switch to Mirror. |
 | "isn't a Grails library" when opening | Pick the folder ending in `.grails` itself, not a folder that contains it. |
-| Library missing after Drive was signed out | Sign in again; Grails shows the welcome screen instead of creating an empty library. |
+| Library missing after Drive was signed out | Sign in again; Grails shows the *Where it lives* screen instead of creating an empty library. |
 
 ## Workspaces, invites and sharing
 - Each library is a workspace. Switch from the top of the sidebar (⌃1–⌃9), add one with Add Workspace, colour them from the right-click menu.

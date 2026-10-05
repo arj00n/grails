@@ -55,7 +55,7 @@ struct ImportFooter: View {
 
     var body: some View {
         let m = model.importModel
-        let total = max(m.tasks.values.reduce(0) { $0 + max($1.total, $1.candidate.count ?? 0) }, 1)
+        let total = max(m.tasks.values.reduce(0) { $0 + $1.expected }, 1)
         let done = m.tasks.values.reduce(0) { $0 + $1.handled.count }
         Button { model.importPanelOpen = true } label: {
             VStack(alignment: .leading, spacing: 5) {

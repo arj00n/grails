@@ -25,16 +25,18 @@ final class TeamTests: XCTestCase {
     }
 
     @MainActor
-    func testFirstRunOffersJoinCreateOrLocalLibrary() throws {
+    func testFirstRunStartsOnboardingAndNothingIsCreatedSilently() throws {
         // No GRAILS_LIBRARY and an empty saved path: nothing may be created silently.
         let fresh = XCUIApplication()
         fresh.launchEnvironment["GRAILS_NO_MENUBAR"] = "1"
         fresh.launchEnvironment["GRAILS_API_PORT"] = "47862"
         fresh.launchArguments += ["-libraryPath", ""]
         fresh.launch()
-        XCTAssertTrue(fresh.buttons["welcome-join"].waitForExistence(timeout: 15))
-        XCTAssertTrue(fresh.buttons["welcome-create"].exists)
-        XCTAssertTrue(fresh.buttons["welcome-default"].exists)
+        XCTAssertTrue(fresh.buttons["onboarding-start"].waitForExistence(timeout: 15))
+        fresh.buttons["onboarding-start"].click()
+        XCTAssertTrue(fresh.buttons["library-continue"].waitForExistence(timeout: 5))
+        XCTAssertTrue(fresh.buttons["library-this-mac"].exists)
+        XCTAssertTrue(fresh.buttons["library-link"].exists)
     }
 
     @MainActor

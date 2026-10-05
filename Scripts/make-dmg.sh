@@ -29,7 +29,7 @@ Grails $VERSION
 
 1. Drag Grails into Applications.
 2. The first time, right-click Grails ▸ Open ▸ Open (this build isn't notarized yet).
-3. Choose "Join the team library" and pick Team Inspo.grails on the shared drive.
+3. Press Start, then pick Team Inspo under "Where it lives" (it shows as Found once the shared drive has synced).
 
 Setup guide: docs/TEAM_SETUP.md in the repository.
 TXT

@@ -239,7 +239,7 @@ struct RootView: View {
     }
 
     @ViewBuilder private var overlays: some View {
-        if model.needsLibrary { WelcomeView(model: model) }
+        if let onboarding = model.onboarding { OnboardingView(model: onboarding) }
         if model.previewID != nil { PreviewPage(model: model) }
         if model.importPanelOpen { ImportPanel(model: model) }
         if let req = model.pairRequest, !model.importPanelOpen { PairPrompt(model: model, request: req) }

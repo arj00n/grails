@@ -23,6 +23,9 @@ public struct BoardCandidate: Identifiable, Codable, Sendable, Equatable {
         self.ref = ref; self.name = name; self.count = count; self.covers = covers; self.owner = owner; self.parent = parent; self.selected = selected; self.via = via
     }
 
+    /// How many pictures an import of this will bring: Pinterest without the browser stops at its latest 50.
+    public var reachableCount: Int { via == .latest ? min(count ?? 0, 50) : (count ?? 0) }
+
     public static func id(for ref: BoardRef) -> String {
         switch ref {
         case .arena(let slug): "arena:\(slug)"

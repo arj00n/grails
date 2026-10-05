@@ -89,7 +89,7 @@ extension AppModel {
     }
 
     /// Asks where a library lives on this Mac (a synced shared drive, usually) and opens it if it's the right one.
-    private func locateLibrary(id: String, name: String?) async -> Bool {
+    func locateLibrary(id: String, name: String?) async -> Bool {
         let p = NSOpenPanel()
         p.canChooseDirectories = true
         p.canChooseFiles = false
@@ -103,7 +103,7 @@ extension AppModel {
         return libraryID == id
     }
 
-    private static func libraryID(at url: URL) -> String? {
+    static func libraryID(at url: URL) -> String? {
         guard let data = try? Data(contentsOf: url.appendingPathComponent("library.json")),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return json["id"] as? String

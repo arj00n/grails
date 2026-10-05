@@ -124,7 +124,7 @@ final class ImportModel {
         return out
     }
 
-    var selectedItemCount: Int { selectedBoards.reduce(0) { $0 + ($1.count ?? 0) } }
+    var selectedItemCount: Int { selectedBoards.reduce(0) { $0 + $1.reachableCount } }
     var stillChecking: Bool { rows.contains { $0.status == .checking || $0.status == .expanding } }
 
     // MARK: Looking things up (two at a time)

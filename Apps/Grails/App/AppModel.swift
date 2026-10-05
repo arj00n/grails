@@ -230,6 +230,8 @@ final class AppModel {
 
     // Team: libraries, watching, who added what
     var needsLibrary = false
+    /// First-run onboarding, while it is on screen.
+    var onboarding: OnboardingModel?
     private(set) var workspaces: [Workspace] = Workspaces.load()
     /// The open library's own id (the same on every Mac), used in `grails://` links.
     private(set) var libraryID = ""
@@ -267,6 +269,7 @@ final class AppModel {
     /// Opens the library named by GRAILS_LIBRARY (tests), the last used one, or creates the default.
     func openInitialLibrary() async {
         let env = ProcessInfo.processInfo.environment
+        if let dir = env["GRAILS_ONBOARDING_DEMO"] { await startOnboardingDemo(dir); return }
         let url: URL
         if let p = env["GRAILS_LIBRARY"] {
             url = URL(fileURLWithPath: p)
@@ -276,6 +279,7 @@ final class AppModel {
             // First run (or the last library's folder is gone, e.g. a drive that isn't mounted): never create anything
             // silently; let the person choose between the team's shared library and a new one.
             needsLibrary = true
+            onboarding = OnboardingModel(app: self)
             await startCapture()
             return
         }
@@ -287,6 +291,12 @@ final class AppModel {
             _ = try? FixtureLibrary.generate(at: url, count: seed, collections: plain ? 0 : 20, likedOneIn: plain ? 0 : 10, contributors: people)
         }
         await openOrCreate(at: url, remember: env["GRAILS_LIBRARY"] == nil)
+        // quit halfway through first-run import: pick up where it was
+        let saved = OnboardingState.load()
+        if env["GRAILS_LIBRARY"] == nil, !saved.done, saved.step == .importing || saved.step == .arriving, store != nil {
+            let o = OnboardingModel(app: self, resuming: true)
+            if saved.step == .arriving, !importModel.isRunning { o.finish() } else { onboarding = o }
+        }
     }
 
     static var defaultLibraryURL: URL {

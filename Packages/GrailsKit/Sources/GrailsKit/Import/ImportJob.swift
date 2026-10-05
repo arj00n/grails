@@ -30,6 +30,8 @@ public struct BoardTask: Codable, Sendable, Identifiable, Equatable {
     public var id: String { candidate.id }
     public init(candidate: BoardCandidate) { self.candidate = candidate }
     public var skippedCount: Int { skipped.values.reduce(0, +) }
+    /// How many entries this board will have handled when it is done: what was read, else what it is expected to hold.
+    public var expected: Int { total > 0 ? total : candidate.reachableCount }
 }
 
 public struct ImportJob: Codable, Sendable, Identifiable, Equatable {

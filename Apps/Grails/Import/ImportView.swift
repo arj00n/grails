@@ -7,6 +7,8 @@ struct ImportView: View {
     var app: AppModel
     /// Shown in the empty field.
     var placeholder = "Paste links"
+    /// The rows scroll past this height; nil lets them take the room there is.
+    var listHeight: CGFloat? = 320
     @State private var text = ""
     @FocusState private var focused: Bool
 
@@ -40,21 +42,27 @@ struct ImportView: View {
         .onAppear { focused = true }
     }
 
+    /// Dev snapshots (ImageRenderer) can't draw a scroll view's contents: the demo asks for the rows laid out plainly.
+    private static let plain = ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_DEMO"] != nil
+
     @ViewBuilder private var list: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
-                if model.phase == .composing {
-                    ForEach(model.rows) { row in
-                        ComposeRow(model: model, row: row)
-                        if row.status == .ready, !row.children.isEmpty { ChildRows(model: model, row: row) }
-                    }
-                } else {
-                    ForEach(model.order, id: \.self) { id in if let t = model.tasks[id] { TaskRow(model: model, task: t) } }
+        if Self.plain { rows.frame(maxHeight: listHeight ?? .infinity, alignment: .top).clipped() }
+        else {
+            ScrollView { rows }.scrollIndicators(.never).frame(maxHeight: listHeight ?? .infinity)
+        }
+    }
+
+    private var rows: some View {
+        LazyVStack(alignment: .leading, spacing: 2) {
+            if model.phase == .composing {
+                ForEach(model.rows) { row in
+                    ComposeRow(model: model, row: row)
+                    if row.status == .ready, !row.children.isEmpty { ChildRows(model: model, row: row) }
                 }
+            } else {
+                ForEach(model.order, id: \.self) { id in if let t = model.tasks[id] { TaskRow(model: model, task: t) } }
             }
         }
-        .scrollIndicators(.never)
-        .frame(maxHeight: 320)
     }
 }
 
