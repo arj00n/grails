@@ -1,21 +1,31 @@
 import Foundation
 
-/// The two typefaces: Basteleur Bold for titles, Projekt Blackbird for everything else. Blackbird has one weight (emphasis comes from
-/// colour, not boldness) and a small, narrow face, so body sizes are nudged up to sit beside the system font's sizes.
+/// The two typefaces: VCR OSD Mono (a pixel monospace) for titles and Alte Haas Grotesk (a Helvetica-like grotesque, with a true bold)
+/// for everything else. The pixel face is crisp only at certain sizes, so titles snap to a small scale.
 public enum Typography {
-    public static let displayName = "Basteleur-Bold"
-    public static let bodyName = "ProjektBlackbird-Regular"
-    public static let displayFile = "Basteleur-Bold"
-    public static let bodyFile = "projekt-blackbird"
+    public static let displayName = "VCROSDMono"
+    public static let bodyName = "AlteHaasGrotesk"
+    public static let bodyBoldName = "AlteHaasGrotesk_Bold"
+    /// Family names for CSS.
+    public static let displayFamily = "VCR OSD Mono"
+    public static let bodyFamily = "Alte Haas Grotesk"
 
-    /// Added to every body size so 13 looks like a 13 beside the system font.
-    public static let bodyBoost = 1.0
+    /// (file name without extension, extension) as bundled.
+    public static let displayFile = (name: "VCR_OSD_MONO_1.001", ext: "ttf")
+    public static let bodyFile = (name: "AlteHaasGroteskRegular", ext: "ttf")
+    public static let bodyBoldFile = (name: "AlteHaasGroteskBold", ext: "ttf")
 
-    /// Body sizes used in the app, small to large; anything else should be one of these.
-    public static let bodySizes: [Double] = [9, 10, 11, 12, 13, 14, 15, 16, 17]
-    /// Title sizes: inspector/preview, dialog, section, empty state, welcome.
-    public static let displaySizes: [Double] = [13, 14, 16, 18, 24, 26, 34]
+    /// Added to every body size so it sits beside the system font's sizes (Alte Haas already does).
+    public static let bodyBoost = 0.0
 
-    /// Characters Blackbird doesn't have; the system font fills in for these.
-    public static let bodyMissing = "×…↗éüñøå₹←→"
+    /// Title sizes the pixel face is drawn at.
+    public static let displaySizes: [Double] = [12, 16, 20, 24, 32]
+
+    /// The scale size closest to `requested` (halfway goes up).
+    public static func displaySize(for requested: Double) -> Double {
+        displaySizes.min { a, b in
+            let da = abs(a - requested), db = abs(b - requested)
+            return da == db ? a > b : da < db
+        } ?? requested
+    }
 }

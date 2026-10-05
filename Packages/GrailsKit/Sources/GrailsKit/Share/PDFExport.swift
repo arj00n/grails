@@ -123,9 +123,9 @@ extension WebExporter {
         if includeSources, let s = e.source, let link = URL(string: s) { ctx.setURL(link as CFURL, for: rect) }
     }
 
-    /// Basteleur for titles and Blackbird for the rest when the app has handed them over; the system font otherwise.
+    /// VCR OSD Mono for titles and Alte Haas Grotesk for the rest when the app has handed them over; the system font otherwise.
     private static func typeface(display: Bool, size: CGFloat) -> CTFont {
-        let name = display ? "Basteleur-Bold" : "ProjektBlackbird-Regular"
+        let name = display ? "VCROSDMono" : "AlteHaasGrotesk"
         if (display ? ExportFonts.display : ExportFonts.body) != nil {
             let f = CTFontCreateWithName(name as CFString, size, nil)
             if (CTFontCopyPostScriptName(f) as String) == name { return f }

@@ -148,10 +148,14 @@ import Testing
 }
 
 @Suite struct TypographyTests {
-    @Test func scalesAreAscendingAndNamesDistinct() {
-        #expect(Typography.bodySizes == Typography.bodySizes.sorted())
+    @Test func titlesSnapToTheScale() {
         #expect(Typography.displaySizes == Typography.displaySizes.sorted())
-        #expect(Typography.displayName != Typography.bodyName)
-        #expect(Typography.bodyBoost >= 0 && Typography.bodyBoost <= 2)
+        #expect(Typography.displaySize(for: 13) == 12)
+        #expect(Typography.displaySize(for: 14) == 16)      // halfway goes up
+        #expect(Typography.displaySize(for: 16) == 16)
+        #expect(Typography.displaySize(for: 18) == 20)
+        #expect(Typography.displaySize(for: 26) == 24)
+        #expect(Typography.displaySize(for: 34) == 32)
+        #expect(Typography.displayName != Typography.bodyName && Typography.bodyName != Typography.bodyBoldName)
     }
 }

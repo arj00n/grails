@@ -1,9 +1,8 @@
 # Fonts
 
-- **Basteleur Bold** — Copyright (c) 2021 Keussel (www.keussel.studio), with contributions by George Triantafyllakos. SIL Open Font License 1.1
-  (see `Basteleur-OFL.txt`). https://velvetyne.fr/fonts/basteleur/
-- **Projekt Blackbird** — an in-house typeface for Blackbird Marketing, released free to the public; its distribution page lists the SIL Open
-  Font License (https://turjostudios.gumroad.com/l/ProjektBlackbird). The file we received carried no license text or metadata, so check the
-  license on the download page before redistributing this app publicly.
+- **VCR OSD Mono** (titles) — by MrManet. The download carried no license text. It is widely distributed as a free font; confirm the terms on its
+  source page before redistributing Grails publicly.
+- **Alte Haas Grotesk** Regular and Bold (body) — Copyright (c) 2007 Yann Le Coroller (www.yannlecoroller.com). Freeware: it may be distributed
+  as long as it travels with its licence text, which is `AlteHaasGrotesk-licence.txt` next to the fonts. Used unmodified.
 
-Both are used under the OFL: bundled and embedded unmodified, never sold on their own.
+The previous pairing (Basteleur Bold and Projekt Blackbird) is in the git history.

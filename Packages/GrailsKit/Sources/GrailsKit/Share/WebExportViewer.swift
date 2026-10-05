@@ -13,9 +13,13 @@ enum WebExportViewer {
 
     /// @font-face rules for the app's fonts, embedded so the page looks the same anywhere.
     private static func fontFaces() -> String {
+        func face(_ family: String, _ data: Data, weight: Int) -> String {
+            "@font-face{font-family:\"\(family)\";src:url(data:font/ttf;base64,\(data.base64EncodedString())) format(\"truetype\");font-weight:\(weight);}\n"
+        }
         var css = ""
-        if let d = ExportFonts.display { css += "@font-face{font-family:\"Basteleur\";src:url(data:font/otf;base64,\(d.base64EncodedString())) format(\"opentype\");font-weight:700;}\n" }
-        if let b = ExportFonts.body { css += "@font-face{font-family:\"Blackbird\";src:url(data:font/otf;base64,\(b.base64EncodedString())) format(\"opentype\");font-weight:400;}\n" }
+        if let d = ExportFonts.display { css += face("VCR OSD Mono", d, weight: 400) }
+        if let b = ExportFonts.body { css += face("Alte Haas Grotesk", b, weight: 400) }
+        if let b = ExportFonts.bodyBold { css += face("Alte Haas Grotesk", b, weight: 700) }
         return css
     }
 
@@ -31,10 +35,10 @@ enum WebExportViewer {
 /*{{FONTS}}*/
 :root { color-scheme: dark; --fg: rgba(255,255,255,.92); --dim: rgba(255,255,255,.55); --faint: rgba(255,255,255,.12); }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: #000; color: var(--fg); font: 15px/1.4 "Blackbird", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+html, body { margin: 0; height: 100%; background: #000; color: var(--fg); font: 14px/1.4 "Alte Haas Grotesk", -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
 header { position: fixed; z-index: 20; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 14px; padding: 14px 20px; background: linear-gradient(#000 40%, transparent); pointer-events: none; }
 header > * { pointer-events: auto; }
-h1 { margin: 0; font: 700 17px "Basteleur", "Blackbird", system-ui, sans-serif; letter-spacing: 0; }
+h1 { margin: 0; font: 400 16px "VCR OSD Mono", "Alte Haas Grotesk", ui-monospace, monospace; letter-spacing: 0; }
 .count { color: var(--dim); font-size: 13px; }
 .spacer { flex: 1; }
 .seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: 999px; background: rgba(255,255,255,.08); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: inset 0 0 0 1px var(--faint); }
@@ -42,8 +46,8 @@ h1 { margin: 0; font: 700 17px "Basteleur", "Blackbird", system-ui, sans-serif; 
 .seg button.on { background: rgba(255,255,255,.18); color: var(--fg); }
 #grid { padding: 64px 20px 60px; max-width: 2200px; margin: 0 auto; }
 .section { margin-bottom: 44px; }
-.section h2 { margin: 0 0 14px; font: 700 26px "Basteleur", "Blackbird", system-ui, sans-serif; }
-.section h2 small { margin-left: 10px; font: 400 15px "Blackbird", system-ui, sans-serif; color: var(--dim); }
+.section h2 { margin: 0 0 14px; font: 400 24px "VCR OSD Mono", "Alte Haas Grotesk", ui-monospace, monospace; }
+.section h2 small { margin-left: 10px; font: 400 14px "Alte Haas Grotesk", system-ui, sans-serif; color: var(--dim); }
 .cols { column-width: 230px; column-gap: 10px; }
 .tile { position: relative; display: block; width: 100%; margin: 0 0 10px; break-inside: avoid; border-radius: 12px; overflow: hidden; background: #111; cursor: zoom-in; }
 .tile img, .tile video { display: block; width: 100%; height: auto; }
@@ -51,7 +55,7 @@ h1 { margin: 0; font: 700 17px "Basteleur", "Blackbird", system-ui, sans-serif; 
 #canvas { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
 #canvas.drag { cursor: grabbing; }
 #world { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
-#world .ct { position: absolute; white-space: nowrap; font-family: "Basteleur", "Blackbird", system-ui, sans-serif; font-weight: 700; transform-origin: 0 100%; }
+#world .ct { position: absolute; white-space: nowrap; font-family: "VCR OSD Mono", "Alte Haas Grotesk", ui-monospace, monospace; font-weight: 400; transform-origin: 0 100%; }
 #world .ct small { margin-left: 8px; font-weight: 400; color: var(--dim); }
 #world .it { position: absolute; border-radius: 4px; overflow: hidden; background: #111; cursor: zoom-in; }
 #world .it img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; -webkit-user-drag: none; }
@@ -60,7 +64,7 @@ h1 { margin: 0; font: 700 17px "Basteleur", "Blackbird", system-ui, sans-serif; 
 #lb .stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 56px 64px 8px; }
 #lb .stage img, #lb .stage video { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 20px 80px rgba(0,0,0,.6); }
 #lb .bar { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 12px 20px 22px; color: var(--dim); }
-#lb .bar b { color: var(--fg); font: 700 17px "Basteleur", "Blackbird", system-ui, sans-serif; }
+#lb .bar b { color: var(--fg); font: 400 16px "VCR OSD Mono", "Alte Haas Grotesk", ui-monospace, monospace; }
 #lb a { color: var(--fg); text-decoration: none; padding: 5px 12px; border-radius: 999px; background: rgba(255,255,255,.12); }
 #lb .x, #lb .nav { position: absolute; border: 0; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font-size: 18px; cursor: pointer; }
 #lb .x { top: 14px; right: 18px; }
