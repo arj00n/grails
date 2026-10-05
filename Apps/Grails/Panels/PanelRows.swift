@@ -38,7 +38,6 @@ extension AppModel {
         add(.init(id: "cmd-merge-tags", title: "Merge Similar Tags", symbol: "tag") { [self] in mergeSimilarTags() })
         add(.init(id: "cmd-import-board", title: "Import Boards…", symbol: "square.and.arrow.down.on.square", accessory: "⇧⌘I") { [self] in promptImportBoard() })
         add(.init(id: "cmd-autotag-all", title: "Auto-tag All Untagged Items", symbol: "sparkles") { [self] in autoTagEverything() })
-        add(.init(id: "cmd-info", title: "Toggle Info Panel", symbol: "sidebar.right", accessory: key(.toggleInfo)) { [self] in run(.toggleInfo) })
         add(.init(id: "cmd-shuffle", title: "Shuffle", symbol: "shuffle", accessory: key(.shuffle)) { [self] in run(.shuffle) })
         add(.init(id: "cmd-zin", title: "Zoom In", symbol: "plus.magnifyingglass", accessory: key(.zoomIn)) { [self] in run(.zoomIn) })
         add(.init(id: "cmd-zout", title: "Zoom Out", symbol: "minus.magnifyingglass", accessory: key(.zoomOut)) { [self] in run(.zoomOut) })

@@ -74,7 +74,6 @@ struct GrailsApp: App {
             CommandGroup(after: .toolbar) {
                 Button("Refresh Library") { Task { await model.refreshLibrary() } }.keyboardShortcut("r")
                 Button("Command Palette…") { model.run(.commandPalette) }.shortcut(.commandPalette)
-                Button("Toggle Info Panel") { model.run(.toggleInfo) }
                 Divider()
                 Button("Zoom In") { model.run(.zoomIn) }.shortcut(.zoomIn)
                 Button("Zoom Out") { model.run(.zoomOut) }.shortcut(.zoomOut)

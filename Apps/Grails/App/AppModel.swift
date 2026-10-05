@@ -147,7 +147,8 @@ final class AppModel {
     var sort: SortChoice = .newest { didSet { if oldValue != sort { scrollResetTick += 1; reloadSoon() } } }
     private var shuffleSeed: UInt64 = 1
 
-    var showInfo = false
+    /// The info panel is contextual: it is there while something is selected, and hiding the sidebar hides every panel with it.
+    var showInfo: Bool { sidebarVisible && !selection.isEmpty && previewID == nil }
     /// One-shot commands for the canvas (fit, arrange, zoom); the canvas runs each request once.
     var canvasRequest: CanvasRequest?
     /// ⌘+ / ⌘− in the grid: one column fewer or more, animated.
@@ -177,7 +178,7 @@ final class AppModel {
     @ObservationIgnored lazy var guidePanel = GuidePanelController(model: guide)
     var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")
     let importModel = ImportModel()
-    @ObservationIgnored var hiddenPanels: (Bool, Bool)?
+    @ObservationIgnored var hiddenPanels: Bool?
     /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
     /// flies to or from the preview. Set by whichever of the grid and canvas is showing.
     @ObservationIgnored var tileGeometry: TileGeometry?
@@ -279,7 +280,6 @@ final class AppModel {
         tileWidth = d.object(forKey: "tileWidth") == nil ? Zoom.defaultWidth : Zoom.clamp(CGFloat(d.double(forKey: "tileWidth")))
         viewMode = ViewMode(rawValue: d.string(forKey: "viewMode") ?? "") ?? .grid
         layoutMode = GridLayoutMode(rawValue: d.string(forKey: "layoutMode") ?? "") ?? .square
-        showInfo = ProcessInfo.processInfo.environment["GRAILS_SHOW_INFO"] != nil   // dev/UI tests
         importModel.app = self
         // a new token (first run, or the Keychain's gone) means a browser extension paired before has to ask again
         if ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"] == nil, !FileManager.default.fileExists(atPath: Self.tokenFile.path) {
@@ -670,7 +670,6 @@ final class AppModel {
         }
         #endif
         switch action {
-        case .toggleInfo: showInfo.toggle()
         case .like: toggleLike(ids: Array(selection))
         case .note: if !selection.isEmpty { panel = .note }
         case .move: if !selection.isEmpty { panel = .move }

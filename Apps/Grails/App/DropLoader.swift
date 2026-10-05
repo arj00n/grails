@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import UniformTypeIdentifiers
 
 struct Dropped {
@@ -37,5 +38,30 @@ enum DropLoader {
         await withCheckedContinuation { cont in
             p.loadDataRepresentation(forTypeIdentifier: type) { data, _ in cont.resume(returning: data) }
         }
+    }
+}
+
+/// The library's content area takes files from outside. Tiles dragged out of the grid are refused, so letting go anywhere on the content
+/// sends the picture sliding back to where it was, instead of vanishing as if something had been dropped.
+struct ContentDrop: DropDelegate {
+    var model: AppModel
+    @Binding var targeted: Bool
+
+    func validateDrop(info: DropInfo) -> Bool {
+        info.hasItemsConforming(to: [.fileURL]) && !info.hasItemsConforming(to: [.grailsItems, .grailsCollection])
+    }
+
+    func dropEntered(info: DropInfo) { targeted = true }
+    func dropExited(info: DropInfo) { targeted = false }
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .copy) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        targeted = false
+        let providers = info.itemProviders(for: [.fileURL])
+        Task { @MainActor in
+            let d = await DropLoader.load(providers)
+            if !d.files.isEmpty { await model.importFiles(d.files) }
+        }
+        return true
     }
 }

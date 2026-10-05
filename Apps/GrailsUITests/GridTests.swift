@@ -67,8 +67,6 @@ final class GridTests: XCTestCase {
     func testSelectionInfoPanelAndPreview() throws {
         let app = try launch()
         XCTAssertTrue(app.staticTexts["20,000 items"].waitForExistence(timeout: 60))
-        app.buttons["info-toggle"].click()
-        XCTAssertTrue(app.staticTexts["Select an item to see its details."].waitForExistence(timeout: 5))
 
         let grid = app.collectionViews["grid"]
         XCTAssertTrue(grid.waitForExistence(timeout: 10))
@@ -109,7 +107,6 @@ final class GridTests: XCTestCase {
             app.launchArguments += ["-viewMode", "grid", "-tileWidth", "130", "-layoutMode", "square", "-appearance", appearance]
             app.launch(); app.activate()
             XCTAssertTrue(app.staticTexts["20,000 items"].waitForExistence(timeout: 60))
-            app.buttons["info-toggle"].click()
             app.collectionViews["grid"].coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.0)).withOffset(CGVector(dx: 0, dy: 80)).click()
             Thread.sleep(forTimeInterval: 1.5)
             let png = app.windows.firstMatch.screenshot().pngRepresentation

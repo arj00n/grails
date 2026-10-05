@@ -9,13 +9,12 @@ extension UTType {
 }
 
 enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
-    case toggleInfo, like, note, move, tag, copyURL, shuffle, trash
+    case like, note, move, tag, copyURL, shuffle, trash
     case commandPalette, zoomIn, zoomOut, newCollection, newSmartFolder
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .toggleInfo: "Show or hide info panel"
         case .like: "Like / unlike"
         case .note: "Add or edit note"
         case .move: "Move to collection"
@@ -33,7 +32,6 @@ enum ShortcutAction: String, CaseIterable, Codable, Identifiable {
 
     var defaultShortcut: Shortcut {
         switch self {
-        case .toggleInfo: Shortcut("i")
         case .like: Shortcut("l")
         case .note: Shortcut("n")
         case .move: Shortcut("m")

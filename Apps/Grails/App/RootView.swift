@@ -47,7 +47,7 @@ struct RootView: View {
 
     /// The space between the docked panels and under the top bar.
     private var contentInsets: EdgeInsets {
-        EdgeInsets(top: Self.barHeight + (model.stripVisible ? TagStrip.height : 0), leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: model.showInfo ? Self.infoWidth : 0)
+        EdgeInsets(top: Self.barHeight + (model.stripVisible ? TagStrip.height : 0), leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: 0)
     }
 
     private var content: some View {
@@ -66,14 +66,7 @@ struct RootView: View {
             }
         }
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }
-        .onDrop(of: [.fileURL, .grailsItems], isTargeted: $dropTargeted) { providers in
-            Task { @MainActor in
-                let d = await DropLoader.load(providers)
-                // Tiles dragged within the grid carry their ids: nothing to import.
-                if d.itemIDs.isEmpty, !d.files.isEmpty { await model.importFiles(d.files) }
-            }
-            return true
-        }
+        .onDrop(of: [.fileURL, .grailsItems], delegate: ContentDrop(model: model, targeted: $dropTargeted))
     }
 
     /// Plain words, centred. Only the two states with something to do carry buttons.
@@ -115,6 +108,7 @@ struct RootView: View {
                     
             }
             Spacer(minLength: 0).allowsHitTesting(false)
+            // the info panel floats over the right edge while something is selected: the grid never reflows when it comes and goes
             if model.showInfo {
                 InfoPanel(model: model)
                     .padding(.top, Self.barHeight)
@@ -122,9 +116,10 @@ struct RootView: View {
                     .frame(maxHeight: .infinity)
                     .background(Ink.surface)
                     .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1) }
-                    
+                    .transition(.opacity.combined(with: .offset(x: 12)))
             }
         }
+        .animation(reduceMotionOn ? .easeOut(duration: 0.1) : .timingCurve(0.22, 1, 0.36, 1, duration: 0.2), value: model.showInfo)
     }
 
     /// The workspace menu hangs under the pinned switcher at the top of the sidebar; a click anywhere else closes it.
@@ -146,7 +141,6 @@ struct RootView: View {
         .background(Ink.canvas)
         .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
         .padding(.leading, model.sidebarVisible ? Self.sidebarWidth : 0)
-        .padding(.trailing, model.showInfo ? Self.infoWidth : 0)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
@@ -164,9 +158,6 @@ struct RootView: View {
             ViewTabs(model: model).padding(.horizontal, 10)
             FilterMenu(model: model)
             ShareMenu(model: model)
-            BarButton(symbol: "sidebar.right", selected: model.showInfo, help: "Show or hide the info panel (I)", identifier: "info-toggle") {
-                model.showInfo.toggle()
-            }
         }
         .padding(.leading, model.sidebarVisible ? 12 : ChromeMetrics.shared.leading)
         .padding(.trailing, 12)
