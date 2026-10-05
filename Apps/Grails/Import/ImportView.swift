@@ -26,8 +26,6 @@ struct ImportView: View {
                 field
             }
             if parts != .field { list }
-            // a secret board explains itself on its own row, next to the button that fixes it
-            if parts != .rows, model.phase == .composing, let variant = model.banner, variant != .secret { ImportBannerView(model: model, app: app, variant: variant) }
         }
     }
 
@@ -289,50 +287,5 @@ extension ImportJob {
         job.boards[0] = t
         job.boards[0].state = .queued
         return job
-    }
-}
-
-/// The one place Grails explains itself: why a big Pinterest board needs more than Pinterest's widget, or why a secret one needs a browser.
-struct ImportBannerView: View {
-    var model: ImportModel
-    var app: AppModel
-    let variant: ImportBannerRule.Variant
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            Text(copy).font(.grailsBody(13)).foregroundStyle(Ink.text).fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 8)
-            Button(action: act) { Text(actionLabel).font(.grailsBody(12)).foregroundStyle(Ink.secondary).lineLimit(1).fixedSize() }
-                .buttonStyle(.plain).accessibilityIdentifier("import-banner-action")
-        }
-        .padding(.horizontal, 16).padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Ink.surface, in: RoundedRectangle(cornerRadius: Ink.cardRadius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Ink.cardRadius, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
-        .transition(.opacity)
-        .accessibilityIdentifier("import-banner")
-    }
-
-    private var copy: String {
-        switch variant {
-        case .wholeBoard:
-            "Pinterest gives apps only the latest 50 pins of a board. Grails reads the rest here on your Mac, the way your browser does. Nothing to install."
-        case .secret:
-            "This board is secret, so only a browser where you're signed in to Pinterest can read it. The Grails extension does that."
-        }
-    }
-
-    private var actionLabel: String {
-        switch variant {
-        case .wholeBoard(let latestOnly): latestOnly ? "Get all" : "Latest 50 only"
-        case .secret: "Use extension"
-        }
-    }
-
-    private func act() {
-        switch variant {
-        case .wholeBoard(let latestOnly): model.setLatestOnly(!latestOnly)
-        case .secret: app.extensionSetup.open()
-        }
     }
 }
