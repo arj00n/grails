@@ -264,3 +264,7 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 .open-page .fallback { margin-top: 14px; font-size: 13px; color: var(--secondary); min-height: 19px; visibility: hidden; }
 .open-page .fallback.shown { visibility: visible; }
 .open-page .fallback a { color: var(--text); }
+
+/* the checksum is one long word: let it wrap instead of widening the page */
+#sha { word-break: break-all; overflow-wrap: anywhere; display: inline-block; max-width: 100%; }
+.download-row .note { max-width: 100%; min-width: 0; }

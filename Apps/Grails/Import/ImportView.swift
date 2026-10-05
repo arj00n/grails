@@ -3,8 +3,12 @@ import SwiftUI
 
 /// Paste links, see what they are, import the ticked ones. Used by ⇧⌘I and by onboarding.
 struct ImportView: View {
+    /// Onboarding lays the field and the rows out in different places; the panel shows both.
+    enum Parts { case all, field, rows }
+
     var model: ImportModel
     var app: AppModel
+    var parts: Parts = .all
     /// Shown in the empty field.
     var placeholder = "Paste links"
     /// The rows scroll past this height; nil lets them take the room there is.
@@ -14,12 +18,13 @@ struct ImportView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if model.phase == .composing {
+            if parts != .rows, model.phase == .composing {
                 Text("Supports Are.na, Pinterest and X").font(.grailsBody(12)).foregroundStyle(Ink.secondary).accessibilityIdentifier("import-platforms")
                 field
             }
-            list
-            if model.phase == .composing, let variant = model.banner { ImportBannerView(model: model, app: app, variant: variant) }
+            if parts != .field { list }
+            // a secret board explains itself on its own row, next to the button that fixes it
+            if parts != .rows, model.phase == .composing, let variant = model.banner, variant != .secret { ImportBannerView(model: model, app: app, variant: variant) }
         }
     }
 
@@ -134,6 +139,26 @@ private struct ComposeRow: View {
     let row: ImportModel.Row
 
     var body: some View {
+        if row.status == .secret { secretRow } else { plainRow }
+    }
+
+    /// A board only a signed-in Chrome can read: the way to read it sits on the row itself, as the main action.
+    private var secretRow: some View {
+        VStack(spacing: 8) {
+            RowFrame(covers: row.board?.covers ?? [], title: row.title, subtitle: "Secret board · needs Chrome") {
+                SmallButton(label: "Remove", symbol: "xmark") { model.remove(row.id) }
+            }
+            Button { model.app?.extensionSetup.open() } label: { Text("Use extension").frame(maxWidth: .infinity) }
+                .buttonStyle(PrimaryButtonStyle()).padding(.horizontal, 8)
+                .accessibilityIdentifier("import-use-extension")
+        }
+        .padding(.bottom, 8)
+        .background(RoundedRectangle(cornerRadius: Ink.cardRadius, style: .continuous).fill(Ink.fill.opacity(0.5)))
+        .overlay(RoundedRectangle(cornerRadius: Ink.cardRadius, style: .continuous).strokeBorder(Ink.text.opacity(0.5), lineWidth: 1))
+        .padding(.vertical, 4)
+    }
+
+    private var plainRow: some View {
         RowFrame(covers: row.board?.covers ?? [], title: row.title, subtitle: subtitle) {
             switch row.status {
             case .checking, .expanding: Text(row.status == .expanding ? "Finding channels…" : "Checking…").font(.grailsBody(12)).foregroundStyle(Ink.secondary)
@@ -143,7 +168,7 @@ private struct ComposeRow: View {
                 if let n = row.board?.count { Text(n.formatted()).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary) }
             case .needsBrowser:
                 SmallButton(label: "Find boards") { model.openProfileInBrowser(row.id) }
-            case .secret: Text("Secret board").font(.grailsBody(12)).foregroundStyle(Ink.secondary)
+            case .secret: EmptyView()
             case .rejected(let why): Text(why).font(.grailsBody(12)).foregroundStyle(Ink.destructive)
             case .blocked: Text("Blocked").font(.grailsBody(12)).foregroundStyle(Ink.destructive); SmallButton(label: "Retry") { model.retry(row.id) }
             case .offline: Text("Offline").font(.grailsBody(12)).foregroundStyle(Ink.secondary); SmallButton(label: "Retry") { model.retry(row.id) }

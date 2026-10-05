@@ -13,8 +13,7 @@ struct OnboardingView: View {
             switch model.step {
             case .hello, .choose: HelloChooseStep(model: model)
             case .whereIt: LibraryStep(model: model).transition(.opacity)
-            case .paste: ImportStep(model: model).transition(.opacity)
-            case .arriving: ArrivingStep(model: model).transition(.opacity)
+            case .paste, .arriving: ImportStep(model: model).transition(.opacity)
             }
             topBar
             Button("") { model.back() }.keyboardShortcut(.cancelAction).frame(width: 0, height: 0).opacity(0)
@@ -254,71 +253,97 @@ private struct LibraryRow: View {
     }
 }
 
-// MARK: Paste
+// MARK: Paste and Arriving
 
-struct ImportStep: View {
-    var model: OnboardingModel
-
-    var body: some View {
-        if let app = model.app {
-            let importer = app.importModel
-            VStack(alignment: .leading, spacing: 16) {
-                Text("IMPORT BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text)
-                ImportView(model: importer, app: app, listHeight: 300)
-                HStack {
-                    Spacer()
-                    Button(importer.selectedItemCount > 0 ? "Import \(importer.selectedItemCount.formatted()) pictures" : "Import") { model.startImport() }
-                        .buttonStyle(PrimaryButtonStyle()).disabled(importer.selectedBoards.isEmpty)
-                        .keyboardShortcut(.defaultAction).accessibilityIdentifier("onboarding-import")
-                }
-            }
-            .frame(width: 560)
-            // the import may need a moment to start: the screen follows once it actually runs
-            .onChange(of: importer.phase) { _, phase in if phase == .running { model.go(.arriving) } }
-        }
-    }
-}
-
-// MARK: Arriving
-
-/// The progress column: the overall counter and bar, the time left once it can be said, the boards, Stop and Open library.
-struct ProgressColumn: View {
+/// One layout for both: the boards column stays where it is on the right, and the left is the paste field until the import runs, then the
+/// pictures filling in. Nothing is rebuilt between the two; the left cross-fades and the column's contents change in place.
+struct ImportScreen: View {
     var model: OnboardingModel
     var app: AppModel
+    var grid: ArrivalGridModel
+    var arriving: Bool
     var elapsed: Double
     var eta: Eta
 
-    static let width: CGFloat = 300
+    private var fade: Animation { .easeOut(duration: reduceMotionOn ? 0.12 : 0.18) }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ZStack(alignment: .topLeading) {
+                PasteCanvas(model: model, app: app).opacity(arriving ? 0 : 1).allowsHitTesting(!arriving)
+                ArrivalGrid(model: grid, app: app).opacity(arriving ? 1 : 0).allowsHitTesting(arriving)
+            }
+            .padding(.leading, 16).padding(.top, 52).padding(.trailing, 16)
+            ProgressColumn(model: model, app: app, arriving: arriving, elapsed: elapsed, eta: eta).padding(.top, 44)
+        }
+        .animation(fade, value: arriving)
+    }
+}
+
+/// The left side before the import runs: the field, and the note about big boards.
+private struct PasteCanvas: View {
+    var model: OnboardingModel
+    var app: AppModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("IMPORT BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text)
+            ImportView(model: app.importModel, app: app, parts: .field)
+        }
+        .frame(maxWidth: 420, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// The boards column, the same place on both screens: a counter, the boards, and the one action (Import, then Open library).
+struct ProgressColumn: View {
+    var model: OnboardingModel
+    var app: AppModel
+    var arriving = true
+    var elapsed: Double
+    var eta: Eta
+
+    static let width: CGFloat = 340
 
     var body: some View {
         let importer = app.importModel
         let total = max(importer.tasks.values.reduce(0) { $0 + $1.expected }, 1)
         let done = importer.tasks.values.reduce(0) { $0 + $1.handled.count }
         let paused = importer.tasks.values.contains { if case .waiting = $0.state { true } else { false } }
+        let picked = importer.selectedItemCount
         VStack(alignment: .leading, spacing: 14) {
-            Text("IMPORTING").font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
+            Text(arriving ? "IMPORTING" : "BOARDS").font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
             VStack(alignment: .leading, spacing: 8) {
-                Text("\(done.formatted()) / \(total.formatted())").font(.grailsDisplay(24)).monospacedDigit().foregroundStyle(Ink.text)
-                    .accessibilityLabel("\(done) of \(total) pictures")
+                Text(arriving ? "\(done.formatted()) / \(total.formatted())" : picked.formatted())
+                    .font(.grailsDisplay(24)).monospacedDigit().foregroundStyle(Ink.text)
+                    .contentTransition(.opacity)
+                    .accessibilityLabel(arriving ? "\(done) of \(total) pictures" : "\(picked) pictures")
                     .accessibilityIdentifier("onboarding-counter")
                 ZStack(alignment: .leading) {
                     Rectangle().fill(Ink.fill)
-                    GeometryReader { g in Rectangle().fill(Ink.text).frame(width: g.size.width * min(CGFloat(done) / CGFloat(total), 1)) }
+                    GeometryReader { g in Rectangle().fill(Ink.text).frame(width: g.size.width * (arriving ? min(CGFloat(done) / CGFloat(total), 1) : 0)) }
                 }
                 .frame(height: 2)
                 HStack {
-                    Text(paused ? "Paused" : (eta.label(handled: done, total: total, elapsed: elapsed, paused: paused) ?? " "))
+                    Text(arriving ? (paused ? "Paused" : (eta.label(handled: done, total: total, elapsed: elapsed, paused: paused) ?? " ")) : " ")
                         .font(.grailsBody(12)).foregroundStyle(Ink.secondary)
                     Spacer()
-                    Text("\(Int(min(Double(done) / Double(total), 1) * 100)) %").font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
+                    Text(arriving ? "\(Int(min(Double(done) / Double(total), 1) * 100)) %" : " ").font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
                 }
             }
-            ImportView(model: importer, app: app, listHeight: nil)
+            ImportView(model: importer, app: app, parts: .rows, listHeight: nil)
             Spacer(minLength: 0)
-            HStack {
-                Button("Stop") { importer.stopAll() }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary).opacity(importer.isRunning ? 1 : 0)
-                Spacer()
-                Button("Open library") { model.finish() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction).accessibilityIdentifier("onboarding-open")
+            ZStack(alignment: .trailing) {
+                HStack {
+                    Button("Stop") { importer.stopAll() }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary).opacity(importer.isRunning ? 1 : 0)
+                    Spacer()
+                    Button("Open library") { model.finish() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(arriving ? .defaultAction : nil).accessibilityIdentifier("onboarding-open")
+                }
+                .opacity(arriving ? 1 : 0).allowsHitTesting(arriving)
+                Button(picked > 0 ? "Import \(picked.formatted()) pictures" : "Import") { model.startImport() }
+                    .buttonStyle(PrimaryButtonStyle()).disabled(importer.selectedBoards.isEmpty)
+                    .keyboardShortcut(arriving ? nil : .defaultAction).accessibilityIdentifier("onboarding-import")
+                    .opacity(arriving ? 0 : 1).allowsHitTesting(!arriving)
             }
         }
         .padding(16)
@@ -329,7 +354,7 @@ struct ProgressColumn: View {
     }
 }
 
-/// The whole Arriving screen: the grid filling on the left, the progress on the right.
+/// The whole Arriving screen, for the headless snapshots.
 struct ArrivingScreen: View {
     var model: OnboardingModel
     var app: AppModel
@@ -337,15 +362,11 @@ struct ArrivingScreen: View {
     var elapsed: Double
     var eta: Eta
 
-    var body: some View {
-        HStack(spacing: 0) {
-            ArrivalGrid(model: grid, app: app).padding(.leading, 16).padding(.top, 52).padding(.trailing, 16)
-            ProgressColumn(model: model, app: app, elapsed: elapsed, eta: eta).padding(.top, 44)
-        }
-    }
+    var body: some View { ImportScreen(model: model, app: app, grid: grid, arriving: true, elapsed: elapsed, eta: eta) }
 }
 
-struct ArrivingStep: View {
+/// Paste and Arriving as one screen that stays mounted from the field to the finished grid.
+struct ImportStep: View {
     var model: OnboardingModel
     @State private var grid = ArrivalGridModel(reduceMotion: reduceMotionOn)
     @State private var started = Date()
@@ -354,21 +375,30 @@ struct ArrivingStep: View {
 
     var body: some View {
         if let app = model.app {
-            ArrivingScreen(model: model, app: app, grid: grid, elapsed: elapsed, eta: eta)
-                .onAppear { grid.run(app: app); started = Date() }
+            ImportScreen(model: model, app: app, grid: grid, arriving: model.step == .arriving, elapsed: elapsed, eta: eta)
+                // the import may need a moment to start: the screen follows once it actually runs
+                .onChange(of: app.importModel.phase) { _, phase in
+                    if phase == .running { model.go(.arriving) }
+                    // everything has arrived and the library is laid out underneath: a short hold, then the crossfade into it
+                    if phase == .finished, model.step == .arriving { model.landWhenReady() }
+                }
+                .onChange(of: model.step) { _, step in if step == .arriving { begin(app) } }
+                .onAppear { if model.step == .arriving { begin(app) } }
                 .onDisappear { grid.stop() }
-                .task {
+                .task(id: model.step == .arriving) {
                     // the pace of the last half minute, once a second
+                    guard model.step == .arriving else { return }
                     while !Task.isCancelled {
                         try? await Task.sleep(for: .seconds(1))
                         elapsed = Date().timeIntervalSince(started)
                         eta.add(handled: app.importModel.tasks.values.reduce(0) { $0 + $1.handled.count }, at: elapsed)
                     }
                 }
-                .onChange(of: app.importModel.phase) { _, phase in
-                    // everything has arrived and the library is laid out underneath: a short hold, then the crossfade into it
-                    if phase == .finished { model.landWhenReady() }
-                }
         }
+    }
+
+    private func begin(_ app: AppModel) {
+        grid.run(app: app)
+        started = Date()
     }
 }

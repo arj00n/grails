@@ -4,6 +4,8 @@ import AppKit
 final class GrailsCollectionView: NSCollectionView {
     var onPreview: (() -> Void)?
     var onOpen: (() -> Void)?
+    /// A plain click landed on the item at this index.
+    var onClickOpen: ((Int) -> Void)?
     /// Double-click on an item; true when it was a section title and got renamed in place instead of opened.
     var onRenameSection: ((Int) -> Bool)?
     var onEscape: (() -> Void)?
@@ -58,11 +60,19 @@ final class GrailsCollectionView: NSCollectionView {
             onOptionClick?(ip.item)
             return
         }
-        if event.clickCount == 2, let ip = indexPathForItem(at: convert(event.locationInWindow, from: nil)) {
+        let down = event.locationInWindow
+        let hit = indexPathForItem(at: convert(down, from: nil))
+        // double-clicking a section's title edits its name
+        if event.clickCount == 2, let hit {
             super.mouseDown(with: event)
-            if onRenameSection?(ip.item) != true { onOpen?() }
-        } else {
-            super.mouseDown(with: event)
+            _ = onRenameSection?(hit.item)
+            return
+        }
+        super.mouseDown(with: event)
+        // a plain click on a picture opens it: one click, no drag (a drag moves things), no ⌘ or ⇧ (those build a selection)
+        if event.clickCount == 1, let hit, event.modifierFlags.intersection([.command, .shift, .control]).isEmpty {
+            let up = window?.currentEvent?.locationInWindow ?? down
+            if hypot(up.x - down.x, up.y - down.y) < 4 { onClickOpen?(hit.item) }
         }
     }
 

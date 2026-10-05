@@ -30,6 +30,7 @@ struct GridView: NSViewRepresentable {
         cv.setAccessibilityIdentifier("grid")
         cv.onPreview = { [weak c] in c?.previewSelection() }
         cv.onOpen = { [weak c] in c?.previewSelection() }
+        cv.onClickOpen = { [weak c] i in c?.openItem(at: i) }
         cv.onEscape = { [weak c] in c?.escape() }
         cv.onSearch = { [weak c] in c?.model.focusSearchTick += 1 }
         cv.onRenameSection = { [weak c] i in c?.beginRenameSection(at: i) ?? false }
@@ -461,6 +462,12 @@ struct GridView: NSViewRepresentable {
         private func pushSelection(_ cv: NSCollectionView) {
             guard !applying else { return }
             model.selection = Set(cv.selectionIndexPaths.compactMap { items[safe: $0.item] }.filter { $0.kind != .section }.map(\.id))
+        }
+
+        /// One click opens a picture (sections are only for renaming and collapsing).
+        func openItem(at index: Int) {
+            guard let s = items[safe: index], s.kind != .section else { return }
+            model.openPreview(s.id)
         }
 
         func previewSelection() {
