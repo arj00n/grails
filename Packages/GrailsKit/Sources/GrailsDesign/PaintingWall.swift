@@ -54,7 +54,9 @@ public enum PaintingWall {
     public static let introStart = 0.1, introDuration = 0.9
     public static let waveWidth = 0.10
     public static let seamHz = 15.0
-    public static let loupeRadius = 72.0, loupeDecay = 0.45, loupeLife = 0.75
+    public static let loupeRadius = 100.0, loupeDecay = 0.45, loupeLife = 0.75
+    /// Around the plate the painting thins out over this distance, so the blank middle has soft edges.
+    public static let plateFalloff = 90.0
 
     // MARK: Placement
 
@@ -86,6 +88,13 @@ public enum PaintingWall {
         let y0 = ((Double(window.height) - Double(plateSize.height)) / 2 / px - 4 / px).rounded(.down) * px
         let x1 = ((x0 + Double(plateSize.width)) / px).rounded(.up) * px, y1 = ((y0 + Double(plateSize.height)) / px).rounded(.up) * px
         return CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
+    }
+
+    /// 0 at the plate's edge easing to 1 `plateFalloff` points away: how much of the painting shows at (x, y). Inside the plate it is 0.
+    public static func falloff(x: Double, y: Double, plate: CGRect) -> Double {
+        let dx = max(Double(plate.minX) - x, 0, x - Double(plate.maxX)), dy = max(Double(plate.minY) - y, 0, y - Double(plate.maxY))
+        let t = min(max((dx * dx + dy * dy).squareRoot() / plateFalloff, 0), 1)
+        return t * t * (3 - 2 * t)
     }
 
     // MARK: Tone
@@ -234,7 +243,7 @@ public enum PaintingWall {
         public init(x: Double, y: Double, age: Double) { self.x = x; self.y = y; self.age = age }
     }
 
-    /// 0...1: how much the pointer (and its trail) has magnified the point (x, y).
+    /// 0...1: how much the pointer (and its trail) has revealed the point (x, y).
     public static func influence(x: Double, y: Double, touches: [Touch]) -> Double {
         var q = 0.0
         for t in touches where t.age <= loupeLife {
@@ -244,7 +253,4 @@ public enum PaintingWall {
         }
         return q
     }
-
-    /// Whether a finer (one point) pixel at (x, y) is drawn instead of the coarse one. The lens edge is dithered.
-    public static func loupeLit(q: Double, x: Int, y: Int) -> Bool { q > Dither.bayer(x, y) * 0.6 + 0.2 }
 }

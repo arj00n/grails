@@ -27,6 +27,8 @@ final class PaintingWallEngine {
     private var pending = Set<Key>()
     private var taus: [Int: [Float]] = [:]
     private var tints: [Int: [UInt32]] = [:]
+    private var falloffs: [Int: [Float]] = [:]
+    private var sources: [Int: Source] = [:]
     private static let bayer: [Float] = (0..<64).map { Float(Dither.bayer($0 % 8, $0 / 8)) }
 
     init?() {
@@ -93,6 +95,59 @@ final class PaintingWallEngine {
         return PaintingWall.Grid.build(rgba: bytes, cols: cols, rows: rows, pixel: pixel, spec: spec, frame: frame)
     }
 
+    // MARK: The painting itself (for the reveal under the pointer)
+
+    /// A painting's own pixels, 8-bit RGBA, for sampling with true colour.
+    private struct Source {
+        var width: Int, height: Int
+        var bytes: [UInt8]
+
+        /// Bilinear sample at (u, v) in source pixels, as premultiplied-by-`alpha` RGBA packed for the bitmap.
+        func sample(u: Double, v: Double, alpha: Double) -> UInt32 {
+            let x = min(max(u - 0.5, 0), Double(width - 1) - 0.001), y = min(max(v - 0.5, 0), Double(height - 1) - 0.001)
+            let x0 = Int(x), y0 = Int(y), fx = x - Double(x0), fy = y - Double(y0)
+            let i00 = (y0 * width + x0) * 4, i10 = i00 + 4, i01 = i00 + width * 4, i11 = i01 + 4
+            func ch(_ o: Int) -> Double {
+                let top = Double(bytes[i00 + o]) * (1 - fx) + Double(bytes[i10 + o]) * fx
+                let bottom = Double(bytes[i01 + o]) * (1 - fx) + Double(bytes[i11 + o]) * fx
+                return (top * (1 - fy) + bottom * fy) * alpha
+            }
+            return UInt32(alpha * 255 + 0.5) << 24 | UInt32(ch(2) + 0.5) << 16 | UInt32(ch(1) + 0.5) << 8 | UInt32(ch(0) + 0.5)
+        }
+    }
+
+    private func source(_ index: Int) -> Source? {
+        if let s = sources[index] { return s }
+        guard specs.indices.contains(index), let src = CGImageSourceCreateWithURL(dir.appendingPathComponent(specs[index].file) as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return nil }
+        let w = image.width, h = image.height
+        var bytes = [UInt8](repeating: 0, count: w * h * 4)
+        let ok = bytes.withUnsafeMutableBytes { raw -> Bool in
+            guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
+                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+            return true
+        }
+        guard ok else { return nil }
+        if sources.count >= 3 { sources.removeAll() }
+        let s = Source(width: w, height: h, bytes: bytes)
+        sources[index] = s
+        return s
+    }
+
+    /// How much of the painting shows at each pixel: 0 on the plate, easing to 1 around it.
+    private func falloff(cols: Int, rows: Int, plate: CGRect) -> [Float] {
+        let k = cols << 16 | rows
+        if let f = falloffs[k] { return f }
+        let px = Double(PaintingWall.pixel)
+        var f = [Float](repeating: 1, count: cols * rows)
+        let reach = Int(PaintingWall.plateFalloff / px) + 2
+        let x0 = max(Int(plate.minX / px) - reach, 0), x1 = min(Int(plate.maxX / px) + reach, cols), y0 = max(Int(plate.minY / px) - reach, 0), y1 = min(Int(plate.maxY / px) + reach, rows)
+        for y in y0..<max(y1, y0) { for x in x0..<max(x1, x0) { f[y * cols + x] = Float(PaintingWall.falloff(x: (Double(x) + 0.5) * px, y: (Double(y) + 0.5) * px, plate: plate)) } }
+        falloffs[k] = f
+        return f
+    }
+
     // MARK: Frames
 
     private func tau(cols: Int, rows: Int) -> [Float] {
@@ -142,6 +197,7 @@ final class PaintingWallEngine {
         let plate = PaintingWall.plate(window: size)
         let pc0 = Int(plate.minX) / px, pc1 = Int(plate.maxX) / px, pr0 = Int(plate.minY) / px, pr1 = Int(plate.maxY) / px
         let tauMap = progress != nil ? tau(cols: cols, rows: rows) : []
+        let fade = falloff(cols: cols, rows: rows, plate: plate)
         let toTint = tint(toIdx, dark: dark), fromTint = fromIdx.map { tint($0, dark: dark) } ?? toTint
         let tick = Int(t * PaintingWall.seamHz)
         let toInk = dark ? gTo.inkDark : gTo.inkLight, fromInk = gFrom.map { dark ? $0.inkDark : $0.inkLight }
@@ -158,14 +214,15 @@ final class PaintingWallEngine {
                     if let p = progress {
                         let s = PaintingWall.wave(tau: Double(tauMap[i]), progress: p)
                         if s >= 1 {
-                            if Float(toInk[i]) / 255 > table[(y & 7) << 3 | (x & 7)] * 0.92 + 0.04 { out[i] = toTint[Int(toColour[i])] }
+                            if Float(toInk[i]) / 255 * fade[i] > table[(y & 7) << 3 | (x & 7)] * 0.92 + 0.04 { out[i] = toTint[Int(toColour[i])] }
                         } else {
-                            let from = fromInk.map { PaintingWall.Sample(ink: $0[i], colour: fromColour![i]) }
-                            let r = PaintingWall.state(x: x, y: y, from: from, to: .init(ink: toInk[i], colour: toColour[i]), s: s, tick: tick)
+                            let f = fade[i]
+                            let from = fromInk.map { PaintingWall.Sample(ink: UInt8(Float($0[i]) * f), colour: fromColour![i]) }
+                            let r = PaintingWall.state(x: x, y: y, from: from, to: .init(ink: UInt8(Float(toInk[i]) * f), colour: toColour[i]), s: s, tick: tick)
                             toPainting[i] = r.toPainting
                             if r.lit { out[i] = (r.toPainting ? toTint : fromTint)[Int(r.colour)] }
                         }
-                    } else if Float(toInk[i]) / 255 > table[(y & 7) << 3 | (x & 7)] * 0.92 + 0.04 {
+                    } else if Float(toInk[i]) / 255 * fade[i] > table[(y & 7) << 3 | (x & 7)] * 0.92 + 0.04 {
                         out[i] = toTint[Int(toColour[i])]
                     }
                 }
@@ -175,26 +232,24 @@ final class PaintingWallEngine {
         var result = Frame(base: base, baseSize: CGSize(width: cols * px, height: rows * px), loupe: nil, animating: progress != nil || !touches.isEmpty)
 
         if !touches.isEmpty {
-            result.loupe = loupe(touches: touches, size: size, dark: dark, plate: plate, cols: cols, to: toIdx, from: fromIdx, toPainting: toPainting, hasWave: progress != nil)
+            result.loupe = loupe(touches: touches, size: size, plate: plate, cols: cols, to: toIdx, from: fromIdx, toPainting: toPainting, hasWave: progress != nil)
         }
         return result
     }
 
-    /// 1 pt pixels around the pointer and its trail, in place of the 3 pt ones. Only resolution changes.
-    private func loupe(touches: [PaintingWall.Touch], size: CGSize, dark: Bool, plate: CGRect, cols: Int, to: Int, from: Int?, toPainting: [Bool], hasWave: Bool) -> (image: CGImage, rect: CGRect)? {
-        request(to, size: size, pixel: 1)
-        if let from { request(from, size: size, pixel: 1) }
-        guard let fineTo = grid(to, size: size, pixel: 1) else { return nil }
-        let fineFrom = from.flatMap { grid($0, size: size, pixel: 1) }
+    /// The painting itself, in true colour, under the pointer and its trail: a soft-edged window onto the picture the dither stands for.
+    private func loupe(touches: [PaintingWall.Touch], size: CGSize, plate: CGRect, cols: Int, to: Int, from: Int?, toPainting: [Bool], hasWave: Bool) -> (image: CGImage, rect: CGRect)? {
+        guard let srcTo = source(to) else { return nil }
+        let srcFrom = from.flatMap { source($0) } ?? srcTo
+        let frameTo = PaintingWall.frame(specs[to], window: size), frameFrom = from.map { PaintingWall.frame(specs[$0], window: size) } ?? frameTo
         let r = PaintingWall.loupeRadius
-        let minX = max(Int((touches.map(\.x).min()! - r).rounded(.down)), 0), maxX = min(Int((touches.map(\.x).max()! + r).rounded(.up)), Int(size.width))
-        let minY = max(Int((touches.map(\.y).min()! - r).rounded(.down)), 0), maxY = min(Int((touches.map(\.y).max()! + r).rounded(.up)), Int(size.height))
+        let live = touches.filter { $0.age <= PaintingWall.loupeLife }
+        guard !live.isEmpty else { return nil }
+        let minX = max(Int((live.map(\.x).min()! - r).rounded(.down)), 0), maxX = min(Int((live.map(\.x).max()! + r).rounded(.up)), Int(size.width))
+        let minY = max(Int((live.map(\.y).min()! - r).rounded(.down)), 0), maxY = min(Int((live.map(\.y).max()! + r).rounded(.up)), Int(size.height))
         let w = maxX - minX, h = maxY - minY
         guard w > 0, h > 0, w * h <= 400_000 else { return nil }
         let px = PaintingWall.pixel
-        let canvas: UInt32 = dark ? 0xFF00_0000 : 0xFFFF_FFFF
-        let toTint = tint(to, dark: dark), fromTint = from.map { tint($0, dark: dark) } ?? toTint
-        let live = touches.filter { $0.age <= PaintingWall.loupeLife }
         var buffer = [UInt32](repeating: 0, count: w * h)
         buffer.withUnsafeMutableBufferPointer { out in
             for fy in 0..<h {
@@ -202,14 +257,14 @@ final class PaintingWallEngine {
                 for fx in 0..<w {
                     let X = minX + fx
                     let q = PaintingWall.influence(x: Double(X) + 0.5, y: Double(Y) + 0.5, touches: live)
-                    if q <= 0 || !PaintingWall.loupeLit(q: q, x: X, y: Y) { continue }
+                    if q <= 0 { continue }
                     if Double(X) >= plate.minX && Double(X) < plate.maxX && Double(Y) >= plate.minY && Double(Y) < plate.maxY { continue }
                     let useTo = !hasWave || toPainting[(Y / px) * cols + X / px]
-                    let g = (useTo ? fineTo : (fineFrom ?? fineTo))
-                    let i = Y * g.cols + X
-                    guard i < g.colour.count else { continue }
-                    let ink = Double(dark ? g.inkDark[i] : g.inkLight[i]) / 255
-                    out[fy * w + fx] = Dither.lit(ink: ink, x: X, y: Y) ? (useTo ? toTint : fromTint)[Int(g.colour[i])] : canvas
+                    let src = useTo ? srcTo : srcFrom, f = useTo ? frameTo : frameFrom
+                    let u = (Double(X) + 0.5 - Double(f.minX)) / Double(f.width) * Double(src.width)
+                    let v = (Double(Y) + 0.5 - Double(f.minY)) / Double(f.height) * Double(src.height)
+                    let a = min(q * 1.6, 1)
+                    out[fy * w + fx] = src.sample(u: u, v: v, alpha: a * a * (3 - 2 * a))
                 }
             }
         }

@@ -49,7 +49,6 @@ struct OnboardingDemo {
         check(engine != nil && engine!.specs.count == 14, "painting manifest loads: \(engine?.specs.count ?? 0) works")
         if let engine {
             for i in engine.specs.indices { engine.prepare(i, size: size) }
-            engine.prepare(0, size: size, pixel: 1); engine.prepare(1, size: size, pixel: 1)
             func hello(_ name: String, t: Double, touches: [PaintingWall.Touch] = [], reduceMotion: Bool = false, size: CGSize = size, indices: Bool = true) {
                 let sched = PaintingWall.schedule(t: t, count: engine.specs.count, reduceMotion: reduceMotion)
                 let caption = engine.specs[PaintingWall.captionIndex(sched)].caption
@@ -63,6 +62,7 @@ struct OnboardingDemo {
             for i in engine.specs.indices { hello("hello-rest-\(engine.specs[i].id)", t: 8.0 * Double(i) + 4) }
             for (n, p) in [(25, 0.25), (50, 0.5), (75, 0.75)] { hello("hello-wave-\(n)", t: 8.0 + 1.6 * p) }
             hello("hello-loupe", t: 3, touches: (0..<8).map { PaintingWall.Touch(x: 450 - Double($0) * 9, y: 290 + Double($0) * 4, age: Double($0) * 0.06) })
+            hello("hello-loupe-vermeer", t: 8.0 * 2 + 4, touches: (0..<10).map { PaintingWall.Touch(x: 330 + Double($0) * 22, y: 560 - Double($0) * 14, age: Double($0) * 0.05) })
             hello("hello-reduce-motion", t: 10, reduceMotion: true)
             say(bench(engine))
         }
@@ -165,7 +165,6 @@ extension OnboardingDemo {
             }
             times.sort()
             // the pointer moving fast: head plus a full trail, on the first painting held (no wave)
-            engine.prepare(0, size: size, pixel: 1)
             let trail = (0..<19).map { PaintingWall.Touch(x: 600 + Double($0) * 14, y: 300 + Double($0) * 9, age: Double($0) * 0.04) }
             var loupe: [Double] = []
             for _ in 0..<30 {

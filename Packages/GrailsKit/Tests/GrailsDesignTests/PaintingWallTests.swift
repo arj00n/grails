@@ -168,20 +168,23 @@ private func spec(mode: PaintingWall.Placement.Mode = .cover, anchor: [Double] =
     @Test func theLensIsZeroBeyondItsRadiusAndFadesWithAge() {
         let t = PaintingWall.Touch(x: 100, y: 100, age: 0)
         #expect(PaintingWall.influence(x: 100, y: 100, touches: [t]) == 1)
-        #expect(PaintingWall.influence(x: 100 + 72, y: 100, touches: [t]) == 0 && PaintingWall.influence(x: 400, y: 400, touches: [t]) == 0)
+        #expect(PaintingWall.influence(x: 100 + PaintingWall.loupeRadius, y: 100, touches: [t]) == 0 && PaintingWall.influence(x: 400, y: 400, touches: [t]) == 0)
         let old = PaintingWall.Touch(x: 100, y: 100, age: 0.4)
         #expect(PaintingWall.influence(x: 100, y: 100, touches: [old]) < 0.5)
         #expect(PaintingWall.influence(x: 100, y: 100, touches: [PaintingWall.Touch(x: 100, y: 100, age: 0.8)]) == 0)
         for d in stride(from: 0.0, to: 90, by: 6) { let q = PaintingWall.influence(x: 100 + d, y: 100, touches: [t]); #expect(q >= 0 && q <= 1) }
     }
 
-    @Test func theLensEdgeIsDithered() {
-        var inside = 0, edge = 0
-        for y in 0..<8 { for x in 0..<8 {
-            if PaintingWall.loupeLit(q: 1, x: x, y: y) { inside += 1 }
-            if PaintingWall.loupeLit(q: 0.5, x: x, y: y) { edge += 1 }
-        } }
-        #expect(inside == 64 && edge > 0 && edge < 64)
+    @Test func thePaintingThinsOutSoftlyAroundThePlate() {
+        let plate = PaintingWall.plate(window: CGSize(width: 1280, height: 800))
+        #expect(PaintingWall.falloff(x: plate.midX, y: plate.midY, plate: plate) == 0)
+        #expect(PaintingWall.falloff(x: plate.maxX + PaintingWall.plateFalloff, y: plate.midY, plate: plate) == 1)
+        var last = 0.0
+        for d in stride(from: 0.0, through: PaintingWall.plateFalloff, by: 5) {
+            let v = PaintingWall.falloff(x: plate.maxX + d, y: plate.midY, plate: plate); #expect(v >= last); last = v
+        }
+        let corner = PaintingWall.falloff(x: plate.maxX + 30, y: plate.maxY + 30, plate: plate), edge = PaintingWall.falloff(x: plate.maxX + 30, y: plate.midY, plate: plate)
+        #expect(corner > edge)                                                          // distance is round, not boxy
     }
 }
 
