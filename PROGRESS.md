@@ -8,8 +8,8 @@
 - **Links**: `grails://open?lib=<library id>&c=|t=|i=` (`GrailsLink`) for a library (invite), collection, tag or item; Copy Link in the sidebar and item menus,
   File ▸ Copy Link to This View (⌥⌘L), Copy Invite Link, Join with Link…. The link carries the library id, not a path: a Mac that has the library switches to it,
   one that doesn't is asked to pick the synced folder and it's checked against the id. `grails://` is registered in Info.plist; `GrailsAppDelegate` also opens `.grails` folders.
-- **Exports** (`Share/`, File ▸ Export View As / Export Selection As, ⌥⌘E, `grails-share --format folder|html|pdf`): **single HTML file** (everything inlined, 1100 px
-  pictures, short clips), **PDF** (cover + slide-sized pages per cluster, clickable source links) and a **web folder + zip** (≤1600 px pictures, videos ≤40 MB). The page has
+- **Exports** (`Share/`, share button in the top bar, File ▸ Export View As / Export Selection As, ⌥⌘E): **HTML file** (everything inlined, 1100 px pictures, short clips)
+  and **PDF** (cover + slide-sized pages per cluster, clickable source links). The kit can still write a web folder + zip (`grails-share --format folder|html|pdf`) but the app doesn't offer it. The page has
   a grid with titled sections, a canvas view with pan/zoom, a lightbox and optional source links, and asks search engines not to index it. Nothing is uploaded.
 - **Link page**: `docs/router/index.html` on your own site turns `https://…/open#lib=…` into `grails://open?…`; set its address under Settings ▸ Library ▸ Link page and
   Copy Link makes clickable web links (details stay after the `#`, never sent to the host).
@@ -336,3 +336,8 @@ Perf, 20k items, debug build, M-series (`GRAILS_PERF=1 swift test --filter Perfo
 - `rescan()` lists every item folder each time; fine at 20k locally (1.2 s) but measure on a Drive mount in M5
   and consider a directory-mtime shortcut.
 - Smart folders, canvas files and `tags.json` have layout paths but no models yet (M3 / M8).
+
+## Flat UI — 2026-10-05
+- Dropped the glass look (it read too close to Atlas): docked flat sidebar and info panel (solid surface, hairline edge), one solid top bar (sidebar toggle, title + count or the
+  filter chip, search, Grid/Canvas tabs with a sliding underline, filter, share, info), no floating pills or circles. Tokens in `App/Glass.swift` (`Ink`, `BarIcon`).
+- Hover fills ease in and symbols bounce under the pointer (`symbolEffect`), also in sidebar rows and tabs. The hold-⌘ shortcuts panel is gone.

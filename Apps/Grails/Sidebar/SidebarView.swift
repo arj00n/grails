@@ -143,15 +143,24 @@ struct SidebarRow: View {
     let symbol: String
     var tint: Color?
     var count: Int?
+    @State private var hovering = false
+    @State private var bump = 0
 
     var body: some View {
         Label {
             HStack {
                 Text(title).lineLimit(1).foregroundStyle(Ink.text)
                 Spacer()
-                if let count { Text(count.formatted()).foregroundStyle(.secondary).font(.caption).monospacedDigit() }
+                if let count { Text(count.formatted()).foregroundStyle(hovering ? Ink.secondary : Ink.tertiary).font(.caption).monospacedDigit() }
             }
-        } icon: { Image(systemName: symbol).foregroundStyle(tint ?? Ink.secondary) }
+        } icon: {
+            Image(systemName: symbol).foregroundStyle(tint ?? (hovering ? Ink.text : Ink.secondary))
+                .symbolEffect(.bounce, options: .speed(1.4), value: bump)
+        }
+        .padding(.vertical, 2)
+        .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(hovering ? Ink.fill : .clear).padding(.horizontal, -6))
+        .onHover { h in hovering = h; if h { bump += 1 } }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .listRowSeparator(.hidden)
     }
 }

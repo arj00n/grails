@@ -79,30 +79,3 @@ struct ToastView: View {
             .accessibilityIdentifier("toast")
     }
 }
-
-/// Hold ⌘ for a second to see the shortcuts.
-struct CheatSheet: View {
-    @State private var store = ShortcutStore.shared
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Shortcuts").font(.headline)
-            Grid(alignment: .leading, horizontalSpacing: 18, verticalSpacing: 6) {
-                ForEach(ShortcutAction.allCases) { a in
-                    GridRow {
-                        Text(store.shortcut(for: a).display)
-                            .font(.system(.callout, design: .monospaced).weight(.semibold))
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: 5))
-                        Text(a.title)
-                    }
-                }
-                GridRow { Text("Space").font(.system(.callout, design: .monospaced).weight(.semibold)).padding(.horizontal, 6).background(.quaternary, in: RoundedRectangle(cornerRadius: 5)); Text("Preview") }
-                GridRow { Text("⌘Z").font(.system(.callout, design: .monospaced).weight(.semibold)).padding(.horizontal, 6).background(.quaternary, in: RoundedRectangle(cornerRadius: 5)); Text("Undo / ⇧⌘Z redo") }
-                GridRow { Text("⌥ click").font(.system(.callout, design: .monospaced).weight(.semibold)).padding(.horizontal, 6).background(.quaternary, in: RoundedRectangle(cornerRadius: 5)); Text("Like") }
-            }
-        }
-        .padding(18)
-        .glassCard(radius: 22)
-    }
-}

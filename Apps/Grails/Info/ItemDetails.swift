@@ -145,8 +145,9 @@ struct LinkChip<Content: View>: View {
                 .font(.caption)
                 .foregroundStyle(hovering ? Ink.text : Ink.secondary)
                 .padding(.horizontal, 9).padding(.vertical, 4)
-                .background(hovering ? Ink.fillHover : Ink.fill, in: Capsule())
-                .contentShape(Capsule())
+                .background(hovering ? Ink.fillHover : Ink.fill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .animation(.easeOut(duration: 0.12), value: hovering)
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }

@@ -1,73 +1,75 @@
 import AppKit
 import SwiftUI
 
-/// The look: black, glass, white as the only accent. Chrome floats over content; nothing is boxed in.
+/// The look: flat. Black underneath, solid surfaces with hairline edges, white as the only accent. Nothing blurs or floats;
+/// panels are docked, and the life is in the hover fills and the small symbol animations.
 
 enum Ink {
     static let canvas = Color.black
-    static let hairline = Color.white.opacity(0.10)
+    static let surface = Color(white: 0.06)
+    static let raised = Color(white: 0.10)
+    static let hairline = Color.white.opacity(0.09)
     static let fill = Color.white.opacity(0.06)
     static let fillHover = Color.white.opacity(0.12)
     static let text = Color.white.opacity(0.92)
     static let secondary = Color.white.opacity(0.55)
     static let tertiary = Color.white.opacity(0.32)
+    static let radius: CGFloat = 8
 }
 
 extension View {
-    /// A dark glass surface: real Liquid Glass where the OS has it, a frosted material elsewhere.
-    @ViewBuilder
+    /// A flat dark surface with a hairline edge.
     func glass<S: InsettableShape>(in shape: S, interactive: Bool = false) -> some View {
-        if GlassSettings.flat {
-            self.background(Color(white: 0.10, opacity: 0.92), in: shape)
-                .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 0.75))
-        } else if #available(macOS 26.0, *) {
-            if interactive {
-                self.background(Ink.fill, in: shape)
-                    .glassEffect(Glass.regular.tint(Color.black.opacity(0.35)).interactive(), in: shape)
-                    .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 0.75))
-            } else {
-                self.background(Ink.fill, in: shape)
-                    .glassEffect(Glass.regular.tint(Color.black.opacity(0.35)), in: shape)
-                    .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 0.75))
-            }
-        } else {
-            self.background(.ultraThinMaterial, in: shape)
-                .background(Color.black.opacity(0.35), in: shape)
-                .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 0.75))
-        }
+        self.background(Ink.raised, in: shape)
+            .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 1))
     }
 
-    func glassCard(radius: CGFloat = 22) -> some View {
-        self.glass(in: RoundedRectangle(cornerRadius: radius, style: .continuous))
-            .shadow(color: .black.opacity(0.45), radius: 30, y: 12)
+    /// Menus, dialogs and the palette: a raised flat card.
+    func glassCard(radius: CGFloat = 12) -> some View {
+        self.glass(in: RoundedRectangle(cornerRadius: min(radius, 12), style: .continuous))
+            .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
     }
 
-    func glassPill(interactive: Bool = false) -> some View { self.glass(in: Capsule(), interactive: interactive) }
+    func glassPill(interactive: Bool = false) -> some View { self.glass(in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous)) }
 }
 
-/// A round icon button that lives in the floating chrome.
+/// An icon that brightens and gives a small bounce under the pointer; the building block of every bar button.
+struct BarIcon: View {
+    let symbol: String
+    var active = false
+    var size: CGFloat = 30
+    @State private var hovering = false
+    @State private var bump = 0
+
+    var body: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 14, weight: .medium))
+            .symbolEffect(.bounce, options: .speed(1.4), value: bump)
+            .symbolEffect(.bounce, options: .speed(1.4), value: active)
+            .foregroundStyle(active || hovering ? Ink.text : Ink.secondary)
+            .frame(width: size, height: size)
+            .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(active ? Ink.fillHover : (hovering ? Ink.fill : .clear)))
+            .contentShape(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
+            .onHover { h in hovering = h; if h { bump += 1 } }
+            .animation(.easeOut(duration: 0.14), value: hovering)
+            .animation(.easeOut(duration: 0.14), value: active)
+    }
+}
+
+/// A button in the bar.
 struct GlassIconButton: View {
     let symbol: String
     var selected = false
     var help: String = ""
     var identifier: String?
     let action: () -> Void
-    @State private var hovering = false
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(selected || hovering ? Ink.text : Ink.secondary)
-                .frame(width: 34, height: 34)
-                .background(selected ? Ink.fillHover : (hovering ? Ink.fill : .clear), in: Circle())
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .help(help)
-        .accessibilityLabel(help)
-        .modifier(OptionalIdentifier(id: identifier))
+        Button(action: action) { BarIcon(symbol: symbol, active: selected) }
+            .buttonStyle(.plain)
+            .help(help)
+            .accessibilityLabel(help)
+            .modifier(OptionalIdentifier(id: identifier))
     }
 }
 
@@ -76,7 +78,7 @@ private struct OptionalIdentifier: ViewModifier {
     func body(content: Content) -> some View { if let id { content.accessibilityIdentifier(id) } else { content } }
 }
 
-/// The search pill: an NSSearchField underneath (so it behaves like one everywhere, including accessibility).
+/// The search field: an NSSearchField underneath (so it behaves like one everywhere, including accessibility).
 struct GlassSearchField: NSViewRepresentable {
     @Binding var text: String
     var focusTick: Int
@@ -91,7 +93,7 @@ struct GlassSearchField: NSViewRepresentable {
         f.drawsBackground = false
         f.focusRingType = .none
         // The cell's own magnifier and clear button don't track the text when the field is focused: the icon stays put and the
-        // cursor ends up underneath it. The pill draws its own icon and clear button instead.
+        // cursor ends up underneath it. The bar draws its own icon and clear button instead.
         if let cell = f.cell as? NSSearchFieldCell { cell.searchButtonCell = nil; cell.cancelButtonCell = nil }
         f.font = .systemFont(ofSize: 14)
         f.textColor = NSColor.white.withAlphaComponent(0.92)
@@ -140,7 +142,7 @@ struct GlassSearchField: NSViewRepresentable {
     }
 }
 
-/// Where the window's traffic lights sit, so the floating top bar can line up with them instead of guessing.
+/// Where the window's traffic lights sit, so the top bar can line up with them instead of guessing.
 @MainActor @Observable
 final class ChromeMetrics {
     static let shared = ChromeMetrics()
@@ -175,8 +177,8 @@ struct WindowChrome: NSViewRepresentable {
 
         private var observers: [NSObjectProtocol] = []
 
-        /// The floating bar's centre line (also where the traffic lights are moved to) and the left edge their group starts at.
-        static let barCenterY: CGFloat = 30
+        /// The top bar's centre line (also where the traffic lights are moved to) and the left edge their group starts at.
+        static let barCenterY: CGFloat = 26
         static let leftInset: CGFloat = 14
 
         private func measure() {
@@ -186,7 +188,7 @@ struct WindowChrome: NSViewRepresentable {
             let full = w.styleMask.contains(.fullScreen)
             func rect(_ b: NSButton) -> CGRect { b.superview?.convert(b.frame, to: nil) ?? .zero }
             if !full, close.superview != nil {
-                // Sit the traffic lights on the same centre line as the bar's pills, and a little in from the corner.
+                // Sit the traffic lights on the same centre line as the bar's controls, and a little in from the corner.
                 let c = rect(close)
                 let dy = Self.barCenterY - (w.frame.height - c.midY)
                 let dx = Self.leftInset - c.minX
@@ -201,8 +203,4 @@ struct WindowChrome: NSViewRepresentable {
             if ProcessInfo.processInfo.environment["GRAILS_LOG_CHROME"] != nil { FileHandle.standardError.write(Data("CHROME centerY=\(m.centerY) leading=\(m.leading) close=\(c) zoom=\(z)\n".utf8)) }
         }
     }
-}
-
-enum GlassSettings {
-    static let flat = ProcessInfo.processInfo.environment["GRAILS_FLAT_GLASS"] != nil
 }

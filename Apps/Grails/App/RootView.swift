@@ -11,16 +11,15 @@ struct RootView: View {
 
     static let sidebarWidth: CGFloat = 244
     static let infoWidth: CGFloat = 308
-    static let edge: CGFloat = 12
-    /// Space the grid keeps clear above its first row (the floating top bar sits there, tiles scroll beneath it).
-    static let topInset: CGFloat = 72
+    static let barHeight: CGFloat = 52
+    /// A little air above the first row, under the bar.
+    static let topInset: CGFloat = 10
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             content
             panels
             topBar
-            captionPill
             overlays
         }
         .background(gridBackground)
@@ -33,10 +32,7 @@ struct RootView: View {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
         .task { await model.openInitialLibrary() }
-        .onAppear {
-            model.startCheatSheetMonitor()
-            Self.snapshotIfRequested()
-        }
+        .onAppear { Self.snapshotIfRequested() }
         .animation(.smooth(duration: 0.25), value: model.sidebarVisible)
         .animation(.smooth(duration: 0.25), value: model.showInfo)
         .animation(.smooth(duration: 0.2), value: model.viewChip)
@@ -44,25 +40,28 @@ struct RootView: View {
 
     // MARK: Content
 
+    /// The space between the docked panels and under the top bar.
+    private var contentInsets: EdgeInsets {
+        EdgeInsets(top: Self.barHeight, leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: model.showInfo ? Self.infoWidth : 0)
+    }
+
     private var content: some View {
         ZStack {
             switch model.viewMode {
             case .grid:
                 GridView(model: model, topInset: Self.topInset)
-                    .padding(.leading, model.sidebarVisible ? Self.sidebarWidth + Self.edge * 2 : 0)
-                    .padding(.trailing, model.showInfo ? Self.infoWidth + Self.edge * 2 : 0)
+                    .padding(contentInsets)
             case .canvas:
                 CanvasView(model: model)
+                    .padding(contentInsets)
             }
-            // above the canvas (which paints its own black), centred in the space the floating panels leave free
             if model.items.isEmpty && model.store != nil {
                 emptyState
-                    .padding(.leading, model.sidebarVisible ? Self.sidebarWidth + Self.edge * 2 : 0)
-                    .padding(.trailing, model.showInfo ? Self.infoWidth + Self.edge * 2 : 0)
+                    .padding(contentInsets)
                     .allowsHitTesting(false)
             }
         }
-        .overlay { if dropTargeted { RoundedRectangle(cornerRadius: 16, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 2).padding(6).allowsHitTesting(false) } }
+        .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 2).padding(6).allowsHitTesting(false) } }
         .onDrop(of: [.fileURL, .grailsItems], isTargeted: $dropTargeted) { providers in
             Task { @MainActor in
                 let d = await DropLoader.load(providers)
@@ -86,91 +85,102 @@ struct RootView: View {
         }
     }
 
-    // MARK: Floating chrome
+    // MARK: Chrome
 
-    /// Sidebar and info panel float over the content as glass cards; the grid makes room for them, the canvas goes beneath.
+    /// Sidebar and info panel are docked: flat surfaces from the top of the window to the bottom, with a hairline against the content.
     private var panels: some View {
         HStack(alignment: .top, spacing: 0) {
             if model.sidebarVisible {
                 SidebarView(model: model)
+                    .padding(.top, Self.barHeight)
                     .frame(width: Self.sidebarWidth)
-                    .glassCard()
+                    .frame(maxHeight: .infinity)
+                    .background(Ink.surface)
+                    .overlay(alignment: .trailing) { Rectangle().fill(Ink.hairline).frame(width: 1) }
                     .transition(.move(edge: .leading).combined(with: .opacity))
             }
             Spacer(minLength: 0).allowsHitTesting(false)
             if model.showInfo {
                 InfoPanel(model: model)
+                    .padding(.top, Self.barHeight)
                     .frame(width: Self.infoWidth)
-                    .glassCard()
+                    .frame(maxHeight: .infinity)
+                    .background(Ink.surface)
+                    .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1) }
                     .transition(.move(edge: .trailing).combined(with: .opacity))
             }
         }
-        .padding(.horizontal, Self.edge)
-        .padding(.top, 64)
-        .padding(.bottom, Self.edge)
     }
 
     private var topBar: some View {
-        ZStack {
-            searchPill
-            HStack(spacing: 0) {
-                GlassIconButton(symbol: "sidebar.left", selected: model.sidebarVisible, help: "Show or hide the sidebar (⌃⌘S)", identifier: "sidebar-toggle") {
-                    model.sidebarVisible.toggle()
-                }
-                .padding(3).glassPill(interactive: true)
-                .padding(.leading, ChromeMetrics.shared.leading)
-                if let chip = model.viewChip {
-                    HStack(spacing: 7) {
-                        Image(systemName: chip.symbol).font(.system(size: 12, weight: .medium)).foregroundStyle(Ink.secondary)
-                        Text(chip.label).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.text).lineLimit(1)
-                        Button { model.clearViewChip() } label: {
-                            Image(systemName: "xmark.circle.fill").font(.system(size: 14)).foregroundStyle(Ink.tertiary)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Clear")
-                        .accessibilityIdentifier("clear-filter")
-                    }
-                    .padding(.horizontal, 13).frame(height: 40).frame(maxWidth: 220)
-                    .glassPill(interactive: true)
-                    .padding(.leading, 8)
-                    .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .leading)))
-                }
-                Spacer(minLength: 0)
-                HStack(spacing: 2) {
-                    ForEach(ViewMode.allCases) { mode in
-                        GlassIconButton(symbol: mode.symbol, selected: model.viewMode == mode, help: "\(mode.label) (⌘\(mode == .grid ? 1 : 2))", identifier: "view-\(mode.rawValue)") {
-                            model.viewMode = mode
-                        }
-                    }
-                    Rectangle().fill(Ink.hairline).frame(width: 1, height: 16).padding(.horizontal, 3)
-                    FilterMenu(model: model)
-                    GlassIconButton(symbol: "sidebar.right", selected: model.showInfo, help: "Show or hide the info panel (I)", identifier: "info-toggle") {
-                        model.showInfo.toggle()
-                    }
-                }
-                .padding(3).glassPill(interactive: true)
+        HStack(spacing: 6) {
+            GlassIconButton(symbol: "sidebar.left", selected: model.sidebarVisible, help: "Show or hide the sidebar (⌃⌘S)", identifier: "sidebar-toggle") {
+                model.sidebarVisible.toggle()
             }
-            .padding(.trailing, Self.edge)
+            titleBlock
+            Spacer(minLength: 8)
+            searchField
+            ViewTabs(model: model).padding(.horizontal, 10)
+            FilterMenu(model: model)
+            ShareMenu(model: model)
+            GlassIconButton(symbol: "sidebar.right", selected: model.showInfo, help: "Show or hide the info panel (I)", identifier: "info-toggle") {
+                model.showInfo.toggle()
+            }
         }
-        // the pills' centre line is the traffic lights' centre line
-        .padding(.top, max(ChromeMetrics.shared.centerY - 20, 4))
+        .padding(.leading, model.sidebarVisible ? 12 : ChromeMetrics.shared.leading)
+        .padding(.trailing, 12)
+        .frame(height: Self.barHeight)
+        .background(Ink.canvas)
+        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .padding(.leading, model.sidebarVisible ? Self.sidebarWidth : 0)
+        .padding(.trailing, model.showInfo ? Self.infoWidth : 0)
         .frame(maxHeight: .infinity, alignment: .top)
     }
 
-    private var searchPill: some View {
+    /// Where you are and how many items: the filter (with a way to clear it) or the view's name, then the count.
+    private var titleBlock: some View {
         HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.secondary)
+            if let chip = model.viewChip {
+                HStack(spacing: 6) {
+                    Image(systemName: chip.symbol).font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.secondary)
+                    Text(chip.label).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.text).lineLimit(1)
+                    Button { model.clearViewChip() } label: {
+                        Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.secondary)
+                            .frame(width: 16, height: 16).background(Ink.fill, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear")
+                    .accessibilityIdentifier("clear-filter")
+                }
+                .padding(.leading, 10).padding(.trailing, 5).frame(height: 28)
+                .background(Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
+                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .leading)))
+            } else {
+                Text(model.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.text).lineLimit(1)
+            }
+            Text(model.countLabel).font(.system(size: 12)).foregroundStyle(Ink.tertiary).lineLimit(1).layoutPriority(-1)
+        }
+        .padding(.leading, 6)
+        .frame(maxWidth: 360, alignment: .leading)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 7) {
+            Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(searchFocused ? Ink.text : Ink.secondary)
             GlassSearchField(text: $model.searchText, focusTick: model.focusSearchTick, isFocused: $searchFocused, onSubmit: { model.rememberSearch() })
                 .frame(height: 22)
             if !model.searchText.isEmpty {
-                Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(Ink.tertiary) }
+                Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(Ink.tertiary) }
                     .buttonStyle(.plain).help("Clear search")
             }
         }
-        .padding(.horizontal, 14)
-        .frame(width: 380, height: 40)
-        .glassPill()
-        .overlay(alignment: .top) { recentSearches.offset(y: 46) }
+        .padding(.horizontal, 10)
+        .frame(minWidth: 130, idealWidth: 250, maxWidth: 250)
+        .frame(height: 30)
+        .background(searchFocused ? Ink.fillHover : Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(searchFocused ? Color.white.opacity(0.28) : .clear, lineWidth: 1))
+        .animation(.easeOut(duration: 0.15), value: searchFocused)
+        .overlay(alignment: .topLeading) { recentSearches.offset(y: 36) }
     }
 
     @ViewBuilder private var recentSearches: some View {
@@ -189,24 +199,9 @@ struct RootView: View {
                 }
             }
             .padding(.vertical, 6)
-            .frame(width: 380)
-            .glassCard(radius: 20)
+            .frame(width: 250)
+            .glassCard(radius: 10)
         }
-    }
-
-    /// Where you are and how many items, in a small pill at the bottom.
-    private var captionPill: some View {
-        HStack(spacing: 8) {
-            Text(model.title).foregroundStyle(Ink.text).fontWeight(.medium).lineLimit(1)
-            Text(model.countLabel).foregroundStyle(Ink.secondary).lineLimit(1)
-        }
-        .font(.system(size: 12))
-        .padding(.horizontal, 14).padding(.vertical, 7)
-        .glassPill()
-        .padding(.leading, (model.sidebarVisible ? Self.sidebarWidth + Self.edge : 0) + Self.edge + 4)
-        .padding(.bottom, Self.edge + 2)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-        .allowsHitTesting(false)
     }
 
     @ViewBuilder private var overlays: some View {
@@ -215,7 +210,6 @@ struct RootView: View {
         if let panel = model.panel { PanelHost(model: model, panel: panel) }
         if let p = model.prompt { PromptCard(model: model, request: p) }
         if let c = model.confirm { ConfirmCard(model: model, request: c) }
-        if model.cheatSheetVisible { CheatSheet().transition(.opacity) }
         VStack(spacing: 10) {
             Spacer()
             if let t = model.toast { ToastView(text: t).transition(.move(edge: .bottom).combined(with: .opacity)) }
@@ -324,12 +318,7 @@ struct FilterMenu: View {
                 Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil }
             }
         } label: {
-            Image(systemName: "line.3.horizontal.decrease")
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(model.filters.isActive || model.addedByFilter != nil ? Ink.text : Ink.secondary)
-                .frame(width: 34, height: 34)
-                .background(model.filters.isActive || model.addedByFilter != nil ? Ink.fillHover : .clear, in: Circle())
-                .contentShape(Circle())
+            BarIcon(symbol: "line.3.horizontal.decrease", active: model.filters.isActive || model.addedByFilter != nil)
         }
         .menuStyle(.button)
         .buttonStyle(.plain)
@@ -338,5 +327,80 @@ struct FilterMenu: View {
         .help("Filter and sort")
         .accessibilityLabel("Filter and sort")
         .accessibilityIdentifier("filter-menu")
+    }
+}
+
+/// Grid and Canvas as two tabs; the underline slides between them.
+struct ViewTabs: View {
+    @Bindable var model: AppModel
+    @Namespace private var underline
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ForEach(ViewMode.allCases) { mode in
+                ViewTab(mode: mode, selected: model.viewMode == mode, underline: underline) {
+                    withAnimation(.smooth(duration: 0.22)) { model.viewMode = mode }
+                }
+                .help("\(mode.label) (⌘\(mode == .grid ? 1 : 2))")
+                .accessibilityIdentifier("view-\(mode.rawValue)")
+            }
+        }
+    }
+}
+
+private struct ViewTab: View {
+    let mode: ViewMode
+    let selected: Bool
+    var underline: Namespace.ID
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 5) {
+                HStack(spacing: 6) {
+                    Image(systemName: mode.symbol).font(.system(size: 12, weight: .medium)).symbolEffect(.bounce, options: .speed(1.4), value: selected)
+                    Text(mode.label).font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(selected || hovering ? Ink.text : Ink.secondary)
+                ZStack {
+                    Color.clear
+                    if selected { Rectangle().fill(Color.white).matchedGeometryEffect(id: "underline", in: underline) }
+                }
+                .frame(height: 2)
+            }
+            .padding(.top, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.14), value: hovering)
+    }
+}
+
+/// Share and export: the view or the selection as an HTML file or a PDF, and links.
+struct ShareMenu: View {
+    var model: AppModel
+
+    var body: some View {
+        Menu {
+            Button("Export View as HTML…") { model.exportWebPage(format: .html) }
+            Button("Export View as PDF…") { model.exportWebPage(format: .pdf) }
+            Divider()
+            Button("Export Selection as HTML…") { model.exportWebPage(selectionOnly: true, format: .html) }.disabled(model.selection.isEmpty)
+            Button("Export Selection as PDF…") { model.exportWebPage(selectionOnly: true, format: .pdf) }.disabled(model.selection.isEmpty)
+            Divider()
+            Button("Copy Link to This View") { model.copyViewLink() }
+            Button("Copy Invite Link") { model.copyInviteLink() }
+        } label: {
+            BarIcon(symbol: "square.and.arrow.up")
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Share and export")
+        .accessibilityLabel("Share and export")
+        .accessibilityIdentifier("share-menu")
     }
 }

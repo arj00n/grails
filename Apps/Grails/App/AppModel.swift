@@ -153,7 +153,6 @@ final class AppModel {
     var confirm: ConfirmRequest?
     var smartEditor: SmartEditorState?
     var toast: String?
-    var cheatSheetVisible = false
     /// Grid asks for keyboard focus whenever this changes.
     private(set) var focusGridTick = 0
     var searchFocusTick = 0
@@ -231,8 +230,6 @@ final class AppModel {
     @ObservationIgnored let tokens: TokenStorage = ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"].map { InMemoryTokenStorage($0) as TokenStorage } ?? KeychainTokenStorage()
     var apiStatus = "Starting…"
     var apiPort: UInt16 = 0
-    @ObservationIgnored private var cheatMonitor: Any?
-    @ObservationIgnored private var cheatTask: Task<Void, Never>?
 
     init() {
         let d = UserDefaults.standard
@@ -838,33 +835,6 @@ final class AppModel {
             }
         case .trash:
             Task { await perform("Move to Trash") { try await $0.softDelete(ids: ids) } }
-        }
-    }
-
-    // MARK: Cheat sheet (hold ⌘)
-
-    func startCheatSheetMonitor() {
-        guard cheatMonitor == nil else { return }
-        cheatMonitor = NSEvent.addLocalMonitorForEvents(matching: [.flagsChanged, .keyDown, .leftMouseDown]) { [weak self] e in
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["GRAILS_TRACE"] != nil, e.type != .leftMouseDown {
-                let line = "\(e.type == .keyDown ? "keyDown" : "flagsChanged") chars=\(e.charactersIgnoringModifiers ?? "-") flags=0x\(String(e.modifierFlags.rawValue, radix: 16))\n"
-                if let h = FileHandle(forWritingAtPath: "/private/tmp/grails-actions.log") { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
-            }
-            #endif
-            MainActor.assumeIsolated {
-                guard let self else { return }
-                self.cheatTask?.cancel()
-                if e.type == .flagsChanged, e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command {
-                    self.cheatTask = Task { [weak self] in
-                        try? await Task.sleep(for: .seconds(1))
-                        if !Task.isCancelled { self?.cheatSheetVisible = true }
-                    }
-                } else {
-                    self.cheatSheetVisible = false
-                }
-            }
-            return e
         }
     }
 

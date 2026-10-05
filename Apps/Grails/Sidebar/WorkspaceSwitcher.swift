@@ -20,6 +20,7 @@ struct WorkspaceAvatar: View {
 struct WorkspaceSwitcher: View {
     var model: AppModel
     @State private var open = false
+    @State private var hovering = false
 
     private var current: Workspace? { model.workspaces.first { $0.id == model.libraryID } }
 
@@ -31,9 +32,13 @@ struct WorkspaceSwitcher: View {
                 Spacer()
                 Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
             }
+            .padding(6)
+            .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(hovering || open ? Ink.fill : .clear))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
         .popover(isPresented: $open, arrowEdge: .bottom) { WorkspaceList(model: model) { open = false } }
         .accessibilityIdentifier("library-switcher")
     }

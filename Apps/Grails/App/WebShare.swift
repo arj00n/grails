@@ -3,10 +3,10 @@ import GrailsKit
 
 /// Share a view as a web page: a folder (and zip) anyone can open in a browser, with no Grails and no login.
 enum ShareFormat: String, CaseIterable, Identifiable {
-    case html, pdf, folder
+    case html, pdf
     var id: String { rawValue }
     var menuTitle: String {
-        switch self { case .html: "Single HTML File…"; case .pdf: "PDF…"; case .folder: "Web Page Folder…" }
+        switch self { case .html: "HTML File…"; case .pdf: "PDF…" }
     }
 }
 
@@ -41,7 +41,6 @@ extension AppModel {
                 switch format {
                 case .html: report = try await store.exportSingleFile(title: name, ids: ids, clusters: clusters, to: parent, progress: tick)
                 case .pdf: report = try await store.exportPDF(title: name, ids: ids, clusters: clusters, to: parent, progress: tick)
-                case .folder: report = try await store.exportWebPage(title: name, ids: ids, clusters: clusters, to: parent, progress: tick)
                 }
                 NSWorkspace.shared.activateFileViewerSelecting([report.file ?? report.zip ?? report.folder])
                 var text = "Exported \(report.exported) item\(report.exported == 1 ? "" : "s")"
