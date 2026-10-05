@@ -349,3 +349,5 @@ Spec in `docs/UI_SYSTEM.md` (written by an Opus 5.5 agent from the brief; Are.na
 - Preview is a page (`Preview/`): `PreviewStageView` (three layers, scroll phases, magnify, smartMagnify, keys), `PreviewImageCache`, `PreviewSet` (O(1), skips sections, survives deletion), `PreviewPage` (stage + 300 pt info column + export menu). `InfoBlock` is shared with the inspector and edits name, tags, note in place.
 - Headless check: `GRAILS_PREVIEW_DEMO=<dir>` feeds synthetic trackpad events and writes `result.txt` + PNGs (page turn, flick with momentum swallowed, rubber band, small and large vertical drag all pass).
 - Keys added: `/` search, ⌘\ both panels. Not done yet: see the top of the spec.
+- Preview flight: `TileGeometry` (grid and canvas supply an item's window rect, jumping it into view, and hide/show its tile); the stage springs the picture from the tile to its place (and back on close) while the page and details fade with it (`PreviewChrome.flight`). `GRAILS_PREVIEW_DEMO` logs the flight samples to `flight.txt` and renders a mid-flight PNG.
+- ⌘K and the other panels are centred in the window (centred at full height so the field stays put as results arrive).

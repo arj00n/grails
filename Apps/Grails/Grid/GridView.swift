@@ -48,6 +48,7 @@ struct GridView: NSViewRepresentable {
             c.model.toggleLike(ids: [s.id])
         }
         c.collectionView = cv
+        c.installTileGeometry()
 
         let scroll = NSScrollView()
         scroll.documentView = cv
@@ -475,6 +476,34 @@ struct GridView: NSViewRepresentable {
             let id = s.id
             cell.beginRenamingSection(text: s.name) { [weak self] name in self?.model.renameCluster(id, to: name) }
             return true
+        }
+
+        // MARK: Preview flight
+
+        /// The tile's rectangle in window coordinates, after jumping it into view if it was scrolled out.
+        private func windowRect(ofItem id: String) -> CGRect? {
+            guard let cv = collectionView, let scroll = cv.enclosingScrollView, let i = indexByID[id], let f = frame(of: i) else { return nil }
+            activeLayout.prepare()
+            let clip = scroll.contentView.bounds, inset = scroll.contentInsets
+            if f.minY < clip.minY + inset.top || f.maxY > clip.maxY - inset.bottom {
+                let range = scrollRange(scroll, contentHeight: activeLayout.collectionViewContentSize.height)
+                let y = min(max(range.lowerBound, f.midY - clip.height / 2), range.upperBound)
+                scroll.contentView.scroll(to: NSPoint(x: 0, y: y))
+                scroll.reflectScrolledClipView(scroll.contentView)
+                cv.layoutSubtreeIfNeeded()
+            }
+            return cv.convert(f, to: nil)
+        }
+
+        private func setTileHidden(_ id: String, _ hidden: Bool) {
+            guard let cv = collectionView, let i = indexByID[id], let cell = cv.item(at: IndexPath(item: i, section: 0)) else { return }
+            cell.view.alphaValue = hidden ? 0 : 1
+        }
+
+        func installTileGeometry() {
+            model.tileGeometry = TileGeometry(
+                rect: { [weak self] id in self?.windowRect(ofItem: id) },
+                hide: { [weak self] id, hidden in self?.setTileHidden(id, hidden) })
         }
 
         func escape() {

@@ -5,19 +5,29 @@ import SwiftUI
 @MainActor @Observable
 final class PreviewChrome {
     var dismiss = 0.0
+    /// 0 while the picture is still on its tile, 1 once it is in place.
+    var flight = 1.0
 }
 
 /// The preview is a page: the picture on the left, everything about it on the right, always. Swipe sideways for the next one,
 /// up or down to close.
 struct PreviewPage: View {
     var model: AppModel
-    @State private var chrome = PreviewChrome()
+    @State private var chrome: PreviewChrome
+
+    init(model: AppModel) {
+        self.model = model
+        let chrome = PreviewChrome()
+        // the page starts transparent when the picture is about to fly out of its tile
+        if model.tileGeometry != nil, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion { chrome.flight = 0 }
+        _chrome = State(initialValue: chrome)
+    }
 
     private var position: Int? { model.previewID.flatMap { model.previewSet?.position(of: $0) } }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Ink.canvas.opacity(1 - chrome.dismiss * 0.9).ignoresSafeArea()
+            Ink.canvas.opacity(chrome.flight * (1 - chrome.dismiss * 0.9)).ignoresSafeArea()
             HStack(spacing: 0) {
                 PreviewStage(model: model, chrome: chrome)
                 Rectangle().fill(Ink.hairline).frame(width: 1).opacity(infoOpacity)
@@ -29,7 +39,7 @@ struct PreviewPage: View {
         .accessibilityIdentifier("preview")
     }
 
-    private var infoOpacity: Double { max(0, 1 - chrome.dismiss * 3) }
+    private var infoOpacity: Double { min(max((chrome.flight - 0.4) / 0.6, 0), 1) * max(0, 1 - chrome.dismiss * 3) }
 
     private var strip: some View {
         HStack(spacing: 6) {
@@ -104,6 +114,9 @@ struct PreviewStage: NSViewRepresentable {
         v.onCommit = { [weak model] i in model?.commitPreview(position: i) }
         v.onClose = { [weak model] in model?.closePreview() }
         v.onDismissProgress = { [weak chrome] p in if chrome?.dismiss != p { chrome?.dismiss = p } }
+        v.onFlight = { [weak chrome] f in if chrome?.flight != f { chrome?.flight = f } }
+        v.tileRectProvider = model.tileGeometry == nil ? nil : { [weak model] id in model?.tileGeometry?.rect(id) }
+        v.tileHide = { [weak model] id, hidden in model?.tileGeometry?.hide(id, hidden) }
         v.onOpenSource = { [weak model] in model?.openPreviewSource() }
         v.keyHandler = { [weak model] event in
             guard let model, let action = ShortcutStore.shared.action(for: event, plainOnly: true) else { return false }
@@ -114,6 +127,8 @@ struct PreviewStage: NSViewRepresentable {
             v.load(set, at: pos, animatedOpen: true)
             context.coordinator.version = model.previewSetVersion
         }
+        // if the flight never got going, don't leave the page invisible
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { [weak v] in if v?.isWaitingToOpen == true { v?.forceOpen() } }
         if let dir = ProcessInfo.processInfo.environment["GRAILS_PREVIEW_DEMO"] { v.runDemo(into: dir) }
         return v
     }

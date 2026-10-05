@@ -152,6 +152,9 @@ final class AppModel {
     var previewSet: PreviewSet?
     var previewSetVersion = 0
     @ObservationIgnored var hiddenPanels: (Bool, Bool)?
+    /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
+    /// flies to or from the preview. Set by whichever of the grid and canvas is showing.
+    @ObservationIgnored var tileGeometry: TileGeometry?
     var panel: Panel?
     var prompt: PromptRequest?
     var confirm: ConfirmRequest?

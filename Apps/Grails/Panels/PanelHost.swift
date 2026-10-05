@@ -1,13 +1,17 @@
 import GrailsKit
 import SwiftUI
 
-/// Dimmed backdrop + the active panel, anchored near the top like Spotlight.
+/// Dimmed backdrop + the active panel, centred in the window. A palette grows downward as results arrive, so it is centred at its
+/// full height and the field stays where it is.
 struct PanelHost: View {
     var model: AppModel
     let panel: Panel
 
+    private var fullHeight: CGFloat { panel == .note ? 230 : 460 }
+
     var body: some View {
-        ZStack(alignment: .top) {
+        GeometryReader { geo in
+          ZStack(alignment: .top) {
             Ink.canvas.opacity(0.55).ignoresSafeArea().onTapGesture { model.closePanel() }
             Group {
                 switch panel {
@@ -24,9 +28,12 @@ struct PanelHost: View {
                     NotePanel(model: model)
                 }
             }
-            .padding(.top, 70)
+            .padding(.top, max((geo.size.height - fullHeight) / 2, 24))
             .padding(.horizontal, 16)
+          }
+          .frame(width: geo.size.width, height: geo.size.height)
         }
+        .ignoresSafeArea()
         .transition(.opacity)
     }
 }

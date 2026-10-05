@@ -312,6 +312,7 @@ final class ThumbCell: NSCollectionViewItem {
         op = nil
         source = nil
         itemID = nil
+        view.alphaValue = 1
         view.layer?.contents = nil
         cloud.isHidden = true
         avatar.isHidden = true

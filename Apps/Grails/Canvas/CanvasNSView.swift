@@ -431,6 +431,23 @@ final class CanvasNSView: NSView {
         applyViewport()
     }
 
+    /// An item's rectangle in window coordinates. Off screen, it is panned (not zoomed) to the middle first.
+    func windowRect(ofItem id: String) -> CGRect? {
+        guard let p = placements[id], bounds.width > 10 else { return nil }
+        let world = CGRect(x: p.x, y: p.y, width: p.w, height: p.h)
+        var r = screenRect(world)
+        let area = CGRect(x: contentInsets.left, y: contentInsets.bottom, width: bounds.width - contentInsets.left - contentInsets.right, height: bounds.height - contentInsets.top - contentInsets.bottom)
+        if !area.contains(r) {
+            origin = CGPoint(x: world.midX - focus.x / scale, y: world.midY - focus.y / scale)
+            viewportDirty = true
+            applyViewport()
+            r = screenRect(world)
+        }
+        return convert(r, to: nil)
+    }
+
+    func setItemHidden(_ id: String, _ hidden: Bool) { layers[id]?.opacity = hidden ? 0 : 1 }
+
     /// Brings `ids` (or everything) into view with a margin.
     func fit(ids: [String]?, animated: Bool, margin: CGFloat = 70) {
         let rects: [CGRect] = ids == nil

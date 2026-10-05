@@ -21,6 +21,11 @@ final class PreviewStageView: NSView {
     /// Keys the stage doesn't own (like, tag, move…) go to the app's shortcuts.
     var keyHandler: ((NSEvent) -> Bool)?
     var onOpenSource: (() -> Void)?
+    /// Where an item's tile is (window coordinates) and a way to hide it while its picture flies to or from the preview.
+    var tileRectProvider: ((String) -> CGRect?)?
+    var tileHide: ((String, Bool) -> Void)?
+    /// 0 = the picture is on its tile, 1 = it is in place on the page: the page and its details fade with it.
+    var onFlight: ((Double) -> Void)?
     var currentID: String? { pageSet[index]?.id }
 
     // MARK: State
@@ -32,6 +37,11 @@ final class PreviewStageView: NSView {
     private var zoom = CriticalSpring(value: 1, target: 1, response: 0.2, tolerance: 0.0005)    // relative to fit
     private var panX = CriticalSpring(response: 0.2)
     private var panY = CriticalSpring(response: 0.2)
+    private var flight = CriticalSpring(value: 1, target: 1, response: 0.3, tolerance: 0.001)
+    private var tileStageRect: CGRect?
+    private var flightTileID: String?
+    private var pendingOpenFlight = false
+    private var closingByFlight = false
     private var gesture: PagerGesture?
     private var gate = MomentumGate()
     private var tracking = false                                    // fingers are driving the page or the dismiss
@@ -93,14 +103,46 @@ final class PreviewStageView: NSView {
         offsetX = CriticalSpring(response: 0.26)
         dismissY = CriticalSpring(response: 0.26)
         resetZoom()
+        flight = CriticalSpring(value: 1, target: 1, response: 0.3, tolerance: 0.001)
         if animatedOpen, !reduceMotion {
-            // a quiet arrival: the picture settles in from slightly smaller and the page fades up
-            dismissY.value = bounds.height * 0.4 * 0.5
-            dismissY.target = 0
-            startLink()
+            if tileRectProvider != nil {
+                // the picture flies out of its tile once the stage has a size
+                flight.value = 0
+                pendingOpenFlight = true
+            } else {
+                // no tile to fly from: settle in from slightly smaller while the page fades up
+                dismissY.value = bounds.height * 0.4 * 0.5
+                dismissY.target = 0
+                startLink()
+            }
         }
         refresh()
+        if pendingOpenFlight, bounds.width > 100 { beginOpenFlight() }
     }
+
+    private func beginOpenFlight() {
+        pendingOpenFlight = false
+        guard let id = currentID, let win = tileRectProvider?(id), win.width > 1, window != nil else { forceOpen(); return }
+        tileStageRect = convert(win, from: nil)
+        flightTileID = id
+        tileHide?(id, true)
+        flight.value = 0; flight.velocity = 0; flight.target = 1
+        layoutPages()
+        startLink()
+        if let dir = ProcessInfo.processInfo.environment["GRAILS_PREVIEW_DEMO"] { demoWatchOpen(into: dir) }
+    }
+
+    /// Skips the flight (no tile, or it never got started): the page is simply there.
+    func forceOpen() {
+        pendingOpenFlight = false
+        flight = CriticalSpring(value: 1, target: 1, response: 0.3, tolerance: 0.001)
+        if let id = flightTileID { tileHide?(id, false); flightTileID = nil }
+        tileStageRect = nil
+        onFlight?(1)
+        layoutPages()
+    }
+
+    var isWaitingToOpen: Bool { pendingOpenFlight }
 
     /// The model moved us (a link, the info column): jump without a swipe.
     func jump(to position: Int) {
@@ -199,13 +241,25 @@ final class PreviewStageView: NSView {
         let p = Pager.dismissProgress(dy: dismissY.value, height: H)
         onDismissProgress?(p)
         let shrink = 1 - 0.2 * p
+        let f = CGFloat(min(max(flight.value, 0), 1))
+        onFlight?(Double(f))
         let cache = PreviewImageCache.shared
         for (n, layer) in pages.enumerated() {
             let slot = n - 1
             guard let item = pageSet[index + slot] else { layer.isHidden = true; continue }
-            layer.isHidden = false
-            let rect: CGRect
+            layer.isHidden = slot != 0 && f < 1                 // neighbours wait until the picture is in place
+            var rect: CGRect
             if slot == 0 { rect = currentRect() } else { rect = Pager.fitRect(image: pixelSize(index + slot), stage: bounds.size) }
+            if slot == 0, f < 1, let tile = tileStageRect {
+                // the picture as it sits on its tile (whole, not cropped), growing to its place on the page
+                let size = pixelSize(index)
+                let s = min(tile.width / max(size.width, 1), tile.height / max(size.height, 1))
+                let from = CGRect(x: tile.midX - size.width * s / 2, y: tile.midY - size.height * s / 2, width: size.width * s, height: size.height * s)
+                rect = CGRect(x: from.minX + (rect.minX - from.minX) * f, y: from.minY + (rect.minY - from.minY) * f,
+                              width: from.width + (rect.width - from.width) * f, height: from.height + (rect.height - from.height) * f)
+            }
+            layer.masksToBounds = slot == 0 && f < 1
+            layer.cornerRadius = slot == 0 ? Ink.tileRadius * (1 - f) : 0
             let dx = CGFloat(slot) * (W + Self.gap) + CGFloat(offsetX.value)
             layer.frame = rect.offsetBy(dx: dx, dy: 0)
             layer.setAffineTransform(CGAffineTransform(translationX: 0, y: CGFloat(dismissY.value)).scaledBy(x: shrink, y: shrink))
@@ -225,6 +279,7 @@ final class PreviewStageView: NSView {
         nextButton.frame = NSRect(x: bounds.width - 52, y: y, width: 40, height: 40)
         clampPan()
         layoutPages()
+        if pendingOpenFlight, bounds.width > 100 { beginOpenFlight() }
     }
 
     override func viewDidChangeBackingProperties() { super.viewDidChangeBackingProperties(); loadImages() }
@@ -233,13 +288,17 @@ final class PreviewStageView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard window != nil else { stopLink(); removeOverlay(); return }
+        guard window != nil else {
+            stopLink(); removeOverlay()
+            if let id = flightTileID { tileHide?(id, false); flightTileID = nil }
+            return
+        }
         DispatchQueue.main.async { [weak self] in self?.window?.makeFirstResponder(self) }
     }
 
     // MARK: Video and GIF
 
-    private var settled: Bool { abs(offsetX.value) < 0.5 && abs(dismissY.value) < 0.5 && !tracking && !pinching && abs(zoom.value - 1) < 0.001 }
+    private var settled: Bool { flight.value > 0.999 && abs(offsetX.value) < 0.5 && abs(dismissY.value) < 0.5 && !tracking && !pinching && abs(zoom.value - 1) < 0.001 }
 
     private func refreshOverlay() {
         guard let item = pageSet[index] else { removeOverlay(); return }
@@ -308,6 +367,7 @@ final class PreviewStageView: NSView {
         let dt = min(max(l.targetTimestamp - lastTick, 1.0 / 240), 1.0 / 20)
         lastTick = l.targetTimestamp
         var active = false
+        if !flight.isSettled { flight.step(dt); active = true }
         if !tracking {
             if !offsetX.isSettled { offsetX.step(dt); active = true }
             if !dismissY.isSettled { dismissY.step(dt); active = true }
@@ -318,8 +378,15 @@ final class PreviewStageView: NSView {
             if !panY.isSettled { panY.step(dt); active = true }
         }
         layoutPages()
-        if closing, abs(dismissY.value - dismissY.target) < 1 { stopLink(); onClose?(); return }
-        if !active { stopLink(); refresh() }
+        if closing {
+            let arrived = closingByFlight ? flight.isSettled : abs(dismissY.value - dismissY.target) < 1
+            if arrived { stopLink(); finishClose(); return }
+        }
+        if !active {
+            stopLink()
+            if let id = flightTileID, !closing { tileHide?(id, false); flightTileID = nil; tileStageRect = nil }   // landed: the tile is free again
+            refresh()
+        }
     }
 
     // MARK: Turning pages
@@ -378,9 +445,33 @@ final class PreviewStageView: NSView {
         tracking = false
         removeOverlay()
         if reduceMotion { onClose?(); return }
+        // fly back to the tile (jumping it into view if you paged away from it); without one, fade and shrink away
+        if let id = currentID, let win = tileRectProvider?(id), win.width > 1, window != nil {
+            tileStageRect = convert(win, from: nil)
+            if let old = flightTileID, old != id { tileHide?(old, false) }
+            flightTileID = id
+            tileHide?(id, true)
+            closingByFlight = true
+            flight.target = 0
+            flight.velocity = 0
+            dismissY.target = 0; dismissY.velocity = velocityY * 0.2
+            offsetX.target = 0
+            let z = fitZoomForTall(index)
+            zoom.target = 1; _ = z
+            panX.target = 0; panY.target = 0
+            startLink()
+            return
+        }
         dismissY.target = direction * Double(bounds.height) * 0.5
         dismissY.velocity = velocityY
         startLink()
+    }
+
+    /// The picture is on its tile: take it off the page, give the tile back, then let the model remove the page.
+    private func finishClose() {
+        for p in pages { p.isHidden = true }
+        if let id = flightTileID { tileHide?(id, false); flightTileID = nil }
+        onClose?()
     }
 
     // MARK: Scrolling (trackpad)
@@ -647,23 +738,44 @@ extension PreviewStageView {
         return NSEvent(cgEvent: cg)
     }
 
+    func demoSnapshot(_ path: String) {
+        let w = Int(bounds.width), h = Int(bounds.height)
+        guard w > 0, h > 0, let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue), let root = layer else { return }
+        ctx.setFillColor(NSColor.ink(.canvas).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.translateBy(x: 0, y: CGFloat(h)); ctx.scaleBy(x: 1, y: -1)
+        root.render(in: ctx)
+        if let img = ctx.makeImage(), let rep = NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:]) {
+            try? rep.write(to: URL(fileURLWithPath: path))
+        }
+    }
+
+    /// Dev: watches the opening flight and writes how it went.
+    func demoWatchOpen(into dir: String) {
+        Task { @MainActor in
+            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            var samples: [String] = []
+            var shot = false
+            let t0 = CACurrentMediaTime()
+            let tile = tileStageRect.map { "tile \(Int($0.minX)),\(Int($0.minY)) \(Int($0.width))x\(Int($0.height))" } ?? "no tile"
+            for _ in 0..<40 {
+                let f = flight.value
+                samples.append(String(format: "%.3f@%dms", f, Int((CACurrentMediaTime() - t0) * 1000)))
+                if !shot, f > 0.25, f < 0.85 { shot = true; demoSnapshot(dir + "/flight-mid.png") }
+                if f >= 0.999 { break }
+                try? await Task.sleep(for: .milliseconds(20))
+            }
+            try? ("open flight from \(tile)\n" + samples.joined(separator: " ") + "\n").write(toFile: dir + "/flight.txt", atomically: true, encoding: .utf8)
+        }
+    }
+
     func runDemo(into dir: String) {
         Task { @MainActor in
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
             var log: [String] = []
             func say(_ s: String) { log.append(s); try? log.joined(separator: "\n").write(toFile: dir + "/result.txt", atomically: true, encoding: .utf8) }
             func wait(_ s: Double) async { try? await Task.sleep(for: .seconds(s)) }
-            func snap(_ name: String) {
-                let w = Int(bounds.width), h = Int(bounds.height)
-                guard w > 0, h > 0, let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                                                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue), let root = layer else { return }
-                ctx.setFillColor(NSColor.ink(.canvas).cgColor); ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
-                ctx.translateBy(x: 0, y: CGFloat(h)); ctx.scaleBy(x: 1, y: -1)
-                root.render(in: ctx)
-                if let img = ctx.makeImage(), let rep = NSBitmapImageRep(cgImage: img).representation(using: .png, properties: [:]) {
-                    try? rep.write(to: URL(fileURLWithPath: "\(dir)/\(name).png"))
-                }
-            }
+            @MainActor func snap(_ name: String) { demoSnapshot("\(dir)/\(name).png") }
             // wait for a real size and the first picture
             for _ in 0..<40 where bounds.width < 100 || pageSet.count == 0 { await wait(0.25) }
             say("stage \(Int(bounds.width))x\(Int(bounds.height)), items \(pageSet.count), start index \(index)")
@@ -723,6 +835,22 @@ extension PreviewStageView {
             if let e = scrollEvent(dx: 0, dy: 0, phase: 4, at: t) { scrollWheel(with: e) }
             await wait(1.0)
             say("large vertical drag (200 pt): closed=\(closed)")
+
+            // 5. the close flight: reopen on a tile, press Esc-equivalent, and watch the picture head back to it
+            closed = false
+            var hidden: [String] = []
+            tileHide = { id, h in hidden.append("\(id.suffix(4)):\(h ? "hide" : "show")") }
+            let backTo = pageSet[index]?.id ?? ""
+            _ = backTo
+            closing = false; dismissY = CriticalSpring(response: 0.26)
+            for p in pages { p.isHidden = false }
+            layoutPages()
+            let before = flight.value
+            close()
+            var closeSamples: [String] = []
+            for _ in 0..<30 { closeSamples.append(String(format: "%.2f", flight.value)); if closed { break }; await wait(0.02) }
+            await wait(0.3)
+            say("close flight from f=\(before): onClose=\(closed), tile calls \(hidden), flight \(closeSamples.joined(separator: " "))")
             say("done")
             if ProcessInfo.processInfo.environment["GRAILS_PREVIEW_DEMO_QUIT"] != nil { NSApp.terminate(nil) }
         }

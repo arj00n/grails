@@ -1,6 +1,6 @@
 # Grails UI system
 
-Spec, 2026-10-05; supersedes "Flat UI" in PROGRESS.md. **Built so far (2026-10-05):** chunks 1–5 (tokens and light/dark theme, motion, chrome, InfoBlock with inline editing, the preview page with paging, dismiss, pinch and double-tap zoom, preloading), the ⌘\\ panels toggle, `/` for search, plain empty states. **Decision changes:** the share menu stays in the top bar (and the preview has its own export menu). **Not built yet:** tile-to-preview flight transition (§7 Transition: the preview currently settles in with a short scale and fade), Return/⌘R rename change, ⇧1/⇧2/⇧0 and Tab on the canvas, inline new/rename collection, the sidebar progress footer, ring-style tile selection.
+Spec, 2026-10-05; supersedes "Flat UI" in PROGRESS.md. **Built so far (2026-10-05):** chunks 1–5 (tokens and light/dark theme, motion, chrome, InfoBlock with inline editing, the preview page with paging, dismiss, pinch and double-tap zoom, preloading), the ⌘\\ panels toggle, `/` for search, plain empty states. **Decision changes:** the share menu stays in the top bar (and the preview has its own export menu). **Also built:** the tile-to-preview flight (open and close; the source tile hides during the flight; falls back to a fade when the item isn't in the view), the ⌘K palette centred in the window. **Not built yet:** Return/⌘R rename change, ⇧1/⇧2/⇧0 and Tab on the canvas, inline new/rename collection, the sidebar progress footer, ring-style tile selection.
 
 ## 1. Principles (each has a check)
 

@@ -86,3 +86,8 @@ extension AppModel {
         }
     }
 }
+
+struct TileGeometry {
+    var rect: (String) -> CGRect?
+    var hide: (String, Bool) -> Void
+}
