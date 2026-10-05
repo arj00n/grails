@@ -209,6 +209,7 @@ final class ThumbCell: NSCollectionViewItem {
 
     func configureSection(_ s: ItemSummary) {
         op?.cancel()
+        HoverVideo.shared.release(host: view)
         source = nil
         itemID = nil
         isSection = true
@@ -231,6 +232,8 @@ final class ThumbCell: NSCollectionViewItem {
 
     func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false) {
         op?.cancel()
+        // the hover player belongs to the item, not the cell: a cell given another item lets it go
+        if itemID != s.id { HoverVideo.shared.release(host: view) }
         itemID = s.id
         isSection = false
         sectionLabel.isHidden = true
@@ -308,6 +311,7 @@ final class ThumbCell: NSCollectionViewItem {
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        HoverVideo.shared.release(host: view)
         op?.cancel()
         op = nil
         source = nil

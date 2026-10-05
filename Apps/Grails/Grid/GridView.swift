@@ -50,6 +50,7 @@ struct GridView: NSViewRepresentable {
         }
         c.collectionView = cv
         c.installTileGeometry()
+        c.installHover(on: cv)
 
         let scroll = NSScrollView()
         scroll.documentView = cv
@@ -79,7 +80,7 @@ struct GridView: NSViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate, NSCollectionViewPrefetching {
+    final class Coordinator: NSObject, NSCollectionViewDataSource, NSCollectionViewDelegate, NSCollectionViewPrefetching, HoverVideoSurface {
         var model: AppModel
         weak var collectionView: GrailsCollectionView?
         let squareLayout = SquareLayout()
@@ -545,6 +546,42 @@ struct GridView: NSViewRepresentable {
                 rect: { [weak self] id in self?.windowRect(ofItem: id) },
                 hide: { [weak self] id, hidden in self?.setTileHidden(id, hidden) })
         }
+
+        // MARK: Hover video
+        //
+        // One tracking area on the grid (not one per tile): each move asks the layout which tile is under the pointer, so it is
+        // right after any scroll, zoom glide or section change. The player lives inside that tile's cell and moves with it.
+
+        private let hoverTracker = HoverTracker()
+
+        func installHover(on cv: GrailsCollectionView) {
+            hoverTracker.install(on: cv)
+            hoverTracker.onMove = { [weak self] e in self?.hoverMoved(e) }
+            hoverTracker.onExit = { [weak self] _ in
+                guard let self else { return }
+                HoverVideo.shared.pointerLeft(self)
+            }
+        }
+
+        func hoverMoved(_ e: NSEvent) {
+            guard let cv = collectionView else { return }
+            var id: String?
+            if cv.isFrontmost(atWindowPoint: e.locationInWindow), let ip = cv.indexPathForItem(at: cv.convert(e.locationInWindow, from: nil)),
+               let s = items[safe: ip.item], s.kind != .section {
+                id = s.id
+            }
+            HoverVideo.shared.pointerMoved(over: id, in: self)
+        }
+
+        func hoverHost(for id: String) -> HoverVideo.Host? {
+            guard let cv = collectionView, let i = indexByID[id], let cell = cv.item(at: IndexPath(item: i, section: 0)) as? ThumbCell,
+                  cell.itemID == id, cell.view.window != nil else { return nil }
+            // the same fit as the still (see `configure`), so the crossfade doesn't jump
+            return .view(cell.view, mode == .square ? .resizeAspect : .resizeAspectFill)
+        }
+
+        func hoverSummary(for id: String) -> ItemSummary? { indexByID[id].flatMap { items[safe: $0] } }
+        func hoverOriginal(for s: ItemSummary) -> URL? { model.originalURL(for: s) }
 
         func escape() {
             collectionView?.deselectAll(nil)

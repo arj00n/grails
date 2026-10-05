@@ -61,7 +61,7 @@ public enum Thumbnailer {
         gen.requestedTimeToleranceBefore = .positiveInfinity
         gen.requestedTimeToleranceAfter = .positiveInfinity
         // a little way in, so the poster isn't the black first frame of a fade-in
-        let at = CMTime(seconds: min(max(duration * 0.2, 0), 1.0), preferredTimescale: 600)
+        let at = CMTime(seconds: HoverPreview.posterTime(duration: duration), preferredTimescale: 600)
         let frame = (try? gen.copyCGImage(at: at, actualTime: nil)) ?? (try? gen.copyCGImage(at: .zero, actualTime: nil))
         return VideoInfo(width: w, height: h, durationSec: duration, poster: frame.flatMap { encodeJPEG(flattened($0)) })
     }

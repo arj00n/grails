@@ -13,6 +13,7 @@ struct SettingsView: View {
     @AppStorage("sidebar.showSmart") private var showSmart = true
     @AppStorage("hideDockIcon") private var hideDockIcon = false
     @AppStorage("showAddedBy") private var showAddedBy = false
+    @AppStorage(HoverVideo.settingKey) private var hoverVideos = true
     @AppStorage("autoSnapshotLinks") private var autoSnapshotLinks = true
     @AppStorage("autoTagNew") private var autoTagNew = true
     @AppStorage("canvasPush") private var canvasPush = true
@@ -25,6 +26,7 @@ struct SettingsView: View {
                     Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
                 }
                 Toggle("Show who added each item", isOn: $showAddedBy)
+                Toggle("Play videos on hover", isOn: $hoverVideos)
                 Picker("Grid tiles", selection: Binding(get: { model.layoutMode }, set: { model.layoutMode = $0 })) {
                     Text("Squares").tag(GridLayoutMode.square); Text("Original proportions").tag(GridLayoutMode.masonry)
                 }

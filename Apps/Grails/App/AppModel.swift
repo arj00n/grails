@@ -316,7 +316,13 @@ final class AppModel {
             let people = env["GRAILS_SEED_PEOPLE"].map { $0.split(separator: ",").map(String.init) } ?? ["fixture"]
             _ = try? FixtureLibrary.generate(at: url, count: seed, collections: plain ? 0 : 20, likedOneIn: plain ? 0 : 10, contributors: people)
         }
+        // Dev: GRAILS_HOVER_DEMO=<dir> (with GRAILS_LIBRARY set) seeds a library of short clips and drives hover playback.
+        let hoverDemo = env["GRAILS_LIBRARY"] == nil ? nil : env["GRAILS_HOVER_DEMO"]
+        if hoverDemo != nil, !FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path) {
+            await HoverVideoDemo.seed(library: url)
+        }
         await openOrCreate(at: url, remember: env["GRAILS_LIBRARY"] == nil)
+        if let hoverDemo { Task { await HoverVideoDemo(app: self, dir: hoverDemo).run() } }
         // quit halfway through first-run import: pick up where it was
         let saved = OnboardingState.load()
         if env["GRAILS_LIBRARY"] == nil, !saved.done, saved.step == .paste || saved.step == .arriving, store != nil {
