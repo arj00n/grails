@@ -49,7 +49,7 @@ struct SmartFolderEditor: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(state.existingId == nil ? "New Smart Folder" : "Edit Smart Folder").font(.title3.weight(.semibold))
+            Text(state.existingId == nil ? "New Smart Folder" : "Edit Smart Folder").font(.grailsDisplay(18))
             TextField("Name", text: $state.name).textFieldStyle(.roundedBorder).accessibilityIdentifier("smart-name")
 
             HStack {

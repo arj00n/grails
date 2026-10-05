@@ -204,7 +204,7 @@ struct ExtensionsSettings: View {
                         }
                     }
                 }
-                .font(.callout)
+                .font(.grailsBody(13))
             }
         }
         .onAppear { token = model.tokens.token() }

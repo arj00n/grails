@@ -334,7 +334,7 @@ final class CanvasNSView: NSView {
     func beginRename(_ id: String) {
         guard editable, let c = clusters.first(where: { $0.id == id }), clusterFrames[id] != nil else { return }
         renaming?.field.finish(commit: true)
-        let field = InlineTitleField(text: c.title, font: .systemFont(ofSize: 14, weight: .semibold))
+        let field = InlineTitleField(text: c.title, font: .grailsDisplay(14))
         field.onFinish = { [weak self] text in
             guard let self else { return }
             self.renaming = nil
@@ -1330,11 +1330,11 @@ final class ClusterHeaderLayer: CALayer {
     func configure(title: String, count: Int) {
         let s = NSMutableAttributedString()
         s.append(NSAttributedString(string: title.isEmpty ? "Untitled" : title, attributes: [
-            .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
+            .font: NSFont.grailsDisplay(14),
             .foregroundColor: NSColor.ink(title.isEmpty ? .secondary : .text),
         ]))
         s.append(NSAttributedString(string: "  \(count)", attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsBody(11), .foregroundColor: NSColor.ink(.secondary),
         ]))
         text.string = s
         text.contentsScale = contentsScale

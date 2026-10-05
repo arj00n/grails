@@ -45,8 +45,8 @@ struct PreviewPage: View {
         HStack(spacing: 6) {
             BarButton(symbol: "xmark", help: "Close (Esc)", identifier: "preview-close") { model.closePreview() }
             if let p = position, let n = model.previewSet?.count {
-                Text("\(p + 1) / \(n)").font(.system(size: 13)).monospacedDigit().foregroundStyle(Ink.secondary)
-                Text("· \(model.title)").font(.system(size: 13)).foregroundStyle(Ink.secondary).lineLimit(1)
+                Text("\(p + 1) / \(n)").font(.grailsBody(13)).monospacedDigit().foregroundStyle(Ink.secondary)
+                Text("· \(model.title)").font(.grailsBody(13)).foregroundStyle(Ink.secondary).lineLimit(1)
             }
             Spacer()
             PreviewShareMenu(model: model)

@@ -351,3 +351,10 @@ Spec in `docs/UI_SYSTEM.md` (written by an Opus 5.5 agent from the brief; Are.na
 - Keys added: `/` search, ⌘\ both panels. Not done yet: see the top of the spec.
 - Preview flight: `TileGeometry` (grid and canvas supply an item's window rect, jumping it into view, and hide/show its tile); the stage springs the picture from the tile to its place (and back on close) while the page and details fade with it (`PreviewChrome.flight`). `GRAILS_PREVIEW_DEMO` logs the flight samples to `flight.txt` and renders a mid-flight PNG.
 - ⌘K and the other panels are centred in the window (centred at full height so the field stays put as results arrive).
+
+## Tag strip and typefaces — 2026-10-05
+- **Tag strip** (`Sidebar/TagStrip.swift`): a row of tag tabs under the top bar narrows the current view (All clears it; click = that tag, ⇧-click = combine; right-click = remove; + pins another).
+  Pinned tags are per library (`pinnedTags.<library id>`); until some are pinned it shows the 8 most used. `ItemQuery.extraTags` (all must match) does the filtering, so grid, canvas, preview and exports follow it.
+- **Typefaces**: Basteleur Bold (titles: item names, view title, cluster titles, dialogs, empty states, HTML/PDF headings) and Projekt Blackbird (all other text); bundled in `Apps/Grails/Resources/Fonts` with licenses
+  (`NOTICE.md`: Blackbird's file carries no license text; its listing says OFL, verify before a public release). Registered at launch (`Typeface.register`); HTML exports embed both, PDFs draw with them (`ExportFonts`).
+  Blackbird has one weight and lacks × … ↗ é ü ñ ø å ₹ ← → (the system font fills in); body sizes get +1 pt (`Typography.bodyBoost`). Menus and system dialogs stay in the system font.

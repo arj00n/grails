@@ -69,4 +69,20 @@ import Testing
         let doc = try #require(CGPDFDocument(pdfURL as CFURL))
         #expect(doc.numberOfPages >= 3)         // cover + one page per cluster
     }
+
+    @Test func theAppsFontsRideAlongInAnHTMLExport() async throws {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        let item = try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "f", rgb: (0.2, 0.4, 0.6))).item
+        ExportFonts.display = Data([0, 1, 2, 3]); ExportFonts.body = Data([4, 5, 6, 7])
+        defer { ExportFonts.display = nil; ExportFonts.body = nil }
+        let report = try await store.exportSingleFile(title: "Fonts", ids: [item.id], to: TestSupport.tempDir())
+        let text = try String(contentsOf: try #require(report.file), encoding: .utf8)
+        #expect(text.contains("font-family:\"Basteleur\"") && text.contains("font-family:\"Blackbird\""))
+        #expect(text.contains(Data([0, 1, 2, 3]).base64EncodedString()))
+        // without them the page still names the families and falls back to the system font
+        ExportFonts.display = nil; ExportFonts.body = nil
+        let plain = try await store.exportSingleFile(title: "Plain", ids: [item.id], to: TestSupport.tempDir())
+        #expect(!(try String(contentsOf: try #require(plain.file), encoding: .utf8)).contains("@font-face"))
+    }
 }

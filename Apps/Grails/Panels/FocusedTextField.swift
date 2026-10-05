@@ -7,7 +7,7 @@ struct FocusedTextField: NSViewRepresentable {
     @Binding var text: String
     var placeholder: String
     var identifier: String
-    var font: NSFont = .systemFont(ofSize: 17)
+    var font: NSFont = .grailsBody(17)
     var onSubmit: () -> Void = {}
     var onMove: (Int) -> Void = { _ in }
     var onEscape: () -> Void = {}

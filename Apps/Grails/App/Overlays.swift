@@ -9,11 +9,11 @@ struct PromptCard: View {
         ZStack {
             Ink.canvas.opacity(0.55).ignoresSafeArea().onTapGesture { model.prompt = nil }
             VStack(alignment: .leading, spacing: 12) {
-                Text(request.title).font(.headline)
-                if !request.message.isEmpty { Text(request.message).font(.callout).foregroundStyle(.secondary) }
+                Text(request.title).font(.grailsDisplay(16))
+                if !request.message.isEmpty { Text(request.message).font(.grailsBody(13)).foregroundStyle(.secondary) }
                 FocusedTextField(
                     text: $text, placeholder: request.placeholder, identifier: "prompt-field",
-                    font: .systemFont(ofSize: 15), onSubmit: submit, onEscape: { model.prompt = nil }
+                    font: .grailsBody(15), onSubmit: submit, onEscape: { model.prompt = nil }
                 )
                 .frame(height: 22)
                 .padding(.horizontal, 8).padding(.vertical, 5)
@@ -49,8 +49,8 @@ struct ConfirmCard: View {
         ZStack {
             Ink.canvas.opacity(0.55).ignoresSafeArea().onTapGesture { model.confirm = nil }
             VStack(alignment: .leading, spacing: 12) {
-                Text(request.title).font(.headline)
-                Text(request.message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                Text(request.title).font(.grailsDisplay(16))
+                Text(request.message).font(.grailsBody(13)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 HStack {
                     Spacer()
                     Button("Cancel") { model.confirm = nil }.keyboardShortcut(.cancelAction)
@@ -73,7 +73,7 @@ struct ToastView: View {
     let text: String
     var body: some View {
         Text(text)
-            .font(.callout)
+            .font(.grailsBody(13))
             .padding(.horizontal, 14).padding(.vertical, 8)
             .chipSurface()
             .accessibilityIdentifier("toast")

@@ -136,6 +136,10 @@ final class AppModel {
     var searchText = "" { didSet { if oldValue != searchText { scrollResetTick += 1; reloadSoon() } } }
     private(set) var recentSearches: [String] = UserDefaults.standard.stringArray(forKey: "recentSearches") ?? []
     var filters = ViewFilters() { didSet { if oldValue != filters { scrollResetTick += 1; reloadSoon() } } }
+    /// Tags narrowing the current view (the tab strip): a view of "poster" inside the open collection, say.
+    var stripTags: [String] = [] { didSet { if oldValue != stripTags { scrollResetTick += 1; reloadSoon() } } }
+    /// Tags pinned to the strip, per library.
+    var pinnedTags: [String] = []
     var sort: SortChoice = .newest { didSet { if oldValue != sort { scrollResetTick += 1; reloadSoon() } } }
     private var shuffleSeed: UInt64 = 1
 
@@ -297,6 +301,8 @@ final class AppModel {
             libraryName = await store.manifest.name
             if remember { UserDefaults.standard.set(url.path, forKey: "libraryPath") }
             libraryID = await store.manifest.id
+            pinnedTags = UserDefaults.standard.stringArray(forKey: "pinnedTags.\(libraryID)") ?? []
+            stripTags = []
             if remember { workspaces = Workspaces.remember(id: libraryID, path: url.path, name: libraryName) }
             addedByFilter = nil
             startWatching()
@@ -384,6 +390,7 @@ final class AppModel {
         q.kinds = filters.kinds
         if filters.liked { q.likedOnly = true }
         q.squareOnly = filters.square
+        q.extraTags = stripTags
         q.addedBy = addedByFilter
         if sort != .newest || !isSearching { q.sort = sort.itemSort }
         return q

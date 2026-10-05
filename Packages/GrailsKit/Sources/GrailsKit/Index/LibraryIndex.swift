@@ -299,6 +299,10 @@ public final class LibraryIndex: Sendable {
             wheres.append("EXISTS (SELECT 1 FROM item_tags t WHERE t.itemId = i.id AND t.tag = ?)")
             args += [tag]
         }
+        for extra in q.extraTags {
+            wheres.append("EXISTS (SELECT 1 FROM item_tags t WHERE t.itemId = i.id AND t.tag = ?)")
+            args += [extra]
+        }
         if q.untagged { wheres.append("NOT EXISTS (SELECT 1 FROM item_tags t WHERE t.itemId = i.id)") }
         if let c = q.collectionId {
             wheres.append("EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id AND ic.collectionId = ?)")

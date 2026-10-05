@@ -9,6 +9,7 @@ struct GrailsApp: App {
 
     init() {
         LegacyDefaults.migrate()
+        Typeface.register()
         #if DEBUG
         installDebugCrashLog()
         #endif

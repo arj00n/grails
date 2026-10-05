@@ -20,7 +20,7 @@ struct InfoBlock: View {
                 let info = ItemInfo.make(item: item) { id in model.collections.first { $0.id == id }?.name }
                 header(item, info)
                 provenance(info)
-                if !info.facts.isEmpty { Text(info.facts).font(.system(size: 12)).monospacedDigit().foregroundStyle(Ink.secondary) }
+                if !info.facts.isEmpty { Text(info.facts).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary) }
                 if !info.palette.isEmpty { palette(info.palette) }
                 tags(info)
                 collections(info)
@@ -47,7 +47,7 @@ struct InfoBlock: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             TextField("Name", text: $name, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 15, weight: .semibold))
+                .font(.grailsDisplay(16))
                 .lineLimit(1...3)
                 .focused($focus, equals: .name)
                 .onSubmit { commitName(item) }
@@ -71,20 +71,20 @@ struct InfoBlock: View {
                     } else if let site = info.site { Text(site).foregroundStyle(Ink.link) }
                     if let author = info.author { Text("· \(author)").foregroundStyle(Ink.secondary) }
                 }
-                .font(.system(size: 13)).lineLimit(1)
+                .font(.grailsBody(13)).lineLimit(1)
             }
             HStack(spacing: 4) {
                 Text("Added by").foregroundStyle(Ink.secondary)
                 PersonLink(name: info.addedBy) { model.showContributions(of: info.addedBy) }
                 Text("· \(info.addedAt.formatted(.dateTime.day().month(.abbreviated).year()))").foregroundStyle(Ink.secondary)
             }
-            .font(.system(size: 12))
+            .font(.grailsBody(12))
             if let editor = info.editedBy {
                 HStack(spacing: 4) {
                     Text("Edited by").foregroundStyle(Ink.secondary)
                     PersonLink(name: editor) { model.showContributions(of: editor) }
                 }
-                .font(.system(size: 12))
+                .font(.grailsBody(12))
             }
         }
     }
@@ -115,7 +115,7 @@ struct InfoBlock: View {
                 }
                 TextField("Add tag", text: $newTag)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12))
+                    .font(.grailsBody(12))
                     .frame(width: 70)
                     .focused($focus, equals: .tag)
                     .onSubmit { addTag() }
@@ -145,7 +145,7 @@ struct InfoBlock: View {
         section("Note") {
             TextField("Note", text: $note, axis: .vertical)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13))
+                .font(.grailsBody(13))
                 .lineLimit(1...8)
                 .focused($focus, equals: .note)
                 .onChange(of: focus) { old, new in if old == .note, new != .note { commitNote() } }
@@ -159,13 +159,13 @@ struct InfoBlock: View {
                     GridRow { Text(r.label).foregroundStyle(Ink.secondary); Text(r.value).monospacedDigit() }
                 }
             }
-            .font(.system(size: 12))
+            .font(.grailsBody(12))
         }
     }
 
     private func section(_ title: String, @ViewBuilder _ body: () -> some View) -> some View {
         VStack(alignment: .leading, spacing: 5) {
-            Text(title).font(.system(size: 11)).foregroundStyle(Ink.secondary)
+            Text(title).font(.grailsBody(11)).foregroundStyle(Ink.secondary)
             body()
         }
     }
@@ -208,7 +208,7 @@ struct TagToken: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 12))
+                .font(.grailsBody(12))
                 .foregroundStyle(automatic && !hovering ? Ink.secondary : Ink.text)
                 .padding(.horizontal, 8).frame(height: 22)
                 .background {
@@ -234,7 +234,7 @@ struct LinkChip<Content: View>: View {
     var body: some View {
         Button(action: action) {
             content()
-                .font(.system(size: 12))
+                .font(.grailsBody(12))
                 .foregroundStyle(hovering ? Ink.text : Ink.secondary)
                 .padding(.horizontal, 8).frame(height: 22)
                 .chipSurface(selected: hovering)

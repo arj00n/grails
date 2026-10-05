@@ -9,6 +9,8 @@ public struct ItemQuery: Sendable {
     public var kinds: Set<ItemKind> = []
     public var likedOnly = false
     public var tag: String?
+    /// More tags that must all be present (the tab strip narrows a view by tag).
+    public var extraTags: [String] = []
     public var untagged = false
     public var collectionId: String?
     /// Any of these collections (used to show a folder as the union of everything inside it)

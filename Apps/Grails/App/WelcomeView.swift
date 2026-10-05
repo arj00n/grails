@@ -9,7 +9,7 @@ struct WelcomeView: View {
             Rectangle().fill(.background).ignoresSafeArea()
             VStack(spacing: 22) {
                 Image(systemName: "square.stack.3d.down.right").font(.system(size: 44)).foregroundStyle(Ink.text)
-                Text("Welcome to Grails").font(.largeTitle.weight(.semibold))
+                Text("Welcome to Grails").font(.grailsDisplay(34))
                 VStack(spacing: 10) {
                     choice("Join the team library", "person.2.fill", "welcome-join") {
                         model.chooseLibrary { model.openLibrary(at: $0) }
@@ -31,7 +31,7 @@ struct WelcomeView: View {
         Button(action: action) {
             HStack(spacing: 14) {
                 Image(systemName: symbol).font(.title2).frame(width: 34).foregroundStyle(Ink.text)
-                Text(title).font(.headline)
+                Text(title).font(.grailsDisplay(16))
                 Spacer()
             }
             .padding(14)

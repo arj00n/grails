@@ -79,10 +79,10 @@ struct PaletteView: View {
             Image(systemName: row.symbol).frame(width: 22).foregroundStyle(row.tint ?? Ink.secondary)
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title).lineLimit(1)
-                if let sub = row.subtitle { Text(sub).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
+                if let sub = row.subtitle { Text(sub).font(.grailsBody(11)).foregroundStyle(.secondary).lineLimit(1) }
             }
             Spacer()
-            if let a = row.accessory { Text(a).font(.callout).foregroundStyle(.secondary).monospacedDigit() }
+            if let a = row.accessory { Text(a).font(.grailsBody(13)).foregroundStyle(.secondary).monospacedDigit() }
         }
         .padding(.horizontal, 10).padding(.vertical, 7)
         .background(highlighted ? Ink.fillHover : .clear, in: RoundedRectangle(cornerRadius: 10, style: .continuous))

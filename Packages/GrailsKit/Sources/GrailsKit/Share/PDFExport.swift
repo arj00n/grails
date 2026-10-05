@@ -123,8 +123,18 @@ extension WebExporter {
         if includeSources, let s = e.source, let link = URL(string: s) { ctx.setURL(link as CFURL, for: rect) }
     }
 
+    /// Basteleur for titles and Blackbird for the rest when the app has handed them over; the system font otherwise.
+    private static func typeface(display: Bool, size: CGFloat) -> CTFont {
+        let name = display ? "Basteleur-Bold" : "ProjektBlackbird-Regular"
+        if (display ? ExportFonts.display : ExportFonts.body) != nil {
+            let f = CTFontCreateWithName(name as CFString, size, nil)
+            if (CTFontCopyPostScriptName(f) as String) == name { return f }
+        }
+        return CTFontCreateUIFontForLanguage(display ? .emphasizedSystem : .system, size, nil) ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+    }
+
     private static func draw(_ text: String, at p: CGPoint, size: CGFloat, weight: CGFloat = 0, gray: CGFloat, ctx: CGContext, maxWidth: CGFloat, rightAligned: Bool = false) {
-        let font = CTFontCreateUIFontForLanguage(weight > 0.2 ? .emphasizedSystem : .system, size, nil) ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+        let font = typeface(display: weight > 0.2, size: size)
         let attrs: [NSAttributedString.Key: Any] = [.init(kCTFontAttributeName as String): font, .init(kCTForegroundColorAttributeName as String): CGColor(gray: gray, alpha: 1)]
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
         let token = CTLineCreateWithAttributedString(NSAttributedString(string: "…", attributes: attrs))

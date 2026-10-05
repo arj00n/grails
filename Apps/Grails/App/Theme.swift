@@ -119,7 +119,7 @@ struct PrimaryButtonStyle: ButtonStyle {
     @Environment(\.isEnabled) private var enabled
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .font(.grailsBody(13))
             .foregroundStyle(Ink.canvas)
             .padding(.horizontal, 12).frame(height: 28)
             .background(Ink.text.opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.3), in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
@@ -148,10 +148,10 @@ struct SearchField: NSViewRepresentable {
         // The cell's own magnifier and clear button don't track the text when the field is focused: the icon stays put and the
         // cursor ends up underneath it. The bar draws its own icon and clear button instead.
         if let cell = f.cell as? NSSearchFieldCell { cell.searchButtonCell = nil; cell.cancelButtonCell = nil }
-        f.font = .systemFont(ofSize: 13)
+        f.font = .grailsBody(13)
         f.textColor = .ink(.text)
         f.placeholderAttributedString = NSAttributedString(
-            string: "Search", attributes: [.foregroundColor: NSColor.ink(.secondary), .font: NSFont.systemFont(ofSize: 13)])
+            string: "Search", attributes: [.foregroundColor: NSColor.ink(.secondary), .font: NSFont.grailsBody(13)])
         f.sendsSearchStringImmediately = true
         f.delegate = context.coordinator
         f.setAccessibilityIdentifier("search-field")

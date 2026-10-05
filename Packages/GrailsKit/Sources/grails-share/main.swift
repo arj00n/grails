@@ -17,6 +17,12 @@ let noZip = has("--no-zip"), noSources = has("--no-sources")
 let format = take("--format") ?? "folder"        // folder | html | pdf
 guard args.count == 2 else { print("usage: grails-share <Library.grails> <output folder> [--limit N] [--clusters N] [--title Name] [--format folder|html|pdf] [--no-zip] [--no-sources]"); exit(2) }
 
+// GRAILS_FONTS=<folder with Basteleur-Bold.otf and projekt-blackbird.otf>: export with the app's typefaces
+if let dir = ProcessInfo.processInfo.environment["GRAILS_FONTS"] {
+    ExportFonts.display = try? Data(contentsOf: URL(fileURLWithPath: dir).appendingPathComponent("Basteleur-Bold.otf"))
+    ExportFonts.body = try? Data(contentsOf: URL(fileURLWithPath: dir).appendingPathComponent("projekt-blackbird.otf"))
+}
+
 do {
     let store = try await LibraryStore.open(at: URL(fileURLWithPath: (args[0] as NSString).expandingTildeInPath), index: nil, userHandle: NSUserName())
     var q = ItemQuery()

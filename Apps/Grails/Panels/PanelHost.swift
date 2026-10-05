@@ -50,9 +50,9 @@ struct NotePanel: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(batch ? "Add a note to \(ids.count) items" : "Note").font(.headline)
+            Text(batch ? "Add a note to \(ids.count) items" : "Note").font(.grailsDisplay(16))
             TextEditor(text: $text)
-                .font(.body)
+                .font(.grailsBody(14))
                 .frame(height: 140)
                 .focused($focused)
                 .scrollContentBackground(.hidden)

@@ -95,27 +95,27 @@ final class ThumbCell: NSCollectionViewItem {
         captionBar.layer?.backgroundColor = NSColor.onImageScrim.cgColor
         captionBar.translatesAutoresizingMaskIntoConstraints = false
         captionBar.isHidden = true
-        caption.font = .systemFont(ofSize: 11, weight: .medium)
+        caption.font = .grailsBody(11)
         caption.textColor = .onImage
         caption.lineBreakMode = .byTruncatingTail
         caption.translatesAutoresizingMaskIntoConstraints = false
         captionBar.addSubview(caption)
         v.addSubview(captionBar)
-        titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        titleLabel.font = .grailsDisplay(14)
         titleLabel.textColor = .ink(.text)
         titleLabel.alignment = .center
         titleLabel.maximumNumberOfLines = 4
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.isHidden = true
-        siteLabel.font = .systemFont(ofSize: 10)
+        siteLabel.font = .grailsBody(10)
         siteLabel.textColor = .ink(.secondary)
         siteLabel.alignment = .center
         siteLabel.translatesAutoresizingMaskIntoConstraints = false
         siteLabel.isHidden = true
         v.addSubview(titleLabel)
         v.addSubview(siteLabel)
-        badge.font = .systemFont(ofSize: 9, weight: .bold)
+        badge.font = .grailsBody(9)
         badge.textColor = .onImage
         badge.wantsLayer = true
         badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
@@ -123,7 +123,7 @@ final class ThumbCell: NSCollectionViewItem {
         badge.translatesAutoresizingMaskIntoConstraints = false
         badge.isHidden = true
         v.addSubview(badge)
-        sectionLabel.font = .systemFont(ofSize: 24, weight: .semibold)
+        sectionLabel.font = .grailsDisplay(26)
         sectionLabel.textColor = .ink(.text)
         sectionLabel.lineBreakMode = .byTruncatingTail
         sectionLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -157,7 +157,7 @@ final class ThumbCell: NSCollectionViewItem {
         cloud.translatesAutoresizingMaskIntoConstraints = false
         cloud.isHidden = true
         v.addSubview(cloud)
-        avatar.font = .systemFont(ofSize: 9, weight: .bold)
+        avatar.font = .grailsBody(9)
         avatar.textColor = .onImage
         avatar.alignment = .center
         avatar.wantsLayer = true
@@ -196,7 +196,7 @@ final class ThumbCell: NSCollectionViewItem {
     func beginRenamingSection(text: String, commit: @escaping (String) -> Void) {
         guard isSection else { return }
         view.layoutSubtreeIfNeeded()
-        let field = InlineTitleField(text: text, font: .systemFont(ofSize: 24, weight: .semibold))
+        let field = InlineTitleField(text: text, font: .grailsDisplay(26))
         sectionLabel.isHidden = true
         field.onFinish = { [weak self] new in
             self?.sectionLabel.isHidden = false
@@ -218,11 +218,11 @@ final class ThumbCell: NSCollectionViewItem {
         for v in [placeholder, heart, captionBar, titleLabel, siteLabel, badge, cloud, avatar] as [NSView] { v.isHidden = true }
         let untitled = s.name.isEmpty
         let text = NSMutableAttributedString(string: untitled ? "Untitled" : s.name, attributes: [
-            .font: NSFont.systemFont(ofSize: 24, weight: .semibold),
+            .font: NSFont.grailsDisplay(26),
             .foregroundColor: NSColor.ink(untitled ? .secondary : .text),
         ])
         text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
-            .font: NSFont.systemFont(ofSize: 16, weight: .regular), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsBody(16), .foregroundColor: NSColor.ink(.secondary),
         ]))
         sectionLabel.attributedStringValue = text
         sectionLabel.isHidden = false

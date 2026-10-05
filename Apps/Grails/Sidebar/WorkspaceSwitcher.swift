@@ -12,7 +12,7 @@ struct WorkspaceAvatar: View {
             .fill(hex.map { Color(hex: $0) } ?? Ink.fillHover)
             .frame(width: size, height: size)
             .overlay(Text(String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased())
-                .font(.system(size: size * 0.5, weight: .semibold)).foregroundStyle(hex == nil ? Ink.text : Color.white))
+                .font(.grailsDisplay(size * 0.5)).foregroundStyle(hex == nil ? Ink.text : Color.white))
     }
 }
 
@@ -30,7 +30,7 @@ struct WorkspaceSwitcher: View {
                 WorkspaceAvatar(name: model.libraryName, hex: current?.color)
                 Text(model.libraryName).fontWeight(.semibold).lineLimit(1).foregroundStyle(Ink.text)
                 Spacer()
-                Image(systemName: "chevron.up.chevron.down").font(.caption2).foregroundStyle(.secondary)
+                Image(systemName: "chevron.up.chevron.down").font(.system(size: 9)).foregroundStyle(.secondary)
             }
             .padding(6)
             .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(hovering || open ? Ink.fill : .clear))
@@ -82,7 +82,7 @@ private struct WorkspaceList: View {
                 Spacer()
                 if isCurrent { Image(systemName: "checkmark").foregroundStyle(Ink.secondary) }
                 else if !w.exists { Text("Locate").foregroundStyle(Ink.secondary) }
-                else if index < 9 { Text("⌃\(index + 1)").font(.caption).foregroundStyle(Ink.tertiary) }
+                else if index < 9 { Text("⌃\(index + 1)").font(.grailsBody(11)).foregroundStyle(Ink.tertiary) }
             }
             .padding(.horizontal, 8).padding(.vertical, 5)
             .contentShape(Rectangle())

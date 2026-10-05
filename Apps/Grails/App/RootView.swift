@@ -26,6 +26,7 @@ struct RootView: View {
         .ignoresSafeArea()
         .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
         .tint(Ink.text)
+        .font(.grailsBody(13))
         .sheet(item: $model.smartEditor) { SmartFolderEditor(model: model, state: $0) }
         .alert("Grails", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
@@ -44,7 +45,7 @@ struct RootView: View {
 
     /// The space between the docked panels and under the top bar.
     private var contentInsets: EdgeInsets {
-        EdgeInsets(top: Self.barHeight, leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: model.showInfo ? Self.infoWidth : 0)
+        EdgeInsets(top: Self.barHeight + (model.stripVisible ? TagStrip.height : 0), leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: model.showInfo ? Self.infoWidth : 0)
     }
 
     private var content: some View {
@@ -78,9 +79,9 @@ struct RootView: View {
         VStack(spacing: 14) {
             if model.isSearching {
                 Text("No results for “\(model.searchText)”")
-            } else if model.filters.isActive {
+            } else if model.filters.isActive || !model.stripTags.isEmpty {
                 Text("No matches")
-                Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil }.buttonStyle(PrimaryButtonStyle())
+                Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil; model.stripTags = [] }.buttonStyle(PrimaryButtonStyle())
             } else if model.source == .trash {
                 Text("Trash is empty")
             } else if model.source == .all {
@@ -93,7 +94,7 @@ struct RootView: View {
                 Text("Empty")
             }
         }
-        .font(.system(size: 20, weight: .semibold))
+        .font(.grailsDisplay(24))
         .foregroundStyle(Ink.secondary)
     }
 
@@ -125,6 +126,18 @@ struct RootView: View {
     }
 
     private var topBar: some View {
+        VStack(spacing: 0) {
+            barRow
+            if model.stripVisible { TagStrip(model: model) }
+        }
+        .background(Ink.canvas)
+        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        .padding(.leading, model.sidebarVisible ? Self.sidebarWidth : 0)
+        .padding(.trailing, model.showInfo ? Self.infoWidth : 0)
+        .frame(maxHeight: .infinity, alignment: .top)
+    }
+
+    private var barRow: some View {
         HStack(spacing: 6) {
             BarButton(symbol: "sidebar.left", selected: model.sidebarVisible, help: "Show or hide the sidebar (⌃⌘S)", identifier: "sidebar-toggle") {
                 model.sidebarVisible.toggle()
@@ -145,11 +158,6 @@ struct RootView: View {
         .padding(.leading, model.sidebarVisible ? 12 : ChromeMetrics.shared.leading)
         .padding(.trailing, 12)
         .frame(height: Self.barHeight)
-        .background(Ink.canvas)
-        .overlay(alignment: .bottom) { Rectangle().fill(Ink.hairline).frame(height: 1) }
-        .padding(.leading, model.sidebarVisible ? Self.sidebarWidth : 0)
-        .padding(.trailing, model.showInfo ? Self.infoWidth : 0)
-        .frame(maxHeight: .infinity, alignment: .top)
     }
 
     /// Where you are and how many items: the filter (with a way to clear it) or the view's name, then the count.
@@ -158,7 +166,7 @@ struct RootView: View {
             if let chip = model.viewChip {
                 HStack(spacing: 6) {
                     Image(systemName: chip.symbol).font(.system(size: 11, weight: .medium)).foregroundStyle(Ink.secondary)
-                    Text(chip.label).font(.system(size: 13, weight: .medium)).foregroundStyle(Ink.text).lineLimit(1)
+                    Text(chip.label).font(.grailsBody(13)).foregroundStyle(Ink.text).lineLimit(1)
                     Button { model.clearViewChip() } label: {
                         Image(systemName: "xmark").font(.system(size: 9, weight: .bold)).foregroundStyle(Ink.secondary)
                             .frame(width: 16, height: 16).background(Ink.fill, in: Circle())
@@ -170,9 +178,9 @@ struct RootView: View {
                 .padding(.leading, 10).padding(.trailing, 5).frame(height: 28)
                 .background(Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
             } else {
-                Text(model.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.text).lineLimit(1)
+                Text(model.title).font(.grailsDisplay(14)).foregroundStyle(Ink.text).lineLimit(1)
             }
-            Text(model.countLabel).font(.system(size: 12)).foregroundStyle(Ink.tertiary).lineLimit(1).layoutPriority(-1)
+            Text(model.countLabel).font(.grailsBody(12)).foregroundStyle(Ink.tertiary).lineLimit(1).layoutPriority(-1)
         }
         .padding(.leading, 6)
         .frame(maxWidth: 360, alignment: .leading)
@@ -202,7 +210,7 @@ struct RootView: View {
                 ForEach(model.recentSearches.prefix(6), id: \.self) { q in
                     Button { model.searchText = q } label: {
                         HStack(spacing: 8) {
-                            Image(systemName: "clock").font(.caption).foregroundStyle(Ink.tertiary)
+                            Image(systemName: "clock").font(.system(size: 11)).foregroundStyle(Ink.tertiary)
                             Text(q).foregroundStyle(Ink.text).lineLimit(1)
                             Spacer()
                         }
@@ -281,7 +289,7 @@ struct ProgressCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(label).font(.system(size: 12)).foregroundStyle(Ink.text).lineLimit(2)
+            Text(label).font(.grailsBody(12)).foregroundStyle(Ink.text).lineLimit(2)
             if total > 0 { ProgressView(value: Double(done), total: Double(max(total, 1))).progressViewStyle(.linear).tint(Ink.text) }
             else { ProgressView().controlSize(.small) }
         }
@@ -359,7 +367,7 @@ private struct ViewTab: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 13, weight: selected ? .medium : .regular))
+                .font(.grailsBody(13))
                 .foregroundStyle(selected || hovering ? Ink.text : Ink.secondary)
                 .frame(height: 28)
                 .contentShape(Rectangle())

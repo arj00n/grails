@@ -146,3 +146,12 @@ import Testing
         #expect(t < 0.5)
     }
 }
+
+@Suite struct TypographyTests {
+    @Test func scalesAreAscendingAndNamesDistinct() {
+        #expect(Typography.bodySizes == Typography.bodySizes.sorted())
+        #expect(Typography.displaySizes == Typography.displaySizes.sorted())
+        #expect(Typography.displayName != Typography.bodyName)
+        #expect(Typography.bodyBoost >= 0 && Typography.bodyBoost <= 2)
+    }
+}

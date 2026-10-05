@@ -86,6 +86,9 @@ struct SidebarView: View {
                                        tint: model.tagColor(t.tag), count: t.count, source: .tag(t.tag))
                                 .dropTarget(model: model, id: "tag-\(t.tag)", targeted: $targeted, target: .tag(t.tag))
                                 .contextMenu {
+                                    Button(model.stripTagList.contains(t.tag) ? "Remove from Tab Strip" : "Pin to Tab Strip") {
+                                        if model.stripTagList.contains(t.tag) { model.unpinTag(t.tag) } else { model.pinTag(t.tag) }
+                                    }
                                     Button("Copy Link") { model.copyLink(.tag(t.tag)) }
                                     Button("Rename…") { model.promptRenameTag(t.tag) }
                                     Menu("Color") {
@@ -131,7 +134,7 @@ struct SidebarHeader<Trailing: View>: View {
                     Text(title)
                     if !expanded, let count { Text("\(count)").monospacedDigit() }
                 }
-                .font(.system(size: 11))
+                .font(.grailsBody(11))
                 .foregroundStyle(hovering ? Ink.text : Ink.secondary)
                 .contentShape(Rectangle())
             }
@@ -179,9 +182,9 @@ struct SidebarRow: View {
                 .buttonStyle(.plain)
             } else if indent > 0 { Color.clear.frame(width: 12) }
             Image(systemName: symbol).font(.system(size: 12)).foregroundStyle(tint ?? (selected || hovering ? Ink.text : Ink.secondary)).frame(width: 16)
-            Text(title).font(.system(size: 13, weight: selected ? .medium : .regular)).foregroundStyle(quiet && !hovering ? Ink.secondary : Ink.text).lineLimit(1)
+            Text(title).font(.grailsBody(13)).foregroundStyle(quiet && !hovering ? Ink.secondary : Ink.text).lineLimit(1)
             Spacer(minLength: 4)
-            if let count { Text(count.formatted()).font(.system(size: 11)).monospacedDigit().foregroundStyle(Ink.secondary) }
+            if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
         }
         .padding(.leading, 8 + CGFloat(indent) * 14).padding(.trailing, 8)
         .frame(height: 28)

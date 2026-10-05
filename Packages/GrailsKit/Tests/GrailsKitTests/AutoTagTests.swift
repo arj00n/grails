@@ -382,3 +382,26 @@ import Testing
         #expect(try await store.item(id: items[4].id)?.tags.contains("poster") == true)
     }
 }
+
+@Suite struct TagStripQueryTests {
+    @Test func extraTagsNarrowTheViewAndAllMustMatch() async throws {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<4 { items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "t\(i)", rgb: (Double(i) / 4, 0.5, 0.5))).item) }
+        try await store.addTags(["poster", "swiss"], to: [items[0].id, items[1].id])
+        try await store.addTags(["poster"], to: [items[2].id])
+        var q = ItemQuery()
+        q.limit = 100
+        #expect(try await store.index.query(q).count == 4)
+        q.extraTags = ["poster"]
+        #expect(try await store.index.query(q).count == 3)
+        q.extraTags = ["poster", "swiss"]
+        #expect(Set(try await store.index.query(q).map(\.id)) == [items[0].id, items[1].id])
+        q.tag = "swiss"                                          // together with the sidebar's own tag view
+        q.extraTags = ["poster"]
+        #expect(try await store.index.query(q).count == 2)
+        q.extraTags = ["missing"]
+        #expect(try await store.index.query(q).isEmpty)
+    }
+}
