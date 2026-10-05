@@ -64,9 +64,10 @@ final class GuidePanelController {
         p.contentView?.layoutSubtreeIfNeeded()
         let fit = p.contentView?.fittingSize ?? NSSize(width: 320, height: 240)
         p.setContentSize(NSSize(width: 320, height: fit.height))
+        // bottom left: the browser's controls (Developer mode, Load unpacked, the toolbar) are along the top, so nothing is covered
         if let screen = NSScreen.main {
             let f = screen.visibleFrame
-            p.setFrameOrigin(NSPoint(x: f.maxX - 320 - 16, y: f.maxY - p.frame.height - 16))
+            p.setFrameOrigin(NSPoint(x: f.minX + 16, y: f.minY + 16))
         }
         p.orderFrontRegardless()
         model.isShowing = true
@@ -77,9 +78,9 @@ final class GuidePanelController {
         guard let p = panel, model.isShowing else { return }
         p.contentView?.layoutSubtreeIfNeeded()
         let fit = p.contentView?.fittingSize ?? p.frame.size
-        let top = p.frame.maxY
+        let bottom = p.frame.minY
         p.setContentSize(NSSize(width: 320, height: fit.height))
-        p.setFrameOrigin(NSPoint(x: p.frame.minX, y: top - p.frame.height))
+        p.setFrameOrigin(NSPoint(x: p.frame.minX, y: bottom))
     }
 
     func hide() {
