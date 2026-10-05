@@ -1,20 +1,73 @@
 import AppKit
 import StashKit
 
-struct RecentLibrary: Codable, Hashable, Identifiable {
+/// A library this Mac knows about (a team's shared folder, a personal one). Order is the person's own, so ⌃1…⌃9 stay put.
+struct Workspace: Codable, Hashable, Identifiable {
+    /// The library's own id (same on every Mac); entries remembered before ids were recorded use their path until reopened.
+    var id: String
     var path: String
     var name: String
-    var id: String { path }
+    var color: String?
 
-    static func load() -> [RecentLibrary] {
-        guard let data = UserDefaults.standard.data(forKey: "recentLibraries") else { return [] }
-        return ((try? JSONDecoder().decode([RecentLibrary].self, from: data)) ?? []).filter { FileManager.default.fileExists(atPath: $0.path) }
+    init(id: String? = nil, path: String, name: String, color: String? = nil) {
+        self.id = id ?? path; self.path = path; self.name = name; self.color = color
     }
 
-    static func remember(path: String, name: String) {
-        var list = load().filter { $0.path != path }
-        list.insert(RecentLibrary(path: path, name: name), at: 0)
-        if let data = try? JSONEncoder().encode(Array(list.prefix(6))) { UserDefaults.standard.set(data, forKey: "recentLibraries") }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = try c.decode(String.self, forKey: .path)
+        name = try c.decode(String.self, forKey: .name)
+        id = try c.decodeIfPresent(String.self, forKey: .id) ?? path
+        color = try c.decodeIfPresent(String.self, forKey: .color)
+    }
+
+    var exists: Bool { FileManager.default.fileExists(atPath: path + "/library.json") }
+    var url: URL { URL(fileURLWithPath: path) }
+}
+
+enum Workspaces {
+    private static let key = "workspaces"
+    private static let legacyKey = "recentLibraries"
+
+    static func load() -> [Workspace] {
+        let d = UserDefaults.standard
+        if let data = d.data(forKey: key), let list = try? JSONDecoder().decode([Workspace].self, from: data) { return list }
+        // first launch of this version: carry the recent libraries over
+        if let data = d.data(forKey: legacyKey), let list = try? JSONDecoder().decode([Workspace].self, from: data) {
+            let kept = list.filter(\.exists)
+            save(kept)
+            return kept
+        }
+        return []
+    }
+
+    static func save(_ list: [Workspace]) {
+        if let data = try? JSONEncoder().encode(list) { UserDefaults.standard.set(data, forKey: key) }
+    }
+
+    /// Adds a library, or refreshes its name and folder; an existing entry keeps its place and colour.
+    static func remember(id: String, path: String, name: String) -> [Workspace] {
+        var list = load()
+        if let i = list.firstIndex(where: { $0.id == id || $0.path == path }) {
+            list[i].id = id; list[i].path = path; list[i].name = name
+        } else {
+            list.append(Workspace(id: id, path: path, name: name))
+        }
+        save(list)
+        return list
+    }
+
+    static func remove(id: String) -> [Workspace] {
+        let list = load().filter { $0.id != id }
+        save(list)
+        return list
+    }
+
+    static func setColor(_ hex: String?, id: String) -> [Workspace] {
+        var list = load()
+        if let i = list.firstIndex(where: { $0.id == id }) { list[i].color = hex }
+        save(list)
+        return list
     }
 }
 
@@ -104,7 +157,7 @@ extension AppModel {
         }
     }
 
-    func confirmMoveCollection(_ c: StashCollection, to library: RecentLibrary) {
+    func confirmMoveCollection(_ c: StashCollection, to library: Workspace) {
         confirm = ConfirmRequest(
             title: "Move “\(c.name)” to \(library.name)?",
             message: "Items that were only in this collection move to this library's Trash.",

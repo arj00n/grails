@@ -13,6 +13,7 @@ extension AppModel {
             menu.addItem(item)
         }
         add(selected.count == 1 ? "Open Preview" : "Preview", "eye") { [self] in openPreview(s.id) }
+        if selected.count == 1 { add("Copy Link", "link") { [self] in copyLink(.item(s.id)) } }
         if selected.count == 1, s.kind == .link { add("Open Link in Browser", "safari") { [self] in openLinkInBrowser(s.id) } }
         if !links.isEmpty {
             let sub = NSMenu()

@@ -2,6 +2,16 @@
 
 ## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
 
+## Workspaces and sharing — 2026-10-05
+- **Workspaces** = libraries, now first-class: a registry (`Workspace`: library id, folder, colour, your own order) instead of 6 recents. Sidebar top is a
+  popover (coloured tile, ⌃1–⌃9 via the Workspace menu, Locate for a folder that isn't mounted, colour / Show in Finder / Remove from List).
+- **Links**: `stash://open?lib=<library id>&c=|t=|i=` (`StashLink`) for a library (invite), collection, tag or item; Copy Link in the sidebar and item menus,
+  File ▸ Copy Link to This View (⌥⌘L), Copy Invite Link, Join with Link…. The link carries the library id, not a path: a Mac that has the library switches to it,
+  one that doesn't is asked to pick the synced folder and it's checked against the id. `stash://` is registered in Info.plist; `StashAppDelegate` also opens `.stash` folders.
+- **Web page export** (`Share/WebExport.swift`, File ▸ Export as Web Page… ⌥⌘E, `stash-share` CLI): a folder + zip with `index.html` (grid with titled sections, canvas
+  view with pan/zoom for clusters, lightbox, source links optional), `data.js`, `media/` (pictures at ≤1600 px, GIF/SVG as is, videos ≤40 MB) and `thumbs/`.
+  Nothing is uploaded: you drop the folder on any static host (Cloudflare Pages, Netlify Drop, GitHub Pages) or send the zip.
+
 ## X posts, in-place cluster rename, similar-tag merging, smooth grid zoom — 2026-10-05
 - **Grid zoom** glides tiles between column counts (fractional column count in `TileLayout`, tiles lerp between the two neighbouring whole-column
   arrangements, anchored on the tile under the pointer / centre); on release it eases to a whole count. Headless-checked only (screen was locked).

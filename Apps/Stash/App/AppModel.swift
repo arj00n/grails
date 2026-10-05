@@ -210,7 +210,9 @@ final class AppModel {
 
     // Team: libraries, watching, who added what
     var needsLibrary = false
-    private(set) var recentLibraries: [RecentLibrary] = RecentLibrary.load()
+    private(set) var workspaces: [Workspace] = Workspaces.load()
+    /// The open library's own id (the same on every Mac), used in `stash://` links.
+    private(set) var libraryID = ""
     private(set) var contributors: [(who: String, count: Int)] = []
     var addedByFilter: String? { didSet { if oldValue != addedByFilter { scrollResetTick += 1; reloadSoon() } } }
     /// Bumped when the visible set changes meaning (new view, filter, search) so the grid jumps to the top; plain data
@@ -290,7 +292,8 @@ final class AppModel {
             layout = store.layout
             libraryName = await store.manifest.name
             if remember { UserDefaults.standard.set(url.path, forKey: "libraryPath") }
-            if remember { RecentLibrary.remember(path: url.path, name: libraryName); recentLibraries = RecentLibrary.load() }
+            libraryID = await store.manifest.id
+            if remember { workspaces = Workspaces.remember(id: libraryID, path: url.path, name: libraryName) }
             addedByFilter = nil
             startWatching()
             selection = []
@@ -882,4 +885,9 @@ final class AppModel {
         guard let layout else { return nil }
         return layout.itemDir(s.id).appendingPathComponent(s.ext.map { "original.\($0)" } ?? "original")
     }
+}
+
+extension AppModel {
+    func removeWorkspace(_ w: Workspace) { workspaces = Workspaces.remove(id: w.id) }
+    func setWorkspaceColor(_ hex: String?, for w: Workspace) { workspaces = Workspaces.setColor(hex, id: w.id) }
 }

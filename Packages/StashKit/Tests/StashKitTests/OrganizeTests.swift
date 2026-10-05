@@ -222,3 +222,23 @@ extension Sequence {
         return out
     }
 }
+
+@Suite struct StashLinkTests {
+    @Test func linksRoundTrip() throws {
+        let cases: [StashLink] = [
+            .init(library: "01J9", name: "Swish Inspo"),
+            .init(library: "01J9", name: "Swish & Co: refs", target: .collection("01JC"), canvas: true),
+            .init(library: "01J9", target: .tag("street style")),
+            .init(library: "01J9", target: .item("01JX")),
+        ]
+        for c in cases { #expect(StashLink(url: c.url) == c, "\(c.url)") }
+        #expect(StashLink(text: "  \(cases[1].url.absoluteString)\n") == cases[1])
+    }
+
+    @Test func otherLinksAreNotOurs() {
+        #expect(StashLink(text: "https://example.com/?lib=1") == nil)
+        #expect(StashLink(text: "stash://open") == nil)
+        #expect(StashLink(text: "stash://elsewhere?lib=1") == nil)
+        #expect(StashLink(text: "not a link") == nil)
+    }
+}

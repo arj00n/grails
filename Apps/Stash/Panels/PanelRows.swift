@@ -32,6 +32,8 @@ extension AppModel {
         add(.init(id: "cmd-newc", title: "New Collection…", symbol: "plus.rectangle.on.rectangle", accessory: key(.newCollection)) { [self] in run(.newCollection) })
         add(.init(id: "cmd-newf", title: "New Folder…", symbol: "folder.badge.plus") { [self] in promptNewCollection(kind: "folder", parent: nil) })
         add(.init(id: "cmd-news", title: "New Smart Folder…", symbol: "gearshape.2", accessory: key(.newSmartFolder)) { [self] in run(.newSmartFolder) })
+        add(.init(id: "cmd-export-web", title: "Export as Web Page…", symbol: "safari", accessory: "⌥⌘E") { [self] in exportWebPage() })
+        add(.init(id: "cmd-copy-link", title: "Copy Link to This View", symbol: "link", accessory: "⌥⌘L") { [self] in copyViewLink() })
         add(.init(id: "cmd-merge-tags", title: "Merge Similar Tags", symbol: "tag") { [self] in mergeSimilarTags() })
         add(.init(id: "cmd-import-board", title: "Import from Are.na, Pinterest or X…", symbol: "square.and.arrow.down.on.square", accessory: "⇧⌘I") { [self] in promptImportBoard() })
         add(.init(id: "cmd-autotag-all", title: "Auto-tag All Untagged Items", symbol: "sparkles") { [self] in autoTagEverything() })

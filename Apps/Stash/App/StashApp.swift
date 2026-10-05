@@ -3,6 +3,7 @@ import StashKit
 
 @main
 struct StashApp: App {
+    @NSApplicationDelegateAdaptor(StashAppDelegate.self) private var delegate
     @State private var model = AppModel()
     @State private var shortcuts = ShortcutStore.shared
 
@@ -16,7 +17,9 @@ struct StashApp: App {
         WindowGroup {
             RootView(model: model)
                 .frame(minWidth: 900, minHeight: 600)
+                .onAppear { StashAppDelegate.connect(model) }
         }
+        .handlesExternalEvents(matching: [])
         .windowStyle(.hiddenTitleBar)
         .commands {
             CommandGroup(replacing: .newItem) {
@@ -28,6 +31,18 @@ struct StashApp: App {
                 Divider()
                 Button("New Library…") { LibraryPicker.createNew(model) }
                 Button("Open Library…") { LibraryPicker.openExisting(model) }.keyboardShortcut("o")
+                Divider()
+                Button("Export as Web Page…") { model.exportWebPage() }.keyboardShortcut("e", modifiers: [.command, .option])
+                Button("Export Selection as Web Page…") { model.exportWebPage(selectionOnly: true) }.disabled(model.selection.isEmpty)
+                Button("Copy Link to This View") { model.copyViewLink() }.keyboardShortcut("l", modifiers: [.command, .option])
+                Button("Copy Invite Link") { model.copyInviteLink() }
+                Button("Join with Link…") { model.promptJoinWithLink() }
+            }
+            CommandMenu("Workspace") {
+                ForEach(Array(model.workspaces.prefix(9).enumerated()), id: \.element.id) { index, w in
+                    Button(w.name) { model.switchWorkspace(w) }
+                        .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .control)
+                }
             }
             CommandGroup(after: .textEditing) {
                 Button("Find") { model.focusSearchTick += 1 }.keyboardShortcut("f")

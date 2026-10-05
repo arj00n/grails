@@ -50,3 +50,10 @@ In Drive for desktop ▸ Preferences ▸ Google Drive, choose how the shared dri
 | Thumbnails are grey, with a cloud badge | Stream mode: the file isn't on your Mac yet. Open it (Space) or switch to Mirror. |
 | "isn't a Stash library" when opening | Pick the folder ending in `.stash` itself, not a folder that contains it. |
 | Library missing after Drive was signed out | Sign in again; Stash shows the welcome screen instead of creating an empty library. |
+
+## Workspaces, invites and sharing
+- Each library is a workspace. Switch from the top of the sidebar (⌃1–⌃9), add one with Add Workspace, colour them from the right-click menu.
+- **Invite a teammate**: Copy Invite Link, send it. When they open it, Stash asks them to pick the synced `.stash` folder and checks it is the same library.
+- **Link to something**: right-click a collection, tag or item ▸ Copy Link, or ⌥⌘L for the current view. Teammates with the library open straight to it.
+- **Share outside the team**: File ▸ Export as Web Page… (⌥⌘E) makes a folder and a zip. Open `index.html` to check it, then upload the folder to any static host
+  or send the zip. It is a snapshot; export again to update it.
