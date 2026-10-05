@@ -8,7 +8,7 @@ Plain static files: no framework, no build step, no npm. Deployed with the Verce
 | `open/index.html` | Invite-link page (`/open#lib=…`): hands the link to `grails://open?…`, offers the download |
 | `privacy/`, `credits/`, `404.html` | Extension privacy policy (also the Chrome Web Store URL), credits and licences |
 | `assets/wall.js` | The app's painting wall (port of `GrailsDesign/PaintingWall.swift`, `Dither.swift`, `PaintingWallEngine.swift`) |
-| `assets/site.css`, `site.js`, `open.js`, `nojs.css` | Styles (app tokens), copy buttons, the link page, the no-JavaScript still |
+| `assets/site.css`, `open.js`, `nojs.css` | Styles (app tokens), the link page, the no-JavaScript still |
 | `assets/paintings/` | 14 JPEGs + `manifest.json` from `Scripts/gen-paintings.py`; `NOTICE.md` credits them |
 | `assets/fonts/` | Geist and Geist Mono (WOFF2, unmodified), `Geist-OFL.txt` |
 | `download/` | The DMG and the extension zip (deployed) |
