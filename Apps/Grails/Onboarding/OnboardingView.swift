@@ -45,26 +45,36 @@ let reduceMotionOn: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMo
 
 // MARK: Hello
 
-/// The name typed over the middle of the wall, then Start. Pure in `t`, so a headless snapshot can ask for any moment; `wall` is the live
-/// field (or, in a snapshot, a picture of it).
+/// The title plate over the wall: a hard-edged canvas rectangle holding the name, Start and the painting's caption. Pure in `t`, so a
+/// headless snapshot can ask for any moment; `wall` is the live painting (or, in a snapshot, a picture of it).
 struct HelloFrame<Wall: View>: View {
     let t: Double
+    let size: CGSize
+    var caption: String
     @ViewBuilder var wall: Wall
     var start: () -> Void = {}
 
-    static func centre(_ size: CGSize) -> CGRect { CGRect(x: size.width / 2 - 240, y: size.height / 2 - 110, width: 480, height: 220) }
-
     var body: some View {
-        ZStack {
+        let plate = PaintingWall.plate(window: size)
+        ZStack(alignment: .topLeading) {
             wall
-            VStack(spacing: 28) {
+            VStack(spacing: 14) {
                 title
                 Button("Start", action: start)
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                     .opacity(min(max((t - 1.3) / 0.1, 0), 1)).allowsHitTesting(t >= 1.3)
                     .accessibilityIdentifier("onboarding-start")
+                Text(caption).font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
+                    .opacity(min(max((t - 1.3) / 0.1, 0), 1))
+                    .id(caption).transition(.opacity)
+                    .animation(.easeOut(duration: Motion.standard / 2), value: caption)
+                    .accessibilityIdentifier("onboarding-caption")
             }
+            .frame(width: plate.width, height: plate.height)
+            .background(Ink.canvas)
+            .offset(x: plate.minX, y: plate.minY)
         }
+        .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
     /// Typed on at 40 ms a letter, starting after a second.
@@ -81,11 +91,16 @@ struct HelloFrame<Wall: View>: View {
 
 private struct HelloStep: View {
     var model: OnboardingModel
+    @State private var epoch = Date()
 
     var body: some View {
         GeometryReader { geo in
-            WallClock(reduceMotion: reduceMotionOn) { t in
-                HelloFrame(t: t, wall: { AsciiWall(reduceMotion: reduceMotionOn, centre: HelloFrame<EmptyView>.centre(geo.size)) }) { model.start() }
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotionOn)) { timeline in
+                let t = reduceMotionOn ? 10 : timeline.date.timeIntervalSince(epoch)
+                let specs = PaintingWallEngine.shared?.specs ?? []
+                let shown = PaintingWall.captionIndex(PaintingWall.schedule(t: t, count: specs.count, reduceMotion: reduceMotionOn))
+                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "",
+                           wall: { PaintingWallBackground(epoch: epoch, reduceMotion: reduceMotionOn) }) { model.start() }
             }
         }
         .ignoresSafeArea()

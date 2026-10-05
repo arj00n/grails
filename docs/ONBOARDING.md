@@ -26,7 +26,7 @@ Four screens in the chromeless window: Hello → Library → Import (§2) → Ar
 └────────────────────────────────────────────────────────────────────┘
 ```
 
-**The idea: an empty wall waiting for their pictures.** Blank masonry tiles (the grid's column width, 8 pt gaps, 3 pt radii) in `surface`/`fill`/`fillStrong`. Pictures are the only colour, so they first see the shape of their library, empty. On Arriving (§3) the same wall fills with their own references.
+**Superseded by `docs/ONBOARDING_PAINTINGS.md`: Hello is now a painting wall, not the empty grey tiles below (those remain the Arriving screen).** Original idea: an empty wall waiting for their pictures. Blank masonry tiles (the grid's column width, 8 pt gaps, 3 pt radii) in `surface`/`fill`/`fillStrong`. Pictures are the only colour, so they first see the shape of their library, empty. On Arriving (§3) the same wall fills with their own references.
 
 **Timeline:**
 

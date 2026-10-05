@@ -1,0 +1,636 @@
+{
+ "paintings": [
+  {
+   "artist": "Alexandre Cabanel",
+   "caption": "CABANEL 1847",
+   "file": "cabanel.jpg",
+   "gamma": 0.9,
+   "height": 656,
+   "hi": 0.971,
+   "id": "cabanel",
+   "lo": 0.015,
+   "palette": [
+    "#060809",
+    "#161616",
+    "#182126",
+    "#29322f",
+    "#433225",
+    "#3b4647",
+    "#63503d",
+    "#4e657e",
+    "#877059",
+    "#ad8257",
+    "#7993b1",
+    "#b59772",
+    "#c9ac8d",
+    "#9cb4cd",
+    "#bbcee3",
+    "#e3ebf2"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.45,
+     0.45
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.647,
+   "satLo": 0.211,
+   "title": "Fallen Angel",
+   "width": 960,
+   "year": "1847"
+  },
+  {
+   "artist": "Katsushika Hokusai",
+   "caption": "HOKUSAI 1831",
+   "file": "hokusai.jpg",
+   "gamma": 0.9,
+   "height": 645,
+   "hi": 0.979,
+   "id": "hokusai",
+   "lo": 0.202,
+   "palette": [
+    "#223d58",
+    "#2d4c69",
+    "#565f62",
+    "#37688a",
+    "#777e7d",
+    "#919592",
+    "#acb3ae",
+    "#d8c4a6",
+    "#c8d4cc",
+    "#ebd9b9",
+    "#dce6de",
+    "#ede3ce",
+    "#f8e8c4",
+    "#f6edd8",
+    "#f1f5ed",
+    "#faf6e3"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.761,
+   "satLo": 0.129,
+   "title": "The Great Wave off Kanagawa",
+   "width": 960,
+   "year": "c. 1831"
+  },
+  {
+   "artist": "Johannes Vermeer",
+   "caption": "VERMEER 1665",
+   "file": "vermeer.jpg",
+   "gamma": 0.9,
+   "height": 1024,
+   "hi": 0.863,
+   "id": "vermeer",
+   "lo": 0.072,
+   "palette": [
+    "#1b1006",
+    "#1e150b",
+    "#211608",
+    "#22190e",
+    "#251d11",
+    "#282217",
+    "#2d281e",
+    "#38372f",
+    "#544932",
+    "#3c4f5d",
+    "#726147",
+    "#99815d",
+    "#748894",
+    "#bf9f75",
+    "#a2b1ba",
+    "#e7cdb1"
+   ],
+   "placement": {
+    "anchor": [
+     0.72,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "side",
+    "zoom": 1.0
+   },
+   "satHi": 0.581,
+   "satLo": 0.235,
+   "title": "Girl with a Pearl Earring",
+   "width": 865,
+   "year": "c. 1665"
+  },
+  {
+   "artist": "Claude Monet",
+   "caption": "MONET 1904",
+   "file": "monet-parliament.jpg",
+   "gamma": 0.9,
+   "height": 848,
+   "hi": 0.826,
+   "id": "monet-parliament",
+   "lo": 0.193,
+   "palette": [
+    "#103c5c",
+    "#0d4c77",
+    "#444d62",
+    "#0f5f8b",
+    "#255e7a",
+    "#227194",
+    "#536e7c",
+    "#4085a0",
+    "#947988",
+    "#ba7d76",
+    "#6f9eab",
+    "#e19f62",
+    "#c8a293",
+    "#a7abad",
+    "#e6b97c",
+    "#e6c599"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.45
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.976,
+   "satLo": 0.492,
+   "title": "The Houses of Parliament, Sunset",
+   "width": 960,
+   "year": "1904"
+  },
+  {
+   "artist": "Edvard Munch",
+   "caption": "MUNCH 1893",
+   "file": "munch.jpg",
+   "gamma": 0.9,
+   "height": 1024,
+   "hi": 0.558,
+   "id": "munch",
+   "lo": 0.231,
+   "palette": [
+    "#433e3e",
+    "#4d4846",
+    "#4d4f57",
+    "#5f4d45",
+    "#5d5957",
+    "#6f5c4e",
+    "#a34f38",
+    "#8a5741",
+    "#606469",
+    "#72685c",
+    "#816952",
+    "#a46946",
+    "#807668",
+    "#927559",
+    "#b47549",
+    "#a88364"
+   ],
+   "placement": {
+    "anchor": [
+     0.25,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "side",
+    "zoom": 1.0
+   },
+   "satHi": 0.748,
+   "satLo": 0.29,
+   "title": "The Scream",
+   "width": 825,
+   "year": "1893"
+  },
+  {
+   "artist": "Vincent van Gogh",
+   "caption": "VAN GOGH 1889",
+   "file": "vangogh.jpg",
+   "gamma": 0.9,
+   "height": 760,
+   "hi": 0.752,
+   "id": "vangogh",
+   "lo": 0.074,
+   "palette": [
+    "#1a1e1e",
+    "#242e40",
+    "#27386f",
+    "#3c4b57",
+    "#384f84",
+    "#486599",
+    "#4f6781",
+    "#6b745f",
+    "#5c799f",
+    "#6f8389",
+    "#728dae",
+    "#86999b",
+    "#b09e32",
+    "#9ba37b",
+    "#9daeaf",
+    "#bbbd91"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.45
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.793,
+   "satLo": 0.365,
+   "title": "The Starry Night",
+   "width": 960,
+   "year": "1889"
+  },
+  {
+   "artist": "Leonardo da Vinci",
+   "caption": "LEONARDO 1503",
+   "file": "leonardo.jpg",
+   "gamma": 0.9,
+   "height": 1024,
+   "hi": 0.766,
+   "id": "leonardo",
+   "lo": 0.027,
+   "palette": [
+    "#0c071b",
+    "#190e21",
+    "#211729",
+    "#2d171e",
+    "#312430",
+    "#42241f",
+    "#46352c",
+    "#5f3a24",
+    "#4d533d",
+    "#784f2a",
+    "#647048",
+    "#956c32",
+    "#7e8653",
+    "#ba8e40",
+    "#9a9d65",
+    "#deb95e"
+   ],
+   "placement": {
+    "anchor": [
+     0.28,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "side",
+    "zoom": 1.0
+   },
+   "satHi": 0.783,
+   "satLo": 0.329,
+   "title": "Mona Lisa",
+   "width": 687,
+   "year": "1503-06"
+  },
+  {
+   "artist": "Claude Monet",
+   "caption": "MONET 1872",
+   "file": "monet-sunrise.jpg",
+   "gamma": 1.2,
+   "height": 745,
+   "hi": 0.552,
+   "id": "monet-sunrise",
+   "lo": 0.258,
+   "palette": [
+    "#293d31",
+    "#4a6054",
+    "#795741",
+    "#5e6354",
+    "#546b65",
+    "#6e6a5a",
+    "#646e64",
+    "#627370",
+    "#966b53",
+    "#856f5c",
+    "#737565",
+    "#717771",
+    "#837b6c",
+    "#768273",
+    "#9d8372",
+    "#818b7d"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.525,
+   "satLo": 0.163,
+   "title": "Impression, Sunrise",
+   "width": 960,
+   "year": "1872"
+  },
+  {
+   "artist": "Gustav Klimt",
+   "caption": "KLIMT 1908",
+   "file": "klimt.jpg",
+   "gamma": 0.9,
+   "height": 963,
+   "hi": 0.743,
+   "id": "klimt",
+   "lo": 0.171,
+   "palette": [
+    "#373024",
+    "#685629",
+    "#7b6630",
+    "#736b8b",
+    "#87723b",
+    "#6c814b",
+    "#907d48",
+    "#a48033",
+    "#9c8953",
+    "#869665",
+    "#978e90",
+    "#ae9948",
+    "#aca16d",
+    "#c2a748",
+    "#ceb456",
+    "#bfb392"
+   ],
+   "placement": {
+    "anchor": [
+     0.75,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "side",
+    "zoom": 1.0
+   },
+   "satHi": 0.768,
+   "satLo": 0.527,
+   "title": "The Kiss",
+   "width": 960,
+   "year": "1907-08"
+  },
+  {
+   "artist": "Sandro Botticelli",
+   "caption": "BOTTICELLI 1485",
+   "file": "botticelli.jpg",
+   "gamma": 0.9,
+   "height": 603,
+   "hi": 0.927,
+   "id": "botticelli",
+   "lo": 0.098,
+   "palette": [
+    "#252216",
+    "#3f3824",
+    "#6f4825",
+    "#55503a",
+    "#72694b",
+    "#936433",
+    "#848568",
+    "#aa8149",
+    "#999b7f",
+    "#c19b5e",
+    "#b3b392",
+    "#d3b277",
+    "#c3c5aa",
+    "#e3c898",
+    "#dcd5b9",
+    "#eee6ce"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.847,
+   "satLo": 0.271,
+   "title": "The Birth of Venus",
+   "width": 960,
+   "year": "c. 1485"
+  },
+  {
+   "artist": "Caspar David Friedrich",
+   "caption": "FRIEDRICH 1817",
+   "file": "friedrich.jpg",
+   "gamma": 0.9,
+   "height": 1024,
+   "hi": 0.846,
+   "id": "friedrich",
+   "lo": 0.036,
+   "palette": [
+    "#0b080f",
+    "#0e0b12",
+    "#120f15",
+    "#17151a",
+    "#1e1c21",
+    "#29292e",
+    "#3b3b3f",
+    "#54585c",
+    "#727c86",
+    "#8d95a0",
+    "#a4aab4",
+    "#b3b9c6",
+    "#bfc2d0",
+    "#c4cbde",
+    "#cbcbd4",
+    "#cfd4e5"
+   ],
+   "placement": {
+    "anchor": [
+     0.28,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "side",
+    "zoom": 1.0
+   },
+   "satHi": 0.284,
+   "satLo": 0.082,
+   "title": "Wanderer above the Sea of Fog",
+   "width": 800,
+   "year": "c. 1817"
+  },
+  {
+   "artist": "Claude Monet",
+   "caption": "MONET 1906",
+   "file": "monet-lilies.jpg",
+   "gamma": 0.9,
+   "height": 922,
+   "hi": 0.739,
+   "id": "monet-lilies",
+   "lo": 0.295,
+   "palette": [
+    "#2c5858",
+    "#3e6786",
+    "#476e69",
+    "#55727a",
+    "#4e7593",
+    "#467d9f",
+    "#677989",
+    "#5b8084",
+    "#5386a6",
+    "#63849c",
+    "#658d6c",
+    "#608faf",
+    "#759490",
+    "#7293b0",
+    "#91a8a5",
+    "#b3bfb9"
+   ],
+   "placement": {
+    "anchor": [
+     0.5,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "cover",
+    "zoom": 1.0
+   },
+   "satHi": 0.667,
+   "satLo": 0.382,
+   "title": "Water Lilies",
+   "width": 960,
+   "year": "1906"
+  },
+  {
+   "artist": "Utagawa Hiroshige",
+   "caption": "HIROSHIGE 1857",
+   "file": "hiroshige.jpg",
+   "gamma": 0.9,
+   "height": 1024,
+   "hi": 0.885,
+   "id": "hiroshige",
+   "lo": 0.027,
+   "palette": [
+    "#0b111d",
+    "#262728",
+    "#93231a",
+    "#3b3b38",
+    "#354b5e",
+    "#476075",
+    "#786654",
+    "#537086",
+    "#617f96",
+    "#a08669",
+    "#9ca498",
+    "#c3aa79",
+    "#b2baac",
+    "#c4ccbe",
+    "#dac9a5",
+    "#ebdbb4"
+   ],
+   "placement": {
+    "anchor": [
+     0.25,
+     0.5
+    ],
+    "focal": [
+     0.5,
+     0.5
+    ],
+    "mode": "side",
+    "zoom": 1.0
+   },
+   "satHi": 0.865,
+   "satLo": 0.233,
+   "title": "Sudden Shower over Shin-Ohashi Bridge and Atake",
+   "width": 676,
+   "year": "1857"
+  },
+  {
+   "artist": "Claude Monet",
+   "caption": "MONET 1875",
+   "file": "monet-parasol.jpg",
+   "gamma": 0.9,
+   "height": 1024,
+   "hi": 0.851,
+   "id": "monet-parasol",
+   "lo": 0.284,
+   "palette": [
+    "#425444",
+    "#606660",
+    "#72787c",
+    "#6c8092",
+    "#858782",
+    "#6c8ca9",
+    "#838e9b",
+    "#7c9bb6",
+    "#9a9894",
+    "#919fac",
+    "#8ba8bf",
+    "#a5a4a1",
+    "#b5afa4",
+    "#aab2b9",
+    "#c4c0b5",
+    "#dad3c1"
+   ],
+   "placement": {
+    "anchor": [
+     0.74,
+     0.42
+    ],
+    "focal": [
+     0.6,
+     0.3
+    ],
+    "mode": "cover",
+    "zoom": 1.3
+   },
+   "satHi": 0.471,
+   "satLo": 0.137,
+   "title": "Woman with a Parasol, Madame Monet and Her Son",
+   "width": 824,
+   "year": "1875"
+  }
+ ],
+ "pixel": 3,
+ "version": 1
+}

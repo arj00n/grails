@@ -44,15 +44,27 @@ struct OnboardingDemo {
         func wait(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func until(_ seconds: Double, _ cond: () -> Bool) async { for _ in 0..<Int(seconds * 10) where !cond() { await wait(100) } }
 
-        // Hello: the field develops from the top left, the name types on, the pointer stirs it
-        let centre = HelloFrame<EmptyView>.centre(size)
-        for (name, t, pointer) in [("0000", 0.05, nil), ("0450", 0.45, nil), ("0900", 0.9, nil), ("1300", 1.3, nil), ("2000", 2.0, nil),
-                                   ("pointer", 3.0, CGPoint(x: 330, y: 260))] as [(String, Double, CGPoint?)] {
-            snap({ dark in
-                HelloFrame(t: t, wall: {
-                    if let img = AsciiWallView.render(size: size, t: t, pointer: pointer, dark: dark, centre: centre) { Image(decorative: img, scale: 1).resizable() }
-                })
-            }, "hello-\(name)")
+        // Hello: the paintings, the wave between them, the loupe, the plate with its caption
+        let engine = PaintingWallEngine.shared
+        check(engine != nil && engine!.specs.count == 14, "painting manifest loads: \(engine?.specs.count ?? 0) works")
+        if let engine {
+            for i in engine.specs.indices { engine.prepare(i, size: size) }
+            engine.prepare(0, size: size, pixel: 1); engine.prepare(1, size: size, pixel: 1)
+            func hello(_ name: String, t: Double, touches: [PaintingWall.Touch] = [], reduceMotion: Bool = false, size: CGSize = size, indices: Bool = true) {
+                let sched = PaintingWall.schedule(t: t, count: engine.specs.count, reduceMotion: reduceMotion)
+                let caption = engine.specs[PaintingWall.captionIndex(sched)].caption
+                snap({ dark in
+                    HelloFrame(t: t, size: size, caption: caption, wall: {
+                        if let img = engine.render(size: size, t: t, dark: dark, touches: touches, reduceMotion: reduceMotion) { Image(decorative: img, scale: 1).resizable() }
+                    })
+                }, name, size: size)
+            }
+            for (name, t) in [("0000", 0.05), ("0450", 0.45), ("0900", 0.9), ("1300", 1.3)] { hello("hello-\(name)", t: t) }
+            for i in engine.specs.indices { hello("hello-rest-\(engine.specs[i].id)", t: 8.0 * Double(i) + 4) }
+            for (n, p) in [(25, 0.25), (50, 0.5), (75, 0.75)] { hello("hello-wave-\(n)", t: 8.0 + 1.6 * p) }
+            hello("hello-loupe", t: 3, touches: (0..<8).map { PaintingWall.Touch(x: 450 - Double($0) * 9, y: 290 + Double($0) * 4, age: Double($0) * 0.06) })
+            hello("hello-reduce-motion", t: 10, reduceMotion: true)
+            say(bench(engine))
         }
         check(model.step == .hello, "starts on Hello")
 
@@ -123,7 +135,8 @@ struct OnboardingDemo {
     /// The view as an image, light and dark.
     private func snap<V: View>(_ view: V, _ name: String) { snap({ _ in view }, name) }
 
-    private func snap<V: View>(_ make: (Bool) -> V, _ name: String) {
+    private func snap<V: View>(_ make: (Bool) -> V, _ name: String, size: CGSize? = nil) {
+        let size = size ?? self.size
         for (scheme, suffix) in [(ColorScheme.light, "light"), (.dark, "dark")] {
             let content = make(scheme == .dark)
                 .frame(width: size.width, height: size.height)
@@ -134,6 +147,26 @@ struct OnboardingDemo {
             guard let cg = r.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { continue }
             try? png.write(to: URL(fileURLWithPath: "\(dir)/snap-\(name)-\(suffix).png"))
         }
+    }
+}
+
+extension OnboardingDemo {
+    /// Median and p95 milliseconds for a frame in the middle of a wave, at two window sizes, and the work done while a painting holds.
+    func bench(_ engine: PaintingWallEngine) -> String {
+        var lines: [String] = []
+        for (label, size) in [("1280x800", CGSize(width: 1280, height: 800)), ("2560x1600", CGSize(width: 2560, height: 1600))] {
+            for i in 0..<2 { engine.prepare(i, size: size) }
+            var times: [Double] = []
+            for k in 0..<60 {
+                let t = 8.0 + 1.6 * (0.2 + 0.6 * Double(k) / 60)
+                let start = CFAbsoluteTimeGetCurrent()
+                _ = engine.frame(size: size, t: t, dark: true, reduceMotion: false, touches: [])
+                times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            }
+            times.sort()
+            lines.append("bench \(label): wave frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms")
+        }
+        return lines.joined(separator: "\n")
     }
 }
 
