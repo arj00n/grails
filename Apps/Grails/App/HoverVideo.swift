@@ -278,7 +278,6 @@ final class HoverVideo {
         let from = playerLayer.presentation()?.opacity ?? playerLayer.opacity
         fadeLog.append((value > 0 ? "in" : "out", now))
         CATransaction.begin()
-        CATransaction.setCompletionBlock { MainActor.assumeIsolated { then?() } }
         let a = CABasicAnimation(keyPath: "opacity")
         a.fromValue = from
         a.toValue = value
@@ -287,6 +286,8 @@ final class HoverVideo {
         playerLayer.opacity = value
         playerLayer.add(a, forKey: "fade")
         CATransaction.commit()
+        // a timer, not the transaction's completion: that waits on the render server, which can be late for a hidden window
+        if let then { DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.02) { MainActor.assumeIsolated { then() } } }
     }
 
     // MARK: Everything that stops it

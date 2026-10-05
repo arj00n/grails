@@ -189,8 +189,10 @@ struct HoverVideoDemo {
 
         // 6. scrolling stops it; moves right after a scroll don't arm a tile
         let wheel = CGEvent(scrollWheelEvent2Source: nil, units: .pixel, wheelCount: 1, wheel1: -12, wheel2: 0, wheel3: 0).flatMap { NSEvent(cgEvent: $0) }
-        if let wheel { hv.handle(wheel) }
-        check(hv.playingID == nil, "a scroll stops B")
+        // through the app's event queue, so the real event monitor sees it (posted to the app only, not the window server)
+        if let wheel { NSApp.postEvent(wheel, atStart: false) }
+        await wait(60)
+        check(hv.playingID == nil, "a scroll (through the event monitor) stops B")
         hoverGrid(b)
         await wait(400)
         check(hv.playingID == nil, "a move during the scroll's quiet period doesn't start anything")
