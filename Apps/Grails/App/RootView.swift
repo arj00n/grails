@@ -242,7 +242,8 @@ struct RootView: View {
         if let onboarding = model.onboarding { OnboardingView(model: onboarding) }
         if model.previewID != nil { PreviewPage(model: model) }
         if model.importPanelOpen { ImportPanel(model: model) }
-        if let req = model.pairRequest, !model.importPanelOpen { PairPrompt(model: model, request: req) }
+        if model.extensionSetup.isOpen { ExtensionModal(model: model) }
+        if let req = model.pairRequest, !model.importPanelOpen, !model.extensionSetup.isOpen, model.onboarding == nil { PairPrompt(model: model, request: req) }
         if let panel = model.panel { PanelHost(model: model, panel: panel) }
         if let p = model.prompt { PromptCard(model: model, request: p) }
         if let c = model.confirm { ConfirmCard(model: model, request: c) }

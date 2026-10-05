@@ -163,6 +163,8 @@ final class AppModel {
     var importPanelOpen = false
     /// A browser extension asking to be paired (answered with Allow).
     var pairRequest: PairingBroker.Request?
+    /// The "Add the extension" sheet.
+    let extensionSetup = ExtensionSetup()
     var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")
     let importModel = ImportModel()
     @ObservationIgnored var hiddenPanels: (Bool, Bool)?

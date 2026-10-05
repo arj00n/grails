@@ -44,6 +44,7 @@ struct OnboardingDemo {
         func wait(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func until(_ seconds: Double, _ cond: () -> Bool) async { for _ in 0..<Int(seconds * 10) where !cond() { await wait(100) } }
 
+        app.extensionPaired = false
         // Hello: the paintings, the cross-construct between them, the shimmer, the plate with its caption
         let engine = PaintingWallEngine.shared
         check(engine != nil && engine!.specs.count == 14, "painting manifest loads: \(engine?.specs.count ?? 0) works")
@@ -91,6 +92,32 @@ struct OnboardingDemo {
         app.importModel.setSelected("arena:other-one", true)
         snap(ZStack { ImportStep(model: model) }, "import")
         check(app.importModel.selectedItemCount > 0, "rows ready: \(app.importModel.selectedItemCount) items")
+
+        // the extension sheet: choose, waiting for the browser, connected
+        let setup = app.extensionSetup
+        app.extensionPaired = false                                   // whatever this Mac remembers
+        let installed = ChromiumBrowser.installed()
+        say("browsers found: \(installed.map(\.name))")
+        let pick = Set(installed.prefix(1).map(\.id))
+        setup.demo(browsers: installed, selected: pick, opened: false)
+        await wait(1200)
+        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-choose")
+        await wait(600)
+        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-choose")           // the first render of a new sheet can be caught mid-fade
+        snap(ZStack { ExtensionModal(model: app) }, "extension-choose-alone")
+        setup.demo(browsers: [], selected: [], opened: false)
+        await wait(500)
+        snap(ZStack { ExtensionModal(model: app) }, "extension-choose-nobrowsers")
+        setup.demo(browsers: installed, selected: pick, opened: false)
+        await wait(500)
+        setup.demo(browsers: installed, selected: pick, opened: true)
+        await wait(400)
+        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-waiting")
+        app.extensionPaired = true
+        await wait(400)
+        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-connected")
+        app.extensionPaired = false
+        setup.close()
         model.startImport()
         check(model.step == .arriving, "Import goes on to Arriving")
 

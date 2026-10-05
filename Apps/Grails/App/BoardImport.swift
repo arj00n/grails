@@ -74,20 +74,14 @@ extension AppModel {
         NSWorkspace.shared.open(url)
     }
 
-    /// Puts the extension where it will stay (it survives app updates), shows it, and opens the browser's extensions page.
-    func installExtension() {
-        guard let source = Bundle.main.url(forResource: "chrome", withExtension: nil) else { errorMessage = "The extension isn't in this build."; return }
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Grails", isDirectory: true)
+    /// Puts the extension where it will stay (it survives app updates) and returns that folder.
+    func copyExtensionFolder() -> URL? {
+        guard let source = Bundle.main.url(forResource: "chrome", withExtension: nil) else { errorMessage = "The extension isn't in this build."; return nil }
+        let support = Self.supportURL
         let dest = support.appendingPathComponent("Extension", isDirectory: true)
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
         try? FileManager.default.removeItem(at: dest)
-        do { try FileManager.default.copyItem(at: source, to: dest) } catch { errorMessage = "Couldn't copy the extension: \(error.localizedDescription)"; return }
-        NSWorkspace.shared.activateFileViewerSelecting([dest])
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString("chrome://extensions", forType: .string)
-        if let browser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!), let page = URL(string: "chrome://extensions") {
-            NSWorkspace.shared.open([page], withApplicationAt: browser, configuration: NSWorkspace.OpenConfiguration())
-        }
-        showToast("Drag the folder in", seconds: 6)
+        do { try FileManager.default.copyItem(at: source, to: dest) } catch { errorMessage = "Couldn't copy the extension: \(error.localizedDescription)"; return nil }
+        return dest
     }
 }
