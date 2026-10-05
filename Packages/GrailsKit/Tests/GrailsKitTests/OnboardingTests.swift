@@ -81,3 +81,16 @@ import Testing
         #expect(try decode("something-else") == .hello)
     }
 }
+
+
+@Suite struct InviteLinkPageTests {
+    @Test func linksOnTheSiteCarryTheirDetailsAfterTheHashAndComeBackAsTheSameLink() throws {
+        let page = try #require(URL(string: "https://grails.arjoon.xyz/open"))
+        let link = GrailsLink(library: "01ABC", name: "Team Inspo", target: .collection("c1"), canvas: true)
+        let web = link.webURL(page: page)
+        #expect(web.absoluteString.hasPrefix("https://grails.arjoon.xyz/open#lib=01ABC"))
+        #expect(web.query == nil)                                     // nothing the server could see
+        #expect(GrailsLink(url: web) == link)
+        #expect(GrailsLink(text: "  \(web.absoluteString)\n") == link)
+    }
+}

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseBoardUrl, pinIdsFromHrefs, boardNameFromTitle, buildBoardImport } from "../chrome/lib/pinterest.js";
+import { boardIdFromHtml, feedPath, pinsFromFeed, parseBoardUrl, pinIdsFromHrefs, boardNameFromTitle, buildBoardImport } from "../chrome/lib/pinterest.js";
 
 test("recognises board pages and nothing else", () => {
   assert.deepEqual(parseBoardUrl("https://www.pinterest.com/ana/refs/"), { user: "ana", board: "refs" });
@@ -70,4 +70,25 @@ test("a scrolled board becomes one import body, carrying the job", () => {
   assert.equal(buildBoardBody({ url: "https://www.pinterest.com/ana/interiors/", title: "x", pins: [] }), null);
   assert.equal(buildBoardBody({ url: "https://example.com/a/b", title: "x", pins }), null);
   assert.equal(buildBoardBody({ url: "https://www.pinterest.com/ana/b/", title: "x", pins }).jobId, undefined);
+});
+
+
+import { boardIdFromHtml as idFromHtml, feedPath as feedUrl, pinsFromFeed as fromFeed, boardNameFromTitle as nameFromTitle } from "../chrome/lib/pinterest.js";
+test("a notification count and a generic title never become the board's name", () => {
+  assert.equal(nameFromTitle("(25) Pinterest", "my secret board"), "my secret board");
+  assert.equal(nameFromTitle("(3) Shoes | Pinterest", "x"), "Shoes");
+  assert.equal(nameFromTitle("Pinterest", "interiors"), "interiors");
+});
+test("the board id is found the way the page embeds it", () => {
+  assert.equal(idFromHtml('<script>"board_id\\",\\"4242\\""</script>'), "4242");
+  assert.equal(idFromHtml('{"board_id":"777"}'), "777");
+  assert.equal(idFromHtml("<html></html>"), null);
+});
+test("feed pages: the address carries the bookmark, and rows become pins with their biggest picture", () => {
+  const first = feedUrl({ boardId: "9", pathname: "/ana/secret/" });
+  assert.ok(first.startsWith("/resource/BoardFeedResource/get/?source_url=%2Fana%2Fsecret%2F&data="));
+  assert.equal(JSON.parse(decodeURIComponent(first.split("data=")[1])).options.bookmarks, undefined);
+  assert.deepEqual(JSON.parse(decodeURIComponent(feedUrl({ boardId: "9", pathname: "/a/b/", bookmark: "bm" }).split("data=")[1])).options.bookmarks, ["bm"]);
+  const pins = fromFeed([{ type: "pin", id: 1, images: { "236x": { url: "s.jpg" }, orig: { url: "o.jpg" } } }, { type: "story", id: 2 }, { type: "pin", id: "3", images: { "236x": { url: "t.jpg" } } }, { type: "pin" }]);
+  assert.deepEqual(pins, [{ id: "1", image: "o.jpg" }, { id: "3", image: "t.jpg" }]);
 });

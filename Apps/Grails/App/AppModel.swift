@@ -285,6 +285,7 @@ final class AppModel {
     /// Opens the library named by GRAILS_LIBRARY (tests), the last used one, or creates the default.
     func openInitialLibrary() async {
         let env = ProcessInfo.processInfo.environment
+        refreshExtensionCopy()
         if let dir = env["GRAILS_ONBOARDING_DEMO"] { await startOnboardingDemo(dir); return }
         let url: URL
         if let p = env["GRAILS_LIBRARY"] {

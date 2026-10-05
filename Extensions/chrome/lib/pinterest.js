@@ -23,10 +23,40 @@ export function pinIdsFromHrefs(hrefs) {
   return out;
 }
 
-/** The board's display name from the page title ("Refs - Pinterest", "refs | Pinterest"). */
+/** The board's display name from the page title ("Refs - Pinterest", "refs | Pinterest", "(25) Pinterest" with a notification count). */
 export function boardNameFromTitle(title, fallback) {
-  const t = String(title || "").replace(/\s*[|\-–—·]\s*Pinterest.*$/i, "").trim();
+  let t = String(title || "").replace(/^\(\d+\)\s*/, "").replace(/\s*[|\-–—·]\s*Pinterest.*$/i, "").trim();
+  if (/^pinterest$/i.test(t)) t = "";                        // the generic title of a page that hasn't named the board
   return t || fallback || "Pinterest board";
+}
+
+/** The board's id as the page embeds it, or null. */
+export function boardIdFromHtml(html) {
+  const s = String(html || "");
+  for (const re of [/board_id\\?",\\?"(\d+)/, /"board_id"\s*:\s*"(\d+)"/, /board_id\\?":\\?"(\d+)/]) {
+    const m = re.exec(s);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/** The address of one page of the board's own feed (what Pinterest's page asks for), 100 pins a page, from `bookmark` on. */
+export function feedPath({ boardId, pathname, bookmark, pageSize = 100 }) {
+  const options = { board_id: boardId, board_url: pathname, field_set_key: "react_grid_pin", filter_section_pins: false, is_react: true, prepend: false, page_size: pageSize, redux_normalize_feed: true, add_vase: true };
+  if (bookmark) options.bookmarks = [bookmark];
+  return "/resource/BoardFeedResource/get/?source_url=" + encodeURIComponent(pathname) + "&data=" + encodeURIComponent(JSON.stringify({ options, context: {} }));
+}
+
+/** Pins ({ id, image }) from a feed page's rows: only real pins, the biggest picture each. */
+export function pinsFromFeed(rows) {
+  const out = [];
+  for (const p of rows || []) {
+    if (!p || (p.type && p.type !== "pin") || !p.id) continue;
+    const images = p.images || {};
+    const best = images.orig?.url || images.originals?.url || images["1200x"]?.url || images["736x"]?.url || Object.values(images).map((v) => v?.url).find(Boolean);
+    out.push({ id: String(p.id), ...(best ? { image: best } : {}) });
+  }
+  return out;
 }
 
 /** The body Grails's POST /api/v1/imports expects. */

@@ -99,6 +99,50 @@
     return state;
   }
 
+  /** The board's name: the page's own heading, else its title. */
+  function boardTitle() { return (document.querySelector("h1")?.textContent || "").trim() || document.title; }
+
+  /** Reads the whole board the way Pinterest's own page does, in your signed-in browser: its feed, 100 pins a page, so secret boards work and
+   *  nothing depends on scrolling. Null when the page doesn't give a board id or the first page fails (the caller scrolls instead). */
+  async function feedPins(ui, text) {
+    const html = document.documentElement.innerHTML;
+    let boardId = null;
+    for (const re of [/board_id\\?",\\?"(\d+)/, /"board_id"\s*:\s*"(\d+)"/, /board_id\\?":\\?"(\d+)/]) { const m = re.exec(html); if (m) { boardId = m[1]; break; } }
+    if (!boardId) return null;
+    const pathname = location.pathname;
+    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+    const pins = new Map();
+    let bookmark = null, pagesDone = 0;
+    while (!ui.stopped && pins.size < 20000) {
+      const options = { board_id: boardId, board_url: pathname, field_set_key: "react_grid_pin", filter_section_pins: false, is_react: true, prepend: false, page_size: 100, redux_normalize_feed: true, add_vase: true };
+      if (bookmark) options.bookmarks = [bookmark];
+      let res, json = null;
+      try {
+        res = await fetch("/resource/BoardFeedResource/get/?source_url=" + encodeURIComponent(pathname) + "&data=" + encodeURIComponent(JSON.stringify({ options, context: {} })), {
+          headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json", "X-CSRFToken": csrf, "X-Pinterest-AppState": "active", "X-Pinterest-PWS-Handler": "www/[username]/[slug].js" }, credentials: "include",
+        });
+        json = await res.json();
+      } catch { /* handled below */ }
+      if (!res || res.status === 429) { if (res?.status === 429) { await wait(30000); continue; } break; }
+      if (res.status !== 200) break;
+      const rr = json?.resource_response || {};
+      const rows = rr.data || [];
+      for (const p of rows) {
+        if (!p || (p.type && p.type !== "pin") || !p.id) continue;
+        const images = p.images || {};
+        const best = images.orig?.url || images.originals?.url || images["1200x"]?.url || images["736x"]?.url || Object.values(images).map((v) => v?.url).find(Boolean);
+        if (!pins.has(String(p.id))) pins.set(String(p.id), { id: String(p.id), image: best || undefined });
+      }
+      pagesDone += 1;
+      ui.label.textContent = text(pins.size);
+      chrome.runtime.sendMessage({ type: "collect-progress", scrolled: pins.size }).catch(() => {});
+      bookmark = rr.bookmark;
+      if (!bookmark || bookmark === "-end-" || rows.length === 0) break;
+      await wait(1200);
+    }
+    return pagesDone > 0 ? [...pins.values()] : null;
+  }
+
   /** Scrolls the page to its end collecting pins ({id, image}); `limit` guards runaway boards. */
   async function scrollPins(ui, text) {
     const pins = new Map();
@@ -111,20 +155,50 @@
         if (!pins.has(m[1]) || (!pins.get(m[1]).image && src)) pins.set(m[1], { id: m[1], image: src || undefined });
       }
     };
+    const want = declaredPinCount();
     const startY = window.scrollY;
     let idle = 0, last = -1;
-    while (!ui.stopped && idle < 6 && pins.size < 20000) {
+    // Below the board's own count we keep waiting for slow loads; at it (or with no count) a few quiet rounds end the scroll.
+    while (!ui.stopped && pins.size < 20000 && !(want && pins.size >= want)) {
       harvest();
-      ui.label.textContent = text(pins.size);
+      ui.label.textContent = want ? `${text(pins.size)} of ${want}` : text(pins.size);
       chrome.runtime.sendMessage({ type: "collect-progress", scrolled: pins.size }).catch(() => {});
       idle = pins.size === last ? idle + 1 : 0;
       last = pins.size;
-      window.scrollBy(0, Math.max(window.innerHeight * 0.9, 600));
-      await wait(900);
+      if (idle >= (want && pins.size < want ? 15 : 6)) break;
+      scrollDown();
+      await wait(want && pins.size < want ? 1200 : 900);
     }
     harvest();
     window.scrollTo(0, startY);
-    return [...pins.values()];
+    // the board's pins come first; "more ideas" below them are not part of it
+    return [...pins.values()].slice(0, want || undefined);
+  }
+
+  /** "82 Pins" in the board header, or null (same reading as lib/pinterest.js parsePinCount). */
+  function declaredPinCount() {
+    for (let el = document.querySelector("h1"), i = 0; el && i < 4; el = el.parentElement, i++) {
+      const m = /(\d[\d.,]*)\s*([km])?\s*pins?\b/i.exec(el.innerText || "");
+      if (!m) continue;
+      if (m[2]) return Math.round(parseFloat(m[1].replace(/,/g, "")) * (m[2].toLowerCase() === "k" ? 1000 : 1000000));
+      const v = parseInt(m[1].replace(/[.,](?=\d{3}(\D|$))/g, ""), 10);
+      return Number.isFinite(v) ? v : null;
+    }
+    return null;
+  }
+
+  /** One step down. Pinterest sometimes scrolls an inner element instead of the window, so the last pin is brought into view too. */
+  function scrollDown() {
+    const step = Math.max(window.innerHeight * 0.9, 600);
+    const before = window.scrollY;
+    window.scrollBy(0, step);
+    const anchors = document.querySelectorAll('a[href*="/pin/"]');
+    anchors[anchors.length - 1]?.scrollIntoView({ block: "end" });
+    if (window.scrollY === before) {
+      for (const el of document.querySelectorAll("div, main")) {
+        if (el.scrollHeight - el.clientHeight > 200 && el.clientHeight > window.innerHeight * 0.5 && /auto|scroll/.test(getComputedStyle(el).overflowY)) el.scrollBy(0, step);
+      }
+    }
   }
 
   /** The popup's "Import this board": one board, with a way to stop. */
@@ -132,10 +206,10 @@
     if (collecting || window !== window.top) return;
     collecting = true;
     const ui = makePanel();
-    const pins = await scrollPins(ui, (n) => `${n} pins`);
+    const pins = (await feedPins(ui, (n) => `${n} pins`)) || (await scrollPins(ui, (n) => `${n} pins`));
     ui.label.textContent = `Sending ${pins.length}…`;
     ui.stop.remove();
-    const result = await chrome.runtime.sendMessage({ type: "board-collected", url: location.href, title: document.title, pins });
+    const result = await chrome.runtime.sendMessage({ type: "board-collected", url: location.href, title: boardTitle(), pins });
     ui.label.textContent = result?.ok ? `Sent ${result.count}` : (result?.error || "Couldn't reach Grails");
     setTimeout(() => ui.panel.remove(), 3000);
     collecting = false;
@@ -146,11 +220,11 @@
     if (collecting) return { pins: [] };
     collecting = true;
     const ui = makePanel();
-    const pins = await scrollPins(ui, (n) => `Board ${index} of ${of} · ${n}`);
+    const pins = (await feedPins(ui, (n) => `Board ${index} of ${of} · ${n}`)) || (await scrollPins(ui, (n) => `Board ${index} of ${of} · ${n}`));
     const stopped = ui.stopped;
     ui.panel.remove();
     collecting = false;
-    return { pins, title: document.title, stopped };
+    return { pins, title: boardTitle(), stopped };
   }
 
   /** A profile page: its boards (link, name, count, cover), found by scrolling to the end. */

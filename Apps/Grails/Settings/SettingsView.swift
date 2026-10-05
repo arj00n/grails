@@ -61,7 +61,7 @@ struct SettingsView: View {
 
             Form {
                 TextField("Your name", text: $handle)
-                TextField("Link page", text: $linkPage, prompt: Text("https://example.com/grails/open"))
+                TextField("Link page", text: $linkPage, prompt: Text(AppModel.defaultLinkPage))
                 LabeledContent("Library") {
                     Text(model.layout?.root.path ?? "—").textSelection(.enabled).lineLimit(2)
                 }

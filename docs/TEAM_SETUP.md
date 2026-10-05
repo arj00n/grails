@@ -58,6 +58,5 @@ In Drive for desktop ▸ Preferences ▸ Google Drive, choose how the shared dri
 - **Share outside the team**: the share button in the top bar (or File ▸ Export View As, ⌥⌘E) makes an **HTML file** (one file with every picture inside: send it,
   drop it in chat, open it anywhere) or a **PDF** (a cover and slide-sized pages, source links clickable), for the whole view or just the selection. Nothing is
   uploaded by Grails, and the page asks search engines not to index it. It is a snapshot; export again to update it.
-- **Clickable links in chat**: put `docs/router/index.html` on a web page you own (for example `https://example.com/grails/open/`), then enter that address as
-  *Link page* in Settings ▸ Library. Copy Link then gives a web address that chat apps make clickable; opening it hands the link to the app. The link's details
+- **Clickable links in chat**: *Copy Link* and *Copy Invite Link* give `https://grails.arjoon.xyz/open#lib=…`, which chat apps make clickable; the page hands the link to the app (or offers the download if it isn't installed). The link's details sit after the `#`, so the web server never sees them. *Link page* in Settings ▸ Library overrides the address.
   stay after the `#`, so the host never sees them.

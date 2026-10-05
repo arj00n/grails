@@ -118,6 +118,19 @@ extension AppModel {
         browserOpener(link)
     }
 
+    /// If the extension was installed unpacked from the app's copy, keeps that copy current: a new build brings a new extension, and the person
+    /// only has to press reload on the browser's extensions page.
+    func refreshExtensionCopy() {
+        let dest = Self.supportURL.appendingPathComponent("Extension", isDirectory: true)
+        guard FileManager.default.fileExists(atPath: dest.path), let source = Bundle.main.url(forResource: "chrome", withExtension: nil) else { return }
+        func version(_ dir: URL) -> String? {
+            (try? JSONSerialization.jsonObject(with: Data(contentsOf: dir.appendingPathComponent("manifest.json"))) as? [String: Any])?["version"] as? String
+        }
+        guard version(source) != version(dest) else { return }
+        try? FileManager.default.removeItem(at: dest)
+        try? FileManager.default.copyItem(at: source, to: dest)
+    }
+
     /// Puts the extension where it will stay (it survives app updates) and returns that folder.
     func copyExtensionFolder() -> URL? {
         guard let source = Bundle.main.url(forResource: "chrome", withExtension: nil) else { errorMessage = "The extension isn't in this build."; return nil }

@@ -17,12 +17,17 @@ final class GrailsAppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppModel {
+    /// The page that opens an invite or collection link in the app (or offers the download).
+    static let defaultLinkPage = "https://grails.arjoon.xyz/open"
+
     // MARK: Making links
 
     /// Where links point when you've set a link page in Settings (a chat app makes that clickable); the app's own scheme otherwise.
     private func copyToPasteboard(_ link: GrailsLink, toast: String) {
+        // links are web addresses on grails.arjoon.xyz (chat apps make those clickable; the page hands the link to the app), unless a different
+        // link page is set in Settings
         let typed = (UserDefaults.standard.string(forKey: "linkPage") ?? "").trimmingCharacters(in: .whitespaces)
-        let page = typed.isEmpty ? nil : URL(string: typed)
+        let page = URL(string: typed.isEmpty ? Self.defaultLinkPage : typed)
         let url = page.map { link.webURL(page: $0) } ?? link.url
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
