@@ -36,7 +36,7 @@ extension AppModel {
         add(.init(id: "cmd-export-pdf", title: "Export as PDF…", symbol: "doc.richtext") { [self] in exportWebPage(format: .pdf) })
         add(.init(id: "cmd-copy-link", title: "Copy Link to This View", symbol: "link", accessory: "⌥⌘L") { [self] in copyViewLink() })
         add(.init(id: "cmd-merge-tags", title: "Merge Similar Tags", symbol: "tag") { [self] in mergeSimilarTags() })
-        add(.init(id: "cmd-import-board", title: "Import from Are.na, Pinterest or X…", symbol: "square.and.arrow.down.on.square", accessory: "⇧⌘I") { [self] in promptImportBoard() })
+        add(.init(id: "cmd-import-board", title: "Import Boards…", symbol: "square.and.arrow.down.on.square", accessory: "⇧⌘I") { [self] in promptImportBoard() })
         add(.init(id: "cmd-autotag-all", title: "Auto-tag All Untagged Items", symbol: "sparkles") { [self] in autoTagEverything() })
         add(.init(id: "cmd-info", title: "Toggle Info Panel", symbol: "sidebar.right", accessory: key(.toggleInfo)) { [self] in run(.toggleInfo) })
         add(.init(id: "cmd-shuffle", title: "Shuffle", symbol: "shuffle", accessory: key(.shuffle)) { [self] in run(.shuffle) })

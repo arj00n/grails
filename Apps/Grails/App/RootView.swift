@@ -241,6 +241,7 @@ struct RootView: View {
     @ViewBuilder private var overlays: some View {
         if model.needsLibrary { WelcomeView(model: model) }
         if model.previewID != nil { PreviewPage(model: model) }
+        if model.importPanelOpen { ImportPanel(model: model) }
         if let panel = model.panel { PanelHost(model: model, panel: panel) }
         if let p = model.prompt { PromptCard(model: model, request: p) }
         if let c = model.confirm { ConfirmCard(model: model, request: c) }

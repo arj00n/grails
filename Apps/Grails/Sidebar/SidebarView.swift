@@ -22,6 +22,10 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             WorkspaceSwitcher(model: model).padding(.top, 8).padding(.bottom, 4)
             list
+            if model.importModel.isRunning {
+                Rectangle().fill(Ink.hairline).frame(height: 1)
+                ImportFooter(model: model)
+            }
         }
     }
 

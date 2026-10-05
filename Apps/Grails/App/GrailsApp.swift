@@ -29,7 +29,7 @@ struct GrailsApp: App {
                 Button("New Folder…") { model.promptNewCollection(kind: "folder", parent: nil) }
                 Button("New Smart Folder…") { model.run(.newSmartFolder) }.shortcut(.newSmartFolder)
                 Divider()
-                Button("Import from Are.na, Pinterest or X…") { model.promptImportBoard() }.keyboardShortcut("i", modifiers: [.command, .shift])
+                Button("Import Boards…") { model.promptImportBoard() }.keyboardShortcut("i", modifiers: [.command, .shift])
                 Divider()
                 Button("New Library…") { LibraryPicker.createNew(model) }
                 Button("Open Library…") { LibraryPicker.openExisting(model) }.keyboardShortcut("o")

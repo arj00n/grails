@@ -160,6 +160,8 @@ final class AppModel {
     var previewSet: PreviewSet?
     var previewSetVersion = 0
     var workspaceMenuOpen = false
+    var importPanelOpen = false
+    let importModel = ImportModel()
     @ObservationIgnored var hiddenPanels: (Bool, Bool)?
     /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
     /// flies to or from the preview. Set by whichever of the grid and canvas is showing.
@@ -254,6 +256,7 @@ final class AppModel {
         viewMode = ViewMode(rawValue: d.string(forKey: "viewMode") ?? "") ?? .grid
         layoutMode = GridLayoutMode(rawValue: d.string(forKey: "layoutMode") ?? "") ?? .square
         showInfo = ProcessInfo.processInfo.environment["GRAILS_SHOW_INFO"] != nil   // dev/UI tests
+        importModel.app = self
     }
 
     // MARK: Library lifecycle
@@ -325,6 +328,7 @@ final class AppModel {
                     try? FixtureLibrary.writeRemoteItem(into: layout, name: "Remote item", addedBy: "ben")
                 }
             }
+            if let dir = ProcessInfo.processInfo.environment["GRAILS_IMPORT_DEMO"] { importModel.opensFirstCollection = true; importModel.runDemo(into: dir) }
             if ProcessInfo.processInfo.environment["GRAILS_PREVIEW_DEMO"] != nil, let first = items.first { openPreview(first.id) }
             if ProcessInfo.processInfo.environment["GRAILS_AUTOLIKE"] != nil, let first = items.first {
                 toggleLike(ids: [first.id])

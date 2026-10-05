@@ -1,31 +1,41 @@
 import AppKit
 import GrailsKit
 
-/// Import a public Are.na channel or Pinterest board from its link.
+/// Import boards from Are.na, Pinterest and X: links go to the import panel, which runs them as one job.
 extension AppModel {
     func promptImportBoard() {
-        guard boardImportTask == nil else { showToast("An import is already running"); return }
-        // a board link already on the clipboard is almost certainly what they want
-        let clip = (NSPasteboard.general.string(forType: .string) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        let looksRight = BoardRef.parse(clip) != nil || BoardRef.isPinterestShortLink(clip)
-        prompt = PromptRequest(
-            title: "Import from Are.na, Pinterest or X",
-            placeholder: "Board link", initial: looksRight ? clip : "", confirmTitle: "Import"
-        ) { [weak self] link in
-            guard let self, !link.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-            self.startBoardImport(link)
-        }
+        if importModel.phase == .finished { importModel.reset() }
+        importPanelOpen = true
     }
 
+    /// A link that arrived from elsewhere (a pasted post): brought in without asking, once it is recognised.
     func startBoardImport(_ link: String) {
-        guard boardImportTask == nil else { return }
-        boardImportTask = Task { [weak self] in
-            await self?.importBoard(link)
-            self?.boardImportTask = nil
-        }
+        guard !importModel.isRunning else { showToast("An import is already running"); return }
+        importModel.importNow(link)
     }
 
-    func cancelBoardImport() { boardImportTask?.cancel() }
+    func cancelBoardImport() { importModel.stopAll() }
+
+    func importFinished(_ job: ImportJob, openFirst: Bool) async {
+        await reload()
+        kickAutoTag()
+        let added = job.boards.reduce(0) { $0 + $1.added + $1.alreadyHad }
+        let skipped = job.boards.reduce(0) { $0 + $1.skippedCount + $1.failed }
+        if openFirst, let first = job.boards.first(where: { $0.collectionId != nil && $0.added + $0.alreadyHad > 0 })?.collectionId { source = .collection(first) }
+        showToast("Imported \(added.formatted())" + (skipped > 0 ? " · \(skipped.formatted()) skipped" : ""), seconds: 5)
+    }
+
+    /// Takes back what an import added: the pictures go to the Trash, and the collections it made go if nothing else is in them.
+    func undoImport(ids: [String], collections cids: [String]) async {
+        guard let store else { return }
+        try? await store.softDelete(ids: ids)
+        for cid in cids {
+            var q = ItemQuery(); q.collectionId = cid
+            if (try? await store.index.count(q)) == 0 { try? await store.deleteCollection(id: cid) }
+        }
+        await reload()
+        showToast("Import undone")
+    }
 
     /// The browser extension scrolled a whole board and sent its pin ids; Grails looks them up and imports.
     func startPinterestImport(_ request: BoardImportRequest) {
@@ -43,18 +53,6 @@ extension AppModel {
         await importBoard { [weak self] in
             self?.boardImport = ("Looking up \(request.pinIds.count) pins on Pinterest…", 0, 0)
             return try await importer.fetchPinterestPins(ids: request.pinIds, ref: ref, name: request.name, author: nil)
-        }
-    }
-
-    private func importBoard(_ link: String) async {
-        let importer = BoardImporter()
-        await importBoard { [weak self] in
-            self?.boardImport = ("Looking up the link…", 0, 0)
-            let ref = try await importer.resolve(link)
-            self?.boardImport = ("Reading the \(ref.service) \(ref.kindName)…", 0, 0)
-            return try await importer.fetch(ref) { [weak self] found, total in
-                Task { @MainActor in self?.boardImport = ("Reading the \(ref.service) \(ref.kindName)… \(found)\(total.map { " of \($0)" } ?? "")", 0, 0) }
-            }
         }
     }
 

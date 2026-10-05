@@ -12,7 +12,7 @@ public struct LinkFetcher: Sendable {
 
     public init(load: @escaping Loader = { try await URLSession.shared.data(for: $0) }) { self.load = load }
 
-    static func request(_ url: URL, accept: String) -> URLRequest {
+    public static func request(_ url: URL, accept: String) -> URLRequest {
         var r = URLRequest(url: url, timeoutInterval: 12)
         r.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15 Grails/0.1", forHTTPHeaderField: "User-Agent")
         r.setValue(accept, forHTTPHeaderField: "Accept")

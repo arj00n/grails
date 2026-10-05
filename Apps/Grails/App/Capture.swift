@@ -45,7 +45,7 @@ extension AppModel {
             Task { @MainActor in
                 guard let self else { return }
                 // a board import saves many items through here; it reloads once at the end and shows its own progress
-                guard self.boardImport == nil else { return }
+                guard self.boardImport == nil, !self.importModel.isRunning else { return }
                 await self.reload()
                 if !result.duplicate { self.showToast(result.kind == "link" ? "Saved link" : "Saved to Grails") }
                 if result.kind == "link", !result.duplicate { await self.autoSnapshotIfNeeded(id: result.id) }
