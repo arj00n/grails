@@ -255,8 +255,8 @@ private struct LibraryRow: View {
 
 // MARK: Paste and Arriving
 
-/// One layout for both: the boards column stays where it is on the right, and the left is the paste field until the import runs, then the
-/// pictures filling in. Nothing is rebuilt between the two; the left cross-fades and the column's contents change in place.
+/// One screen for both. Before the import runs the column is centred, like every step before it; when it runs the same column moves to the
+/// right edge and takes its counter while the pictures fill in on the left. Nothing is rebuilt: the column's frame, alignment and header animate.
 struct ImportScreen: View {
     var model: OnboardingModel
     var app: AppModel
@@ -265,37 +265,27 @@ struct ImportScreen: View {
     var elapsed: Double
     var eta: Eta
 
-    private var fade: Animation { .easeOut(duration: reduceMotionOn ? 0.12 : 0.18) }
+    private var curve: Animation { .timingCurve(0.22, 1, 0.36, 1, duration: reduceMotionOn ? 0.12 : 0.24) }
 
     var body: some View {
-        HStack(spacing: 0) {
+        GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                PasteCanvas(model: model, app: app).opacity(arriving ? 0 : 1).allowsHitTesting(!arriving)
-                ArrivalGrid(model: grid, app: app).opacity(arriving ? 1 : 0).allowsHitTesting(arriving)
+                ArrivalGrid(model: grid, app: app)
+                    .padding(.leading, 16).padding(.top, 52).padding(.trailing, ProgressColumn.width + 16)
+                    .opacity(arriving ? 1 : 0).allowsHitTesting(arriving)
+                ProgressColumn(model: model, app: app, arriving: arriving, elapsed: elapsed, eta: eta)
+                    .frame(width: arriving ? ProgressColumn.width : 560, height: arriving ? geo.size.height - 44 : min(520, geo.size.height - 120))
+                    .offset(x: arriving ? geo.size.width - ProgressColumn.width : (geo.size.width - 560) / 2,
+                            y: arriving ? 44 : max((geo.size.height - min(520, geo.size.height - 120)) / 2, 44))
             }
-            .padding(.leading, 16).padding(.top, 52).padding(.trailing, 16)
-            ProgressColumn(model: model, app: app, arriving: arriving, elapsed: elapsed, eta: eta).padding(.top, 44)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
-        .animation(fade, value: arriving)
+        .animation(curve, value: arriving)
+        .ignoresSafeArea()
     }
 }
 
-/// The left side before the import runs: the field, and the note about big boards.
-private struct PasteCanvas: View {
-    var model: OnboardingModel
-    var app: AppModel
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("IMPORT BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text)
-            ImportView(model: app.importModel, app: app, parts: .field)
-        }
-        .frame(maxWidth: 420, alignment: .leading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-}
-
-/// The boards column, the same place on both screens: a counter, the boards, and the one action (Import, then Open library).
+/// The boards column: Import boards (the field, the rows, Import) that becomes Importing (the counter, the rows, Stop and Open library).
 struct ProgressColumn: View {
     var model: OnboardingModel
     var app: AppModel
@@ -312,27 +302,31 @@ struct ProgressColumn: View {
         let paused = importer.tasks.values.contains { if case .waiting = $0.state { true } else { false } }
         let picked = importer.selectedItemCount
         VStack(alignment: .leading, spacing: 14) {
-            Text(arriving ? "IMPORTING" : "BOARDS").font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
-            VStack(alignment: .leading, spacing: 8) {
-                Text(arriving ? "\(done.formatted()) / \(total.formatted())" : picked.formatted())
-                    .font(.grailsDisplay(24)).monospacedDigit().foregroundStyle(Ink.text)
-                    .contentTransition(.opacity)
-                    .accessibilityLabel(arriving ? "\(done) of \(total) pictures" : "\(picked) pictures")
-                    .accessibilityIdentifier("onboarding-counter")
-                ZStack(alignment: .leading) {
-                    Rectangle().fill(Ink.fill)
-                    GeometryReader { g in Rectangle().fill(Ink.text).frame(width: g.size.width * (arriving ? min(CGFloat(done) / CGFloat(total), 1) : 0)) }
+            if arriving {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("IMPORTING").font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(done.formatted()) / \(total.formatted())").font(.grailsDisplay(24)).monospacedDigit().foregroundStyle(Ink.text)
+                            .accessibilityLabel("\(done) of \(total) pictures")
+                            .accessibilityIdentifier("onboarding-counter")
+                        ZStack(alignment: .leading) {
+                            Rectangle().fill(Ink.fill)
+                            GeometryReader { g in Rectangle().fill(Ink.text).frame(width: g.size.width * min(CGFloat(done) / CGFloat(total), 1)) }
+                        }
+                        .frame(height: 2)
+                        HStack {
+                            Text(paused ? "Paused" : (eta.label(handled: done, total: total, elapsed: elapsed, paused: paused) ?? " "))
+                                .font(.grailsBody(12)).foregroundStyle(Ink.secondary)
+                            Spacer()
+                            Text("\(Int(min(Double(done) / Double(total), 1) * 100)) %").font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
+                        }
+                    }
                 }
-                .frame(height: 2)
-                HStack {
-                    Text(arriving ? (paused ? "Paused" : (eta.label(handled: done, total: total, elapsed: elapsed, paused: paused) ?? " ")) : " ")
-                        .font(.grailsBody(12)).foregroundStyle(Ink.secondary)
-                    Spacer()
-                    Text(arriving ? "\(Int(min(Double(done) / Double(total), 1) * 100)) %" : " ").font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
-                }
+                .transition(.opacity)
+            } else {
+                Text("IMPORT BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text).transition(.opacity)
             }
-            ImportView(model: importer, app: app, parts: .rows, listHeight: nil)
-            Spacer(minLength: 0)
+            ImportView(model: importer, app: app, listHeight: nil)
             ZStack(alignment: .trailing) {
                 HStack {
                     Button("Stop") { importer.stopAll() }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary).opacity(importer.isRunning ? 1 : 0)
@@ -346,11 +340,10 @@ struct ProgressColumn: View {
                     .opacity(arriving ? 0 : 1).allowsHitTesting(!arriving)
             }
         }
-        .padding(16)
-        .frame(width: Self.width, alignment: .topLeading)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(Ink.surface)
-        .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1) }
+        .padding(arriving ? 16 : 0)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(Ink.surface.opacity(arriving ? 1 : 0))
+        .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1).opacity(arriving ? 1 : 0) }
     }
 }
 
