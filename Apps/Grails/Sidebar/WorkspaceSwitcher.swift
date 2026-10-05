@@ -57,6 +57,8 @@ struct WorkspaceMenu: View {
             action("New Workspace…", "plus") { LibraryPicker.createNew(model) }
             action("Join with Link…", "link") { model.promptJoinWithLink() }
             rule
+            action("Invite…", "person.badge.plus") { model.collab.presentInvite() }
+            action("Team Setup…", "person.2") { model.collab.presentSetup() }
             action("Copy Invite Link", "doc.on.doc") { model.copyInviteLink() }
             action("Refresh", "arrow.clockwise") { Task { await model.refreshLibrary() } }
             action("Show in Finder", "magnifyingglass") { if let u = model.layout?.root { NSWorkspace.shared.activateFileViewerSelecting([u]) } }

@@ -241,6 +241,8 @@ final class AppModel {
     var needsLibrary = false
     /// First-run onboarding, while it is on screen.
     var onboarding: OnboardingModel?
+    /// Team libraries: set-up, the invite checklist, and the screen for an invite whose library isn't on this Mac (Collab/).
+    @ObservationIgnored lazy var collab = CollabModel(app: self)
     private(set) var workspaces: [Workspace] = Workspaces.load()
     /// The open library's own id (the same on every Mac), used in `grails://` links.
     private(set) var libraryID = ""
@@ -287,6 +289,7 @@ final class AppModel {
         let env = ProcessInfo.processInfo.environment
         refreshExtensionCopy()
         if let dir = env["GRAILS_ONBOARDING_DEMO"] { await startOnboardingDemo(dir); return }
+        if let dir = env["GRAILS_COLLAB_DEMO"] { await startCollabDemo(dir); return }
         let url: URL
         if let p = env["GRAILS_LIBRARY"] {
             url = URL(fileURLWithPath: p)
@@ -339,6 +342,7 @@ final class AppModel {
             libraryName = await store.manifest.name
             if remember { UserDefaults.standard.set(url.path, forKey: "libraryPath") }
             libraryID = await store.manifest.id
+            collab.recordPresence()
             pinnedTags = UserDefaults.standard.stringArray(forKey: "pinnedTags.\(libraryID)") ?? []
             stripTags = []
             if remember { workspaces = Workspaces.remember(id: libraryID, path: url.path, name: libraryName) }

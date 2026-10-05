@@ -72,6 +72,13 @@ struct SettingsView: View {
                     Button("Open another library…") { LibraryPicker.openExisting(model) }
                     Button("New library…") { LibraryPicker.createNew(model) }
                 }
+                Section("Team") {
+                    LabeledContent("Shared through") { Text(model.collab.currentPlacement?.label ?? "—") }
+                    HStack {
+                        Button("Set up team library…") { model.collab.presentSetup() }.accessibilityIdentifier("settings-team-setup")
+                        Button("Invite…") { model.collab.presentInvite() }.accessibilityIdentifier("settings-invite")
+                    }
+                }
             }
             .tabItem { Label("Library", systemImage: "books.vertical") }
 

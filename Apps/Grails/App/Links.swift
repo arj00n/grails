@@ -43,7 +43,8 @@ extension AppModel {
     /// For someone who hasn't added this library yet: opening it asks them to pick the shared folder.
     func copyInviteLink() {
         guard !libraryID.isEmpty else { return }
-        copyToPasteboard(GrailsLink(library: libraryID, name: libraryName), toast: "Invite link copied")
+        // carries where the library lives, so a teammate whose Grails can't find it is told what's missing
+        copyToPasteboard(GrailsLink(library: libraryID, name: libraryName, hint: collab.hint), toast: "Invite link copied")
     }
 
     /// The link for what's on screen: the open collection or tag, in the same view mode.
@@ -82,7 +83,8 @@ extension AppModel {
             if let w = workspaces.first(where: { $0.id == link.library }), w.exists {
                 await openOrCreate(at: w.url)
             } else {
-                guard await locateLibrary(id: link.library, name: link.name ?? workspaces.first { $0.id == link.library }?.name) else { return }
+                // looks in every synced folder, then says why it can't find it (Collab/JoinFlow.swift); the folder picker is its way out
+                guard await findOrExplain(link) else { return }
             }
         }
         navigate(to: link)

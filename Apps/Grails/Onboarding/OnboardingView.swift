@@ -15,6 +15,12 @@ struct OnboardingView: View {
             case .whereIt: LibraryStep(model: model).transition(.opacity)
             case .paste, .arriving: ImportStep(model: model).transition(.opacity)
             }
+            if model.teamSetup, let app = model.app {
+                Ink.canvas.ignoresSafeArea().transition(.opacity)
+                CollabSetupView(model: app) { model.closeTeamSetup() }
+                    .frame(width: CollabSetupView.size.width, height: CollabSetupView.size.height)
+                    .surfaceCard().transition(.opacity)
+            }
             topBar
             Button("") { model.back() }.keyboardShortcut(.cancelAction).frame(width: 0, height: 0).opacity(0)
         }
@@ -114,9 +120,13 @@ struct ChooserCards: View {
                 card("Start empty", fact: nil, id: "choose-empty") { model.startEmpty() }
             }
             .frame(width: model.found.isEmpty ? 544 : 560)
-            Button(model.chosenPath.isEmpty ? "Choose where it lives" : model.chosenPath) { model.go(.whereIt) }
-                .buttonStyle(.plain).font(.grailsBody(12)).foregroundStyle(Ink.secondary)
-                .accessibilityIdentifier("choose-location")
+            HStack(spacing: 16) {
+                Button(model.chosenPath.isEmpty ? "Choose where it lives" : model.chosenPath) { model.go(.whereIt) }
+                    .accessibilityIdentifier("choose-location")
+                Button("Set up a team library") { model.openTeamSetup() }
+                    .accessibilityIdentifier("choose-team")
+            }
+            .buttonStyle(.plain).font(.grailsBody(12)).foregroundStyle(Ink.secondary)
             Button("") { model.pasteFromClipboard() }.keyboardShortcut("v", modifiers: .command).frame(width: 0, height: 0).opacity(0)
         }
     }

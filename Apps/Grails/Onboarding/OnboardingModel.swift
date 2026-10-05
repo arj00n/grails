@@ -20,6 +20,8 @@ final class OnboardingModel {
     private(set) var otherURL: URL?
     private(set) var busy = false
     private(set) var problem: String?
+    /// The team library set-up, shown over Choose.
+    private(set) var teamSetup = false
     /// Someone who finished this before and is back because their library's folder is gone: no hello, no import.
     let returning: Bool
     let seed: UInt64
@@ -60,7 +62,16 @@ final class OnboardingModel {
         state.save(defaults)
     }
 
+    func openTeamSetup() { withAnimation(.easeOut(duration: Motion.standard)) { teamSetup = true } }
+
+    /// Set-up finished or dismissed: a library that got made ends onboarding (a team library is there to be filled by the team), otherwise back to Choose.
+    func closeTeamSetup() {
+        withAnimation(.easeOut(duration: Motion.standard)) { teamSetup = false }
+        if app?.store != nil { finish() }
+    }
+
     func back() {
+        if teamSetup { closeTeamSetup(); return }
         switch step {
         case .whereIt: if !returning { go(.choose) }
         default: break      // once the library exists, going back would make a second one

@@ -3,7 +3,7 @@
    grails://open?<the same query>, untouched (GrailsLink in GrailsKit reads it), and offers the download. */
 (function () {
   "use strict";
-  var KEYS = ["lib", "name", "c", "t", "i", "v"];
+  var KEYS = ["lib", "name", "c", "t", "i", "v", "k", "at", "dom"];
   var pairs = location.hash.replace(/^#/, "").split("&").filter(function (p) {
     var eq = p.indexOf("=");
     return eq > 0 && KEYS.indexOf(p.slice(0, eq)) >= 0;

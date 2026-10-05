@@ -16,9 +16,11 @@ public struct GrailsLink: Equatable, Sendable {
     public var target: Target
     /// Open the canvas rather than the grid.
     public var canvas: Bool
+    /// Where the library lives (invite links only), so a Mac that can't find it can say what's missing. Older links don't have it.
+    public var hint: LibraryHint?
 
-    public init(library: String, name: String? = nil, target: Target = .library, canvas: Bool = false) {
-        self.library = library; self.name = name; self.target = target; self.canvas = canvas
+    public init(library: String, name: String? = nil, target: Target = .library, canvas: Bool = false, hint: LibraryHint? = nil) {
+        self.library = library; self.name = name; self.target = target; self.canvas = canvas; self.hint = hint
     }
 
     public var url: URL {
@@ -34,6 +36,7 @@ public struct GrailsLink: Equatable, Sendable {
         case .item(let id): q.append(URLQueryItem(name: "i", value: id))
         }
         if canvas { q.append(URLQueryItem(name: "v", value: "canvas")) }
+        if let hint { q += hint.queryItems }
         c.queryItems = q
         return c.url ?? URL(string: "grails://open")!
     }
@@ -59,6 +62,7 @@ public struct GrailsLink: Equatable, Sendable {
         library = lib
         name = value("name")
         canvas = value("v") == "canvas"
+        hint = LibraryHint(items: items)
         if let c = value("c") { target = .collection(c) }
         else if let t = value("t") { target = .tag(t) }
         else if let i = value("i") { target = .item(i) }
