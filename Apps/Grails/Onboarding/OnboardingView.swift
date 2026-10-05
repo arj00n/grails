@@ -67,14 +67,13 @@ struct HelloFrame<Wall: View>: View {
         }
     }
 
-    /// Typed on at 40 ms a letter after a second; a block cursor blinks twice and holds.
+    /// Typed on at 40 ms a letter, starting after a second.
     private var title: some View {
         let word = Array("GRAILS")
         let typed = min(max(Int((t - 1.0) / 0.04) + 1, 0), word.count)
-        let blink = t < 1.24 ? true : (t < 1.94 ? Int((t - 1.24) / 0.175) % 2 == 1 : true)
         return ZStack(alignment: .leading) {
-            Text("GRAILS█").font(.grailsDisplay(32)).hidden()
-            Text(String(word.prefix(typed)) + (blink && t >= 1.0 ? "█" : "")).font(.grailsDisplay(32)).foregroundStyle(Ink.text)
+            Text("GRAILS").font(.grailsDisplay(32)).hidden()
+            Text(String(word.prefix(typed))).font(.grailsDisplay(32)).foregroundStyle(Ink.text)
         }
         .accessibilityLabel("Grails")
     }
