@@ -129,6 +129,10 @@ final class AppModel {
     private(set) var collections: [GrailsCollection] = []
     private(set) var smartFolders: [SmartFolder] = []
     private(set) var tags: [(tag: String, count: Int)] = []
+    /// Tags on the items in the current view, with how many of them have each: what the tab strip offers.
+    private(set) var viewTags: [(tag: String, count: Int)] = []
+    /// How many items that view has before the strip narrows it.
+    private(set) var viewBaseCount = 0
     /// lowercased tag → "#RRGGBB"
     private(set) var tagColors: [String: String] = [:]
     private(set) var totalCount = 0
@@ -409,6 +413,15 @@ final class AppModel {
             let q = try await makeQuery(store: store, smartFolders: smart)
             var result = try await store.index.query(q)
             let tagList = try await store.index.tagCounts().map { (tag: $0.tag, count: $0.count) }
+            // the strip's tags come from the view without the strip's own narrowing, so its tabs stay put while you switch between them
+            var baseIDs = Set(result.map(\.id))
+            if !stripTags.isEmpty {
+                var base = q
+                base.extraTags = []
+                baseIDs = Set(try await store.index.query(base).map(\.id))
+            }
+            let inView = try await store.index.tagCounts(among: baseIDs)
+            let baseCount = baseIDs.count
             let colors = await store.tagMetadata().compactMapValues(\.color)
             let total = try await store.index.count(ItemQuery())
             let people = try await store.index.addedByCounts()
@@ -420,6 +433,8 @@ final class AppModel {
             itemsVersion += 1
             selection.formIntersection(Set(result.map(\.id)))
             tags = tagList
+            viewTags = inView.map { (tag: $0.tag, count: $0.count) }
+            viewBaseCount = baseCount
             tagColors = colors
             totalCount = total
             if autoTagSeenTotal >= 0, total > autoTagSeenTotal { kickAutoTag() }

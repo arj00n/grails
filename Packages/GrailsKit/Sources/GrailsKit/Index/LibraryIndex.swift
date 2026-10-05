@@ -244,6 +244,20 @@ public final class LibraryIndex: Sendable {
         }
     }
 
+    /// Tags on just these items, most used first: what a view of those items has to offer to narrow it further.
+    public func tagCounts(among ids: Set<String>) async throws -> [(tag: String, count: Int)] {
+        guard !ids.isEmpty else { return [] }
+        return try await db.read { db in
+            var counts: [String: Int] = [:]
+            let rows = try Row.fetchCursor(db, sql: "SELECT t.itemId AS id, t.tag AS tag FROM item_tags t JOIN items i ON i.id = t.itemId WHERE i.deletedAt IS NULL")
+            while let row = try rows.next() {
+                let id: String = row["id"]
+                if ids.contains(id) { counts[row["tag"] as String, default: 0] += 1 }
+            }
+            return counts.map { (tag: $0.key, count: $0.value) }.sorted { $0.count != $1.count ? $0.count > $1.count : $0.tag < $1.tag }
+        }
+    }
+
     public func tagCounts() async throws -> [(tag: String, count: Int)] {
         try await db.read { db in
             try Row.fetchAll(db, sql: """

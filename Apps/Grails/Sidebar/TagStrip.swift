@@ -1,26 +1,52 @@
 import GrailsKit
 import SwiftUI
 
+struct StripEntry: Identifiable {
+    var tag: String
+    var count: Int
+    var active: Bool
+    var id: String { tag }
+}
+
 extension AppModel {
-    /// What the strip shows: the pinned tags that still exist, or the most used tags until some are pinned.
-    var stripTagList: [String] {
-        let known = Set(tags.map(\.tag))
-        let pinned = pinnedTags.filter(known.contains)
-        return pinned.isEmpty ? tags.prefix(8).map(\.tag) : pinned
+    private static let stripLimit = 12
+
+    /// What the strip offers for the view you are in (before the strip narrows it): the tags already on first, then the other tags its
+    /// items carry (not ones every item has), pinned ones first and then the most common. Clicking another tab switches to it.
+    var stripEntries: [StripEntry] {
+        let active = stripTags.map { t in StripEntry(tag: t, count: viewTags.first { $0.tag == t }?.count ?? 0, active: true) }
+        return active + narrowingTags.prefix(max(0, Self.stripLimit - active.count)).map { StripEntry(tag: $0.tag, count: $0.count, active: false) }
     }
 
-    var stripVisible: Bool { !tags.isEmpty && source != .trash }
+    private var narrowingTags: [(tag: String, count: Int)] {
+        let total = viewBaseCount
+        let order = Dictionary(pinnedTags.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        return viewTags.filter { !stripTags.contains($0.tag) && $0.count < total }.sorted { a, b in
+            switch (order[a.tag], order[b.tag]) {
+            case let (x?, y?): return x < y
+            case (.some, nil): return true
+            case (nil, .some): return false
+            default: return a.count != b.count ? a.count > b.count : a.tag < b.tag
+            }
+        }
+    }
+
+    /// Narrowing tags that didn't fit on the strip, for the + menu.
+    var moreStripTags: [(tag: String, count: Int)] {
+        let shown = Set(stripEntries.map(\.tag))
+        return narrowingTags.filter { !shown.contains($0.tag) }
+    }
+
+    var stripVisible: Bool { source != .trash && !stripEntries.isEmpty }
 
     func pinTag(_ tag: String) {
         guard !pinnedTags.contains(tag) else { return }
-        // pinning from the "most used" default keeps what you were looking at, then adds yours
-        pinnedTags = (pinnedTags.isEmpty ? stripTagList : pinnedTags) + [tag]
+        pinnedTags.append(tag)
         savePinned()
     }
 
     func unpinTag(_ tag: String) {
-        pinnedTags = (pinnedTags.isEmpty ? stripTagList : pinnedTags).filter { $0 != tag }
-        stripTags.removeAll { $0 == tag }
+        pinnedTags.removeAll { $0 == tag }
         savePinned()
     }
 
@@ -47,28 +73,28 @@ struct TagStrip: View {
         HStack(spacing: 4) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 2) {
-                    StripTab(label: "All", selected: model.stripTags.isEmpty) { model.stripTags = [] }
-                    ForEach(model.stripTagList, id: \.self) { t in
-                        StripTab(label: t, selected: model.stripTags.contains(t)) {
-                            model.tapStripTag(t, extend: NSEvent.modifierFlags.contains(.shift))
+                    StripTab(label: "All", count: nil, selected: model.stripTags.isEmpty) { model.stripTags = [] }
+                    ForEach(model.stripEntries) { e in
+                        StripTab(label: e.tag, count: e.count, selected: e.active) {
+                            model.tapStripTag(e.tag, extend: NSEvent.modifierFlags.contains(.shift))
                         }
-                        .contextMenu { Button("Remove from Strip") { model.unpinTag(t) } }
+                        .contextMenu {
+                            if model.pinnedTags.contains(e.tag) { Button("Unpin") { model.unpinTag(e.tag) } }
+                            else { Button("Pin to Front") { model.pinTag(e.tag) } }
+                        }
                     }
                 }
             }
-            Menu {
-                let shown = Set(model.stripTagList)
-                ForEach(model.tags.filter { !shown.contains($0.tag) }.prefix(40), id: \.tag) { t in
-                    Button(t.tag) { model.pinTag(t.tag) }
-                }
-                if !model.pinnedTags.isEmpty {
-                    Divider()
-                    Button("Show Most Used") { model.resetPinnedTags() }
-                }
-            } label: { BarIcon(symbol: "plus", size: 24) }
-                .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
-                .help("Pin a tag")
-                .accessibilityIdentifier("strip-add")
+            if !model.moreStripTags.isEmpty {
+                Menu {
+                    ForEach(model.moreStripTags.prefix(40), id: \.tag) { t in
+                        Button("\(t.tag)  \(t.count)") { model.tapStripTag(t.tag, extend: NSEvent.modifierFlags.contains(.shift)) }
+                    }
+                } label: { BarIcon(symbol: "ellipsis", size: 24) }
+                    .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
+                    .help("More tags in this view")
+                    .accessibilityIdentifier("strip-more")
+            }
         }
         .padding(.horizontal, 12)
         .frame(height: Self.height)
@@ -78,16 +104,17 @@ struct TagStrip: View {
 
 private struct StripTab: View {
     let label: String
+    let count: Int?
     let selected: Bool
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.grailsBody(13))
-                .foregroundStyle(selected || hovering ? Ink.text : Ink.secondary)
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                Text(label).font(.grailsBody(13)).foregroundStyle(selected || hovering ? Ink.text : Ink.secondary).lineLimit(1)
+                if let count { Text("\(count)").font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
+            }
                 .padding(.horizontal, 10).frame(height: 24)
                 .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(selected ? Ink.fillHover : (hovering ? Ink.fill : .clear)))
                 .contentShape(Rectangle())

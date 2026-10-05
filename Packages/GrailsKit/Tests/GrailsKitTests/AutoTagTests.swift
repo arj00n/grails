@@ -405,3 +405,20 @@ import Testing
         #expect(try await store.index.query(q).isEmpty)
     }
 }
+
+@Suite struct ViewTagsTests {
+    @Test func tagsAmongSomeItemsCountOnlyThoseItems() async throws {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<4 { items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "v\(i)", rgb: (Double(i) / 4, 0.2, 0.8))).item) }
+        try await store.addTags(["poster", "swiss"], to: [items[0].id, items[1].id])
+        try await store.addTags(["poster", "red"], to: [items[2].id])
+        try await store.addTags(["food"], to: [items[3].id])
+        let some = try await store.index.tagCounts(among: [items[0].id, items[1].id, items[2].id])
+        #expect(some.map(\.tag) == ["poster", "swiss", "red"])
+        #expect(some.first?.count == 3 && some[1].count == 2)
+        #expect(try await store.index.tagCounts(among: []).isEmpty)
+        #expect(!(try await store.index.tagCounts(among: [items[3].id])).contains { $0.tag == "poster" })
+    }
+}

@@ -66,12 +66,22 @@ extension AppModel {
         filters = ViewFilters()
     }
 
+    private func isFilterView(_ s: ViewSnapshot) -> Bool {
+        if case .tag = s.source { return true }
+        return s.addedBy != nil || s.source == .liked || s.source == .untagged
+    }
+
+    /// Leaves the whole run of filter views at once (tag, then another tag, then a person…): back to the last place that wasn't one,
+    /// or to All when there is none. ⌘[ still steps back one view at a time.
     private func leaveFilterView() {
-        if canGoBack { goBack() } else {
-            restoringHistory = true
-            defer { restoringHistory = false }
-            addedByFilter = nil
-            source = .all
+        var target: ViewSnapshot?
+        while let last = viewHistory.popLast() {
+            if !isFilterView(last) { target = last; break }
         }
+        restoringHistory = true
+        defer { restoringHistory = false }
+        searchText = ""
+        addedByFilter = target?.addedBy
+        source = target?.source ?? .all
     }
 }

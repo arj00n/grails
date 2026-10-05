@@ -92,8 +92,8 @@ struct SidebarView: View {
                                        tint: model.tagColor(t.tag), count: t.count, source: .tag(t.tag))
                                 .dropTarget(model: model, id: "tag-\(t.tag)", targeted: $targeted, target: .tag(t.tag))
                                 .contextMenu {
-                                    Button(model.stripTagList.contains(t.tag) ? "Remove from Tab Strip" : "Pin to Tab Strip") {
-                                        if model.stripTagList.contains(t.tag) { model.unpinTag(t.tag) } else { model.pinTag(t.tag) }
+                                    Button(model.pinnedTags.contains(t.tag) ? "Unpin from Tab Strip" : "Pin to Tab Strip") {
+                                        if model.pinnedTags.contains(t.tag) { model.unpinTag(t.tag) } else { model.pinTag(t.tag) }
                                     }
                                     Button("Copy Link") { model.copyLink(.tag(t.tag)) }
                                     Button("Rename…") { model.promptRenameTag(t.tag) }
