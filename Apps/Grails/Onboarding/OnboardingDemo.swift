@@ -164,6 +164,17 @@ extension OnboardingDemo {
                 times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
             }
             times.sort()
+            // the pointer moving fast: head plus a full trail, on the first painting held (no wave)
+            engine.prepare(0, size: size, pixel: 1)
+            let trail = (0..<19).map { PaintingWall.Touch(x: 600 + Double($0) * 14, y: 300 + Double($0) * 9, age: Double($0) * 0.04) }
+            var loupe: [Double] = []
+            for _ in 0..<30 {
+                let start = CFAbsoluteTimeGetCurrent()
+                _ = engine.frame(size: size, t: 4, dark: true, reduceMotion: false, touches: trail)
+                loupe.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
+            }
+            loupe.sort()
+            lines.append("bench \(label) with a full pointer trail: median \(String(format: "%.2f", loupe[15])) ms, p95 \(String(format: "%.2f", loupe[28])) ms")
             lines.append("bench \(label): wave frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms")
         }
         return lines.joined(separator: "\n")
