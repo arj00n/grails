@@ -23,6 +23,7 @@ final class CanvasNSView: NSView {
     var onPaste: (() -> Void)?
     var onViewportSettled: ((String, CGPoint, CGFloat) -> Void)?
     var onOptionClick: ((String) -> Void)?
+    var onSearch: (() -> Void)?
     /// False in views that have no board to save to (the Trash): items can be selected and previewed but not rearranged.
     var editable = true { didSet { if oldValue != editable { for h in headers.values { h.isHidden = !editable } } } }
 
@@ -1047,6 +1048,7 @@ final class CanvasNSView: NSView {
         guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty else { return super.keyDown(with: event) }
         if event.modifierFlags.intersection(Shortcut.mask).isEmpty, keyHandler?(event) == true { return }
         switch event.keyCode {
+        case 44: onSearch?()
         case 53:
             if drag != nil { cancelDrag() }
             else if !selection.isEmpty { selection = []; notifySelection(); updateSelectionVisuals() }

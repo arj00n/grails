@@ -54,3 +54,17 @@ extension AppModel {
         }
     }
 }
+
+extension AppModel {
+    /// "Add Files…" on an empty library: pick files or folders to bring in.
+    func promptAddFiles() {
+        let p = NSOpenPanel()
+        p.canChooseFiles = true
+        p.canChooseDirectories = true
+        p.allowsMultipleSelection = true
+        p.prompt = "Add"
+        guard p.runModal() == .OK else { return }
+        let urls = p.urls
+        Task { await importFiles(urls) }
+    }
+}

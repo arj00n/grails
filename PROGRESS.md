@@ -341,3 +341,11 @@ Perf, 20k items, debug build, M-series (`GRAILS_PERF=1 swift test --filter Perfo
 - Dropped the glass look (it read too close to Atlas): docked flat sidebar and info panel (solid surface, hairline edge), one solid top bar (sidebar toggle, title + count or the
   filter chip, search, Grid/Canvas tabs with a sliding underline, filter, share, info), no floating pills or circles. Tokens in `App/Glass.swift` (`Ink`, `BarIcon`).
 - Hover fills ease in and symbols bounce under the pointer (`symbolEffect`), also in sidebar rows and tabs. The hold-⌘ shortcuts panel is gone.
+
+## UI system (Are.na palette, no bounce) — 2026-10-05
+Spec in `docs/UI_SYSTEM.md` (written by an Opus 5.5 agent from the brief; Are.na hex values taken from its live stylesheet).
+- `GrailsDesign` package target (pure, tested): `Palette`/`Token` with contrast tests, `Motion`, `CriticalSpring`, `Pager` physics (axis lock, rubber band, commit and dismiss thresholds, fit rect), `MomentumGate`.
+- App colours are dynamic tokens (`NSColor.ink`, `Ink`), light and dark follow the system by default (the old white-on-white light mode is fixed); layers refresh on appearance change. No `symbolEffect`/bounce anywhere.
+- Preview is a page (`Preview/`): `PreviewStageView` (three layers, scroll phases, magnify, smartMagnify, keys), `PreviewImageCache`, `PreviewSet` (O(1), skips sections, survives deletion), `PreviewPage` (stage + 300 pt info column + export menu). `InfoBlock` is shared with the inspector and edits name, tags, note in place.
+- Headless check: `GRAILS_PREVIEW_DEMO=<dir>` feeds synthetic trackpad events and writes `result.txt` + PNGs (page turn, flick with momentum swallowed, rubber band, small and large vertical drag all pass).
+- Keys added: `/` search, ⌘\ both panels. Not done yet: see the top of the spec.

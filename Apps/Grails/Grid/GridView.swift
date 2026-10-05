@@ -31,6 +31,7 @@ struct GridView: NSViewRepresentable {
         cv.onPreview = { [weak c] in c?.previewSelection() }
         cv.onOpen = { [weak c] in c?.previewSelection() }
         cv.onEscape = { [weak c] in c?.escape() }
+        cv.onSearch = { [weak c] in c?.model.focusSearchTick += 1 }
         cv.onRenameSection = { [weak c] i in c?.beginRenameSection(at: i) ?? false }
         cv.onZoom = { [weak c] factor, p in c?.hitch?.noteActivity(); c?.zoom(by: factor, at: p) }
         cv.onZoomEnd = { [weak c] in c?.scheduleSettle(after: 0.03) }

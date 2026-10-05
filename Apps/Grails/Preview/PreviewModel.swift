@@ -72,3 +72,17 @@ extension AppModel {
         }
     }
 }
+
+extension AppModel {
+    /// ⌘\: both panels away for a clean stage, and back the way they were.
+    func togglePanels() {
+        if sidebarVisible || showInfo {
+            hiddenPanels = (sidebarVisible, showInfo)
+            sidebarVisible = false; showInfo = false
+        } else if let was = hiddenPanels {
+            sidebarVisible = was.0; showInfo = was.1
+        } else {
+            sidebarVisible = true
+        }
+    }
+}

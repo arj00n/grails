@@ -7,6 +7,7 @@ final class GrailsCollectionView: NSCollectionView {
     /// Double-click on an item; true when it was a section title and got renamed in place instead of opened.
     var onRenameSection: ((Int) -> Bool)?
     var onEscape: (() -> Void)?
+    var onSearch: (() -> Void)?
     /// Multiplicative zoom (1.02 = 2% bigger) about a point in this view's coordinates, delivered continuously while
     /// pinching or ⌘-scrolling. `onZoomEnd` fires when the gesture finishes.
     var onZoom: ((CGFloat, NSPoint) -> Void)?
@@ -45,6 +46,7 @@ final class GrailsCollectionView: NSCollectionView {
         case 49: onPreview?()          // space
         case 36, 76: onOpen?()         // return / enter
         case 53: onEscape?()           // escape
+        case 44: onSearch?()           // /
         default: super.keyDown(with: event)
         }
     }

@@ -58,6 +58,7 @@ struct GrailsApp: App {
             }
             CommandGroup(after: .sidebar) {
                 Button("Toggle Sidebar") { model.sidebarVisible.toggle() }.keyboardShortcut("s", modifiers: [.command, .control])
+                Button("Hide or Show Both Panels") { model.togglePanels() }.keyboardShortcut("\\", modifiers: .command)
             }
             CommandGroup(after: .pasteboard) {
                 Button("Paste as Link") { model.paste(forceLink: true) }.keyboardShortcut("v", modifiers: [.command, .option])

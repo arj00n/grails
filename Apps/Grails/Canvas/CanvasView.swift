@@ -28,6 +28,7 @@ struct CanvasView: NSViewRepresentable {
         model.beginClusterRename = { [weak v] id in v?.beginRename(id) }
         v.clusterMenuProvider = { [weak model] id in model?.clusterMenu(id) }
         v.onPreview = { [weak model] id in model?.openPreview(id) }
+        v.onSearch = { [weak model] in model?.focusSearchTick += 1 }
         v.onPaste = { [weak model] in model?.paste() }
         // launch arguments arrive as strings, so read through bool(forKey:)
         v.pushEnabled = { UserDefaults.standard.object(forKey: "canvasPush") == nil || UserDefaults.standard.bool(forKey: "canvasPush") }

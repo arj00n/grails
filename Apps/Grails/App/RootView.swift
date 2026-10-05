@@ -60,7 +60,6 @@ struct RootView: View {
             if model.items.isEmpty && model.store != nil {
                 emptyState
                     .padding(contentInsets)
-                    .allowsHitTesting(false)
             }
         }
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }
@@ -74,17 +73,28 @@ struct RootView: View {
         }
     }
 
+    /// Plain words, centred. Only the two states with something to do carry buttons.
     @ViewBuilder private var emptyState: some View {
-        if model.isSearching {
-            ContentUnavailableView.search(text: model.searchText)
-        } else if model.filters.isActive {
-            ContentUnavailableView("No matches", systemImage: "line.3.horizontal.decrease.circle")
-        } else {
-            ContentUnavailableView(
-                model.source == .trash ? "Trash is empty" : "Nothing here yet",
-                systemImage: "photo.on.rectangle.angled"
-            )
+        VStack(spacing: 14) {
+            if model.isSearching {
+                Text("No results for “\(model.searchText)”")
+            } else if model.filters.isActive {
+                Text("No matches")
+                Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil }.buttonStyle(PrimaryButtonStyle())
+            } else if model.source == .trash {
+                Text("Trash is empty")
+            } else if model.source == .all {
+                Text("Empty")
+                HStack(spacing: 8) {
+                    Button("Add Files…") { model.promptAddFiles() }.buttonStyle(PrimaryButtonStyle())
+                    Button("Import Board…") { model.promptImportBoard() }.buttonStyle(PrimaryButtonStyle())
+                }
+            } else {
+                Text("Empty")
+            }
         }
+        .font(.system(size: 20, weight: .semibold))
+        .foregroundStyle(Ink.secondary)
     }
 
     // MARK: Chrome

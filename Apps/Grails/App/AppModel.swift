@@ -151,6 +151,7 @@ final class AppModel {
     /// The items the preview pages through (see PreviewSet): fixed when it opens.
     var previewSet: PreviewSet?
     var previewSetVersion = 0
+    @ObservationIgnored var hiddenPanels: (Bool, Bool)?
     var panel: Panel?
     var prompt: PromptRequest?
     var confirm: ConfirmRequest?
