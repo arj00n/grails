@@ -7,3 +7,8 @@ xcuserdata/
 *.dmg
 /build/
 dist/
+
+# website: the downloads are deployed, not committed
+site/download/*.dmg
+site/download/*.zip
+site/.vercel

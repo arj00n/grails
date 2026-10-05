@@ -1,0 +1,13 @@
+# Deployed: everything else, including download/ (the DMG and the extension zip).
+README.md
+tools/
+.DS_Store
+*.psd
+*.sketch
+*.fig
+*.log
+*.tmp
+screenshots/
+# Source material not used by the pages (snap-choose shows a local path)
+assets/shots/
+assets/screenshot-shot1.png

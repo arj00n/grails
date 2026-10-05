@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>og</title>
+<link rel="stylesheet" href="/assets/site.css?v=1">
+<style>
+  /* 1200×630, dark, the hero at social-card scale */
+  :root { --canvas: #000; --text: #fff; --secondary: #b2b2b2; }
+  body { width: 1200px; height: 630px; overflow: hidden; }
+  .hero { width: 1200px; height: 630px; min-height: 0; max-height: none; }
+  .plate { max-width: 560px; padding: 44px 40px 36px; margin-top: 0; }
+  .plate h1 { font-size: 64px; }
+  .plate .lede { max-width: none; margin-top: 22px; font-size: 26px; line-height: 1.3; }
+  .plate .caption { margin-top: 24px; font-size: 16px; line-height: 20px; }
+</style>
+<script src="tools.js" defer></script>
+<script src="/assets/wall.js?v=1" defer></script>
+</head>
+<body>
+<div class="hero">
+  <canvas class="wall" data-wall width="1" height="1"></canvas>
+  <div class="plate" data-plate>
+    <h1>Grails</h1>
+    <p class="lede">A visual reference library for Mac</p>
+    <p class="caption">GRAILS.ARJOON.XYZ</p>
+  </div>
+</div>
+</body>
+</html>

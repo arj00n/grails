@@ -28,10 +28,10 @@ cat > "$BUILD/dmg/READ ME FIRST.txt" <<TXT
 Grails $VERSION
 
 1. Drag Grails into Applications.
-2. The first time, right-click Grails ▸ Open ▸ Open (this build isn't notarized yet).
-3. Press Start, then pick Team Inspo under "Where it lives" (it shows as Found once the shared drive has synced).
+2. This build isn't notarised yet, so macOS asks before the first launch. Open System Settings > Privacy & Security, scroll down and click "Open Anyway" next to Grails (on macOS 14 you can also Control-click Grails > Open > Open).
+3. Press Start, then choose Import boards or Start empty.
 
-Setup guide: docs/TEAM_SETUP.md in the repository.
+More: https://grails.arjoon.xyz
 TXT
 
 hdiutil create -volname "Grails $VERSION" -srcfolder "$BUILD/dmg" -ov -format UDZO "dist/Grails-$VERSION.dmg" >/dev/null

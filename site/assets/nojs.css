@@ -1,0 +1,17 @@
+/* Without JavaScript: the first painting as a still (rendered by tools/still.html at one pixel per dither pixel). */
+.wall { display: none; }
+.hero {
+  background: var(--canvas) url("/assets/still-light-land.png?v=1") center / cover no-repeat;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+.hero .plate { image-rendering: auto; }
+@media (max-aspect-ratio: 4/5) {
+  .hero { background-image: url("/assets/still-light-port.png?v=1"); }
+}
+@media (prefers-color-scheme: dark) {
+  .hero { background-image: url("/assets/still-dark-land.png?v=1"); }
+}
+@media (prefers-color-scheme: dark) and (max-aspect-ratio: 4/5) {
+  .hero { background-image: url("/assets/still-dark-port.png?v=1"); }
+}

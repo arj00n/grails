@@ -1,0 +1,16 @@
+Reproductions of public-domain paintings from Wikimedia Commons.
+
+Alexandre Cabanel (1823–1889), Fallen Angel, 1847. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Alexandre_Cabanel_-_Fallen_Angel.jpg (downsampled and recompressed).
+Katsushika Hokusai (1760–1849), The Great Wave off Kanagawa, c. 1831. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Tsunami_by_hokusai_19th_century.jpg (downsampled and recompressed).
+Johannes Vermeer (1632–1675), Girl with a Pearl Earring, c. 1665. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:1665_Girl_with_a_Pearl_Earring.jpg (downsampled and recompressed).
+Claude Monet (1840–1926), The Houses of Parliament, Sunset, 1904. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Claude_Monet_-_The_Houses_of_Parliament,_Sunset.jpg (downsampled and recompressed).
+Edvard Munch (1863–1944), The Scream, 1893. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Edvard_Munch,_1893,_The_Scream,_oil,_tempera_and_pastel_on_cardboard,_91_x_73_cm,_National_Gallery_of_Norway.jpg (downsampled and recompressed).
+Vincent van Gogh (1853–1890), The Starry Night, 1889. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Van_Gogh_-_Starry_Night_-_Google_Art_Project.jpg (downsampled and recompressed).
+Leonardo da Vinci (1452–1519), Mona Lisa, 1503-06. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Mona_Lisa,_by_Leonardo_da_Vinci,_from_C2RMF_retouched.jpg (downsampled and recompressed).
+Claude Monet (1840–1926), Impression, Sunrise, 1872. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Monet_-_Impression,_Sunrise.jpg (downsampled and recompressed).
+Gustav Klimt (1862–1918), The Kiss, 1907-08. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:The_Kiss_-_Gustav_Klimt_-_Google_Cultural_Institute.jpg (downsampled and recompressed).
+Sandro Botticelli (1445–1510), The Birth of Venus, c. 1485. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Sandro_Botticelli_-_La_nascita_di_Venere_-_Google_Art_Project_-_edited.jpg (downsampled and recompressed).
+Caspar David Friedrich (1774–1840), Wanderer above the Sea of Fog, c. 1817. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Caspar_David_Friedrich_-_Wanderer_above_the_sea_of_fog.jpg (downsampled and recompressed).
+Claude Monet (1840–1926), Water Lilies, 1906. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Water_Lilies_-_1906,_Ryerson.jpg (downsampled and recompressed).
+Utagawa Hiroshige (1797–1858), Sudden Shower over Shin-Ohashi Bridge and Atake, 1857. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Hiroshige,_Sudden_shower_over_Shin-%C5%8Chashi_bridge_and_Atake,_1857.jpg (downsampled and recompressed).
+Claude Monet (1840–1926), Woman with a Parasol, Madame Monet and Her Son, 1875. Public domain. Source: Wikimedia Commons, https://commons.wikimedia.org/wiki/File:Claude_Monet_-_Woman_with_a_Parasol_-_Madame_Monet_and_Her_Son_-_Google_Art_Project.jpg (downsampled and recompressed).

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>still</title>
+<link rel="stylesheet" href="/assets/site.css?v=1">
+<style>
+  html.light { --canvas: #fff; }
+  html:not(.light) { --canvas: #000; }
+  body { overflow: hidden; }
+  .hero { height: 100vh; min-height: 0; max-height: none; }
+  .wall { transition: none; }
+</style>
+<script src="tools.js" defer></script>
+<script src="/assets/wall.js?v=1" defer></script>
+</head>
+<body>
+<div class="hero"><canvas class="wall" data-wall width="1" height="1"></canvas></div>
+</body>
+</html>
