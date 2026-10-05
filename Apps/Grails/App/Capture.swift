@@ -55,6 +55,7 @@ extension AppModel {
         captureService = service
 
         if env["GRAILS_NO_API"] == nil {
+            _ = tokens.token()          // makes the private token file on first run, so "no file" only ever means a new token
             let server = LocalAPIServer(service: service, tokens: tokens)
             do {
                 let port = try await server.start(port: env["GRAILS_API_PORT"].flatMap(UInt16.init) ?? LocalAPIServer.defaultPort)
