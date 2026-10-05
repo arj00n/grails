@@ -4,6 +4,7 @@ import GrailsKit
 extension AppModel {
     /// Opens the preview on `id`, paging through what's on screen: the grid's order, or the canvas's reading order.
     func openPreview(_ id: String) {
+        HoverVideo.shared.cancel(.other)          // the page plays it now; the tile's preview stops under it
         var source = items
         if viewMode == .canvas, !canvasClusters.isEmpty {
             let byID = Dictionary(items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })

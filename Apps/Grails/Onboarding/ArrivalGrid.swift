@@ -103,7 +103,7 @@ struct ArrivalGrid: View {
         HStack(alignment: .top, spacing: model.gap) {
             ForEach(model.columns.indices, id: \.self) { c in
                 LazyVStack(spacing: model.gap) {
-                    ForEach(model.columns[c]) { ArrivalTile(tile: $0, app: app) }
+                    ForEach(model.columns[c]) { ArrivalTile(tile: $0, app: app, hover: !Self.plain) }
                 }
             }
         }
@@ -125,6 +125,8 @@ struct ArrivalGrid: View {
 private struct ArrivalTile: View {
     let tile: ArrivalGridModel.Tile
     var app: AppModel
+    /// Videos play on hover here too (not in the demo's ImageRenderer snapshots, which can't draw AppKit views).
+    var hover = true
     @State private var image: CGImage?
 
     var body: some View {
@@ -134,6 +136,7 @@ private struct ArrivalTile: View {
                 // a decoded thumbnail is in the cache before the tile exists, so it shows whole from its first frame
                 if let img = image ?? ThumbnailLoader.shared.cached(id: tile.id, pixels: 512) { Image(decorative: img, scale: 1).resizable().scaledToFill() } else { Ink.fill }
             }
+            .overlay { if hover { HoverVideoSlot(id: tile.id, app: app) } }
             .clipShape(RoundedRectangle(cornerRadius: Ink.tileRadius, style: .continuous))
             .onAppear {
                 guard image == nil, let layout = app.layout else { return }

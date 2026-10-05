@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import GrailsDesign
 import QuartzCore
 import GrailsKit
@@ -148,6 +149,27 @@ final class CanvasNSView: NSView {
         setAccessibilityIdentifier("canvas")
         setAccessibilityLabel("Canvas")
         refreshColors()
+        hoverTracker.install(on: self)
+        hoverTracker.onMove = { [weak self] e in self?.hoverMoved(e) }
+        hoverTracker.onExit = { [weak self] _ in
+            guard let self else { return }
+            HoverVideo.shared.pointerLeft(self)
+        }
+    }
+
+    // MARK: Hover video
+
+    private let hoverTracker = HoverTracker()
+
+    /// The tile under the pointer, from the board itself (so it's right while panning, zooming or after a reflow). Nothing plays
+    /// while something is being dragged or Space-panned, or where a panel or the preview covers the board.
+    private func hoverMoved(_ e: NSEvent) {
+        var id: String?
+        if drag == nil, !spaceHeld, isFrontmost(atWindowPoint: e.locationInWindow) {
+            let hit = item(atWorld: worldPoint(convert(e.locationInWindow, from: nil)))
+            if let hit, layers[hit] != nil { id = hit }
+        }
+        HoverVideo.shared.pointerMoved(over: id, in: self)
     }
 
     required init?(coder: NSCoder) { fatalError() }
@@ -173,6 +195,7 @@ final class CanvasNSView: NSView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        if window == nil { for l in layers.values { HoverVideo.shared.release(host: l) } }
         window?.makeFirstResponder(self)
         let s = backing
         for l in [overlay, marqueeLayer] { l.contentsScale = s }
@@ -572,6 +595,7 @@ final class CanvasNSView: NSView {
 
     /// Takes a layer off the board and keeps it for reuse (allocating thousands of CALayers per zoom is what stalls).
     private func recycle(_ l: CanvasItemLayer) {
+        HoverVideo.shared.release(host: l)
         l.removeFromSuperlayer()
         l.loadOperation?.cancel()
         l.summary = nil
@@ -1193,6 +1217,15 @@ final class CanvasNSView: NSView {
     }
 }
 
+extension CanvasNSView: HoverVideoSurface {
+    func hoverHost(for id: String) -> HoverVideo.Host? {
+        guard let l = layers[id], l.summary?.id == id, window != nil else { return nil }
+        return .layer(l, .resizeAspectFill)            // tiles fill their slot, like the still
+    }
+    func hoverSummary(for id: String) -> ItemSummary? { items[id] }
+    func hoverOriginal(for s: ItemSummary) -> URL? { model_originalURL(s) }
+}
+
 final class CanvasAXElement: NSAccessibilityElement {}
 
 /// One item on the board.
@@ -1256,6 +1289,8 @@ final class CanvasItemLayer: CALayer {
 
     override func layoutSublayers() {
         super.layoutSublayers()
+        // the hover player, when it's on this tile, follows the tile through reflows and drags
+        for case let p as AVPlayerLayer in sublayers ?? [] { p.frame = bounds }
         titleLayer?.frame = bounds.insetBy(dx: 10, dy: bounds.height * 0.3)
         titleLayer?.fontSize = max(10, min(bounds.height * 0.09, 28))
     }
