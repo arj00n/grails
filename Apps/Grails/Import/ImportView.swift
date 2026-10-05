@@ -33,7 +33,7 @@ struct ImportView: View {
                 }
                 .accessibilityIdentifier("import-field")
             if text.isEmpty {
-                Text(placeholder).font(.grailsBody(13)).foregroundStyle(Ink.secondary).padding(.horizontal, 11).padding(.vertical, 14).allowsHitTesting(false)
+                Text(placeholder).font(.grailsBody(13)).foregroundStyle(Ink.secondary).padding(.leading, 11).padding(.top, 6).allowsHitTesting(false)
             }
         }
         .frame(height: 68)

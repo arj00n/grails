@@ -45,19 +45,18 @@ let reduceMotionOn: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMo
 
 // MARK: Hello
 
-/// The wall at one moment, with the name typed over its middle. Pure, so a headless snapshot can ask for any `t`.
-struct HelloFrame: View {
-    let slots: [Mosaic.Slot]
-    let seed: UInt64
-    let size: CGSize
+/// The name typed over the middle of the wall, then Start. Pure in `t`, so a headless snapshot can ask for any moment; `wall` is the live
+/// field (or, in a snapshot, a picture of it).
+struct HelloFrame<Wall: View>: View {
     let t: Double
+    @ViewBuilder var wall: Wall
     var start: () -> Void = {}
 
     static func centre(_ size: CGSize) -> CGRect { CGRect(x: size.width / 2 - 240, y: size.height / 2 - 110, width: 480, height: 220) }
 
     var body: some View {
         ZStack {
-            MosaicCanvas(slots: slots, t: t, centre: Self.centre(size), idle: Mosaic.idleSlot(count: slots.count, seed: seed, at: t))
+            wall
             VStack(spacing: 28) {
                 title
                 Button("Start", action: start)
@@ -86,9 +85,8 @@ private struct HelloStep: View {
 
     var body: some View {
         GeometryReader { geo in
-            let slots = Mosaic.layout(seed: model.seed, size: geo.size)
             WallClock(reduceMotion: reduceMotionOn) { t in
-                HelloFrame(slots: slots, seed: model.seed, size: geo.size, t: t) { model.start() }
+                HelloFrame(t: t, wall: { AsciiWall(reduceMotion: reduceMotionOn, centre: HelloFrame<EmptyView>.centre(geo.size)) }) { model.start() }
             }
         }
         .ignoresSafeArea()

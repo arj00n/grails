@@ -15,8 +15,6 @@ struct MosaicCanvas: View {
     let t: Double
     var centre: CGRect?
     var pictures: [Int: Placed] = [:]
-    /// The tile that changes grey for a moment.
-    var idle: Int?
     /// Tiles under the card beside the wall are not drawn.
     var reserved: CGRect?
 
@@ -28,8 +26,7 @@ struct MosaicCanvas: View {
             for s in slots {
                 if let reserved, s.rect.intersects(reserved) { continue }
                 let shape = Path(roundedRect: s.rect, cornerSize: CGSize(width: Ink.tileRadius, height: Ink.tileRadius), style: .continuous)
-                let shade = s.index == idle ? (s.shade + 1) % 3 : s.shade
-                context.fill(shape, with: .color(shades[shade].opacity(Mosaic.opacity(of: s, at: t, centre: centre))))
+                context.fill(shape, with: .color(shades[s.shade].opacity(Mosaic.opacity(of: s, at: t, centre: centre))))
                 guard let p = pictures[s.index] else { continue }
                 let alpha = min(max((t - p.at) / Self.pictureFade, 0), 1)
                 guard alpha > 0 else { continue }

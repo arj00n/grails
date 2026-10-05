@@ -54,7 +54,7 @@ public enum Mosaic {
     }
 
     /// How visible an empty tile is at time `t` (seconds since the screen appeared): 0 = canvas, 1 = its grey. Tiles develop along a
-    /// diagonal sweep, the middle ones step back so the title can stand, and one tile changes grey every 2.4 s afterwards.
+    /// diagonal sweep, the middle ones step back so the title can stand, and .
     public static func opacity(of slot: Slot, at t: Double, centre: CGRect?) -> Double {
         let start = sweepStart + Double(slot.order) * stagger
         var v = min(max((t - start) / tileFade, 0), 1)
@@ -63,14 +63,6 @@ public enum Mosaic {
             v *= (1 - back)
         }
         return v
-    }
-
-    /// Which tile is "breathing" at time `t` (a different grey for a moment), or nil.
-    public static func idleSlot(count: Int, seed: UInt64, at t: Double) -> Int? {
-        guard count > 0, t > 1.6 else { return nil }
-        let step = Int((t - 1.6) / 2.4)
-        var g = Generator(state: seed &+ UInt64(step) &* 7919)
-        return Int(g.next() % UInt64(count))
     }
 
     /// When the sweep is over: the last tile has finished fading.

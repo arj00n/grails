@@ -44,11 +44,15 @@ struct OnboardingDemo {
         func wait(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func until(_ seconds: Double, _ cond: () -> Bool) async { for _ in 0..<Int(seconds * 10) where !cond() { await wait(100) } }
 
-        // Hello: the wall develops, the name types on
-        let slots = Mosaic.layout(seed: model.seed, size: size)
-        say("wall: \(slots.count) tiles, sweep ends \(String(format: "%.2f", Mosaic.sweepEnd(slots))) s")
-        for (name, t) in [("0000", 0.05), ("0450", 0.45), ("0900", 0.9), ("1300", 1.3), ("2000", 2.0)] {
-            snap(HelloFrame(slots: slots, seed: model.seed, size: size, t: t), "hello-\(name)")
+        // Hello: the field develops from the top left, the name types on, the pointer stirs it
+        let centre = HelloFrame<EmptyView>.centre(size)
+        for (name, t, pointer) in [("0000", 0.05, nil), ("0450", 0.45, nil), ("0900", 0.9, nil), ("1300", 1.3, nil), ("2000", 2.0, nil),
+                                   ("pointer", 3.0, CGPoint(x: 330, y: 260))] as [(String, Double, CGPoint?)] {
+            snap({ dark in
+                HelloFrame(t: t, wall: {
+                    if let img = AsciiWallView.render(size: size, t: t, pointer: pointer, dark: dark, centre: centre) { Image(decorative: img, scale: 1).resizable() }
+                })
+            }, "hello-\(name)")
         }
         check(model.step == .hello, "starts on Hello")
 
@@ -117,9 +121,11 @@ struct OnboardingDemo {
     }
 
     /// The view as an image, light and dark.
-    private func snap<V: View>(_ view: V, _ name: String) {
+    private func snap<V: View>(_ view: V, _ name: String) { snap({ _ in view }, name) }
+
+    private func snap<V: View>(_ make: (Bool) -> V, _ name: String) {
         for (scheme, suffix) in [(ColorScheme.light, "light"), (.dark, "dark")] {
-            let content = view
+            let content = make(scheme == .dark)
                 .frame(width: size.width, height: size.height)
                 .background(Ink.canvas)
                 .environment(\.colorScheme, scheme)
