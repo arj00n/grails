@@ -1,20 +1,20 @@
-# Chrome Web Store submission: Save to Grails 0.2.0
+# Chrome Web Store submission: Save to Grails 0.2.3
 
 Everything is prepared; the submission itself is yours (it needs your developer account). About 10 minutes.
 
 ## Files
 | What | Where |
 |---|---|
-| Upload | `dist/save-to-grails-0.2.0.zip` (rebuild: `cd Extensions/chrome && zip -qr ../../dist/save-to-grails-<version>.zip . -x README.md`) |
+| Upload | `dist/save-to-grails-0.2.3.zip` (rebuild: `cd Extensions/chrome && zip -qr ../../dist/save-to-grails-<version>.zip . -x README.md`) |
 | Screenshots (1280×800) | `Extensions/store/screenshot-shot1.png`, `-shot2.png`, `-shot3.png` |
 | Small promo tile (440×280) | `Extensions/store/promo-small-440x280.png` |
 | Icon (128) | inside the zip (`icons/128.png`) |
-| Privacy policy page | `docs/router/privacy.html`: put it on your site (for example `arjoon.xyz/grails/privacy`) and paste that URL in the form |
+| Privacy policy page | `docs/router/privacy.html`: live at `https://grails.arjoon.xyz/privacy` (site/privacy); paste that URL in the form |
 
 ## Steps in the dashboard
 1. **Items ▸ New item** (or your existing draft): upload the zip.
 2. **Store listing:** paste the text below, upload the three screenshots and the promo tile, category **Productivity**, language English, **Support URL / email:** `arjun@justswish.in`.
-3. **Privacy:** paste the single purpose and the permission reasons below; data collected: none; tick the three certifications; **Privacy policy URL:** where you put `privacy.html`.
+3. **Privacy:** paste the single purpose and the permission reasons below; data collected: none; tick the three certifications; **Privacy policy URL:** `https://grails.arjoon.xyz/privacy`.
 4. **Distribution:** visibility **Unlisted** (anyone with the link), all regions.
 5. **Test instructions** (reviewers can't run the Mac app): paste the text at the bottom.
 6. **Submit for review.** Reviews of extensions with all-site content scripts can take several days.
