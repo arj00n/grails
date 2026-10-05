@@ -163,7 +163,7 @@ final class CanvasNSView: NSView {
 
     /// The tile under the pointer, from the board itself (so it's right while panning, zooming or after a reflow). Nothing plays
     /// while something is being dragged or Space-panned, or where a panel or the preview covers the board.
-    private func hoverMoved(_ e: NSEvent) {
+    func hoverMoved(_ e: NSEvent) {
         var id: String?
         if drag == nil, !spaceHeld, isFrontmost(atWindowPoint: e.locationInWindow) {
             let hit = item(atWorld: worldPoint(convert(e.locationInWindow, from: nil)))

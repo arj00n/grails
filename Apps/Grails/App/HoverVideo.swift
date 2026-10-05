@@ -51,7 +51,7 @@ final class HoverVideo {
     let playerLayer = AVPlayerLayer()
     private let hostView = HoverVideoView()
     /// The tile view or layer the player is in now (also while it fades out).
-    private weak var hostedIn: AnyObject?
+    private(set) weak var hostedIn: AnyObject?
     private var generation = 0
     private var statusObservation: NSKeyValueObservation?
     private var endObserver: NSObjectProtocol?
@@ -62,6 +62,9 @@ final class HoverVideo {
     private(set) var playersMade = 0
     private(set) var itemsMade = 0
     private(set) var fadeLog: [(String, Double)] = []
+    /// What stopped each preview ("moved", "left", "scroll", "press", "other", "release"), newest last.
+    private(set) var stopLog: [String] = []
+    private var cause = ""
 
     private init() {
         playerLayer.opacity = 0
@@ -69,7 +72,8 @@ final class HoverVideo {
         hostView.wantsLayer = true
         hostView.layer?.addSublayer(playerLayer)
         hostView.autoresizingMask = [.width, .height]
-        hostView.onLeftWindow = { [weak self] in self?.cancel(.other) }
+        // not from inside the view tree's own removal: next turn of the run loop
+        hostView.onLeftWindow = { DispatchQueue.main.async { MainActor.assumeIsolated { HoverVideo.shared.cancel(.other) } } }
     }
 
     private var now: Double { CACurrentMediaTime() }
@@ -90,6 +94,7 @@ final class HoverVideo {
             else if let skip = gate(id, surface) { lastSkip = skip }
             else { target = t }
         }
+        cause = "moved"
         apply(dwell.pointer(over: target, at: now))
         schedule()
     }
@@ -99,11 +104,13 @@ final class HoverVideo {
         let key = ObjectIdentifier(surface)
         let current: Target? = switch dwell.phase { case .waiting(let w, _): w; case .playing(let p): p; case .idle: nil }
         guard current?.surface == key else { return }
+        cause = "left"
         apply(dwell.pointer(over: nil, at: now))
         schedule()
     }
 
     func cancel(_ reason: HoverDwell<Target>.Cancel) {
+        cause = "\(reason)"
         apply(dwell.cancel(reason, at: now))
         schedule()
     }
@@ -112,6 +119,7 @@ final class HoverVideo {
     func release(host: AnyObject) {
         guard hostedIn === host else { return }
         cancel(.other)
+        if stopLog.last == "other" { stopLog[stopLog.count - 1] = "release" }
         detachNow()
     }
 
@@ -198,12 +206,14 @@ final class HoverVideo {
 
     /// Stops right away (no frame decodes after this), fades the video off the still, then lets go of the file.
     private func stop() {
+        stopLog.append(cause)
         generation += 1
         let gen = generation
         statusObservation = nil
         player?.pause()
         playingID = nil
-        guard hostedIn != nil else { releaseItem(); return }
+        // a tile that is no longer on screen (a view switch took it away) has nothing to fade
+        guard let host = hostedIn, (host as? NSView)?.window != nil || host is CALayer else { detachNow(); releaseItem(); return }
         fade(to: 0, duration: HoverPreview.fadeOut) { [weak self] in
             guard let self, self.generation == gen else { return }
             self.detachNow()

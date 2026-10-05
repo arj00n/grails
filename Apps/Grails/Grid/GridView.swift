@@ -530,7 +530,7 @@ struct GridView: NSViewRepresentable {
             }
         }
 
-        private func hoverMoved(_ e: NSEvent) {
+        func hoverMoved(_ e: NSEvent) {
             guard let cv = collectionView else { return }
             var id: String?
             if cv.isFrontmost(atWindowPoint: e.locationInWindow), let ip = cv.indexPathForItem(at: cv.convert(e.locationInWindow, from: nil)),
