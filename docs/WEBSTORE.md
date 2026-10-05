@@ -14,7 +14,7 @@ Everything is prepared; the submission itself is yours (it needs your developer 
 ## Steps in the dashboard
 1. **Items ▸ New item** (or your existing draft): upload the zip.
 2. **Store listing:** paste the text below, upload the three screenshots and the promo tile, category **Productivity**, language English, **Support URL / email:** `arjun@justswish.in`.
-3. **Privacy:** paste the single purpose and the permission reasons below; data collected: none; tick the three certifications; **Privacy policy URL:** `https://grails.arjoon.xyz/privacy`.
+3. **Privacy:** paste the single purpose and the permission reasons below; data usage: tick **Website content** only (the images, videos, links and Pinterest boards the user chooses go to the Grails app on their own Mac; nothing else); tick the three certifications; **Privacy policy URL:** `https://grails.arjoon.xyz/privacy`.
 4. **Distribution:** visibility **Unlisted** (anyone with the link), all regions.
 5. **Test instructions** (reviewers can't run the Mac app): paste the text at the bottom.
 6. **Submit for review.** Reviews of extensions with all-site content scripts can take several days.
@@ -37,7 +37,7 @@ Everything goes straight to the Grails app on your Mac, over localhost. Nothing 
 
 ## Privacy practices
 - **Single purpose:** Save images, videos, links, pages and Pinterest boards from the web into the user's local Grails library app.
-- **Data:** none sent to the developer; items go only to the Grails app on the user's own computer (127.0.0.1).
+- **Data:** Website content only, and none of it sent to the developer; items go only to the Grails app on the user's own computer (127.0.0.1).
 - **Remote code:** none.
 
 | Permission | Reason |
