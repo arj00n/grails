@@ -37,6 +37,22 @@ public final class LibraryIndex: Sendable {
         wasReset = reset
     }
 
+    /// The index is a disposable copy of what's on disk. These errors mean the file itself is gone, moved or damaged under the app (a sync
+    /// client, a cleaner, a crash), not that anything in the library is wrong: the fix is to throw it away and read the library again.
+    public static func isDamaged(_ error: Error) -> Bool {
+        guard let e = error as? DatabaseError else { return false }
+        switch e.resultCode.primaryResultCode {
+        case .SQLITE_IOERR, .SQLITE_CORRUPT, .SQLITE_NOTADB, .SQLITE_CANTOPEN, .SQLITE_READONLY, .SQLITE_NOTFOUND: return true
+        default: return false
+        }
+    }
+
+    /// Deletes a library's index files, so the next open makes a fresh one and reads the library into it.
+    public static func discard(libraryId: String) {
+        let path = GrailsPaths.indexURL(libraryId: libraryId).path
+        for suffix in ["", "-wal", "-shm"] { try? FileManager.default.removeItem(atPath: path + suffix) }
+    }
+
     private static var migrator: DatabaseMigrator {
         var m = DatabaseMigrator()
         m.registerMigration("v1") { db in

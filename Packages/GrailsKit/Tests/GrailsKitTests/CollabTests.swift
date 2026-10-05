@@ -353,3 +353,14 @@ enum FakeCloud {
         var g = CollabSetupFlow(step: .check); g.send(.changeFolder); #expect(g.step == .place)
     }
 }
+
+import GRDB
+
+@Suite struct IndexDamageTests {
+    @Test func diskErrorsMeanTheIndexIsRebuiltNotThatTheLibraryIsBad() {
+        #expect(LibraryIndex.isDamaged(DatabaseError(resultCode: .SQLITE_IOERR, message: "disk I/O error")))
+        #expect(LibraryIndex.isDamaged(DatabaseError(resultCode: .SQLITE_CORRUPT)))
+        #expect(!LibraryIndex.isDamaged(DatabaseError(resultCode: .SQLITE_CONSTRAINT)))
+        #expect(!LibraryIndex.isDamaged(GrailsError.itemNotFound("x")))
+    }
+}

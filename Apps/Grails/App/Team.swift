@@ -86,7 +86,7 @@ extension AppModel {
 
     // MARK: Watching a shared folder
 
-    /// Watches the library folder (FSEvents) and also rescans every minute: sync clients like Google Drive deliver
+    /// Watches the library folder (FSEvents) and also rescans every 30 seconds: sync clients like Google Drive deliver
     /// events late or not at all, so the timer is the safety net.
     func startWatching() {
         watcher?.stop()
@@ -97,9 +97,18 @@ extension AppModel {
         }
         w.start()
         watcher = w
+        // coming back to the app is the moment people expect to see what changed meanwhile (a Finder trash, a teammate's upload)
+        if let activationObserver { NotificationCenter.default.removeObserver(activationObserver) }
+        activationObserver = NotificationCenter.default.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, Date().timeIntervalSince(self.lastActivationScan) > 3 else { return }
+                self.lastActivationScan = Date()
+                await self.refreshLibrary(announce: false)
+            }
+        }
         rescanLoop = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(60))
+                try? await Task.sleep(for: .seconds(30))
                 if Task.isCancelled { break }
                 await self?.refreshLibrary(announce: false)
             }

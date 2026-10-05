@@ -243,6 +243,9 @@ final class AppModel {
     var onboarding: OnboardingModel?
     /// Team libraries: set-up, the invite checklist, and the screen for an invite whose library isn't on this Mac (Collab/).
     @ObservationIgnored lazy var collab = CollabModel(app: self)
+    @ObservationIgnored private var repairingIndex = false
+    @ObservationIgnored var activationObserver: NSObjectProtocol?
+    @ObservationIgnored var lastActivationScan = Date.distantPast
     private(set) var workspaces: [Workspace] = Workspaces.load()
     /// The open library's own id (the same on every Mac), used in `grails://` links.
     private(set) var libraryID = ""
@@ -481,8 +484,19 @@ final class AppModel {
             if viewMode == .canvas { await syncCanvas() }
             await refreshSections()
         } catch {
+            if LibraryIndex.isDamaged(error), await repairIndex() { return }
             errorMessage = "Couldn't load items: \(error.localizedDescription)"
         }
+    }
+
+    /// The index file went missing or bad: throw it away and read the library again, once, without bothering the person.
+    private func repairIndex() async -> Bool {
+        guard !repairingIndex, let store, let root = layout?.root else { return false }
+        repairingIndex = true
+        defer { repairingIndex = false }
+        LibraryIndex.discard(libraryId: await store.manifest.id)
+        await openOrCreate(at: root, remember: false)
+        return self.store != nil && errorMessage == nil
     }
 
     private static func shuffled(_ items: [ItemSummary], seed: UInt64) -> [ItemSummary] {
