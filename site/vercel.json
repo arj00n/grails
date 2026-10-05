@@ -57,6 +57,13 @@
       ]
     },
     {
+      "source": "/appcast.xml",
+      "headers": [
+        { "key": "Content-Type", "value": "application/xml; charset=utf-8" },
+        { "key": "Cache-Control", "value": "public, max-age=300, must-revalidate" }
+      ]
+    },
+    {
       "source": "/open(/?)",
       "headers": [
         { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
