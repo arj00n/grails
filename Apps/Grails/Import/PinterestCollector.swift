@@ -97,6 +97,8 @@ final class PinterestCollector: NSObject, WKNavigationDelegate {
                 try await Task.sleep(for: .seconds(delay))
             case .done:
                 if let page, status == 200 { await deliver(page.entries, nil) }
+                // a board with sections shows only its loose pins in the main feed: each section's pins come after
+                await readSections(boardID: boardID, user: user, deliver: deliver)
                 return .complete
             case .wait(let seconds): try await Task.sleep(for: .seconds(seconds))
             case .gated: return .gated
@@ -104,6 +106,22 @@ final class PinterestCollector: NSObject, WKNavigationDelegate {
             }
         }
         return .complete
+    }
+
+    /// The pins filed in the board's sections, section by section (best effort: a board without sections, or an answer Pinterest changed, adds nothing).
+    private func readSections(boardID: String, user: String, deliver: @Sendable ([RemoteBoard.Entry], String?) async -> Void) async {
+        guard let list = try? await run(Self.sectionsJS, ["boardID": boardID]), (list["status"] as? Int) == 200, let ids = list["ids"] as? [String] else { return }
+        for id in ids.prefix(200) where !Task.isCancelled {
+            var bookmark: String?
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(1200))
+                guard let reply = try? await run(Self.sectionPinsJS, ["sectionID": id, "bookmark": bookmark ?? NSNull(), "pageSize": Self.pageSize]),
+                      (reply["status"] as? Int) == 200, let page = PinterestBoardFeed.parsePage(reply, author: user) else { break }
+                await deliver(page.entries, nil)
+                guard !page.ended, page.rawCount > 0 else { break }
+                bookmark = page.bookmark
+            }
+        }
     }
 
     // MARK: A person's boards
@@ -148,6 +166,30 @@ final class PinterestCollector: NSObject, WKNavigationDelegate {
     const data = rows.filter(p => p && p.type === "pin").map(p => ({type: "pin", id: p.id, description: p.description, link: p.link,
         pinner: p.pinner ? {username: p.pinner.username, full_name: p.pinner.full_name} : null, images: p.images, videos: p.videos, story_pin_data: p.story_pin_data}));
     return {status: r.status, data: data, raw: rows.length, bookmark: rr.bookmark || null, retryAfter: r.headers.get("retry-after")};
+    """
+
+    private static let sectionsJS = """
+    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+    const options = {board_id: boardID, redux_normalize_feed: true};
+    const r = await fetch("/resource/BoardSectionsResource/get/?source_url=" + encodeURIComponent(location.pathname) + "&data=" + encodeURIComponent(JSON.stringify({options, context: {}})),
+        {headers: \(headers), credentials: "include"});
+    let j = null; try { j = await r.json(); } catch (e) {}
+    const rr = (j && j.resource_response) || {};
+    return {status: r.status, ids: (rr.data || []).filter(x => x && x.id).map(x => String(x.id))};
+    """
+
+    private static let sectionPinsJS = """
+    const options = {section_id: sectionID, page_size: pageSize, redux_normalize_feed: true};
+    if (bookmark) options.bookmarks = [bookmark];
+    const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
+    const r = await fetch("/resource/BoardSectionPinsResource/get/?source_url=" + encodeURIComponent(location.pathname) + "&data=" + encodeURIComponent(JSON.stringify({options, context: {}})),
+        {headers: \(headers), credentials: "include"});
+    let j = null; try { j = await r.json(); } catch (e) {}
+    const rr = (j && j.resource_response) || {};
+    const rows = rr.data || [];
+    const data = rows.filter(p => p && p.type === "pin").map(p => ({type: "pin", id: p.id, description: p.description, link: p.link,
+        pinner: p.pinner ? {username: p.pinner.username, full_name: p.pinner.full_name} : null, images: p.images, videos: p.videos, story_pin_data: p.story_pin_data}));
+    return {status: r.status, data: data, raw: rows.length, bookmark: rr.bookmark || null};
     """
 
     private static let boardsJS = """

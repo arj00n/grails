@@ -102,45 +102,92 @@
   /** The board's name: the page's own heading, else its title. */
   function boardTitle() { return (document.querySelector("h1")?.textContent || "").trim() || document.title; }
 
-  /** Reads the whole board the way Pinterest's own page does, in your signed-in browser: its feed, 100 pins a page, so secret boards work and
-   *  nothing depends on scrolling. Null when the page doesn't give a board id or the first page fails (the caller scrolls instead). */
-  async function feedPins(ui, text) {
-    const html = document.documentElement.innerHTML;
-    let boardId = null;
-    for (const re of [/board_id\\?",\\?"(\d+)/, /"board_id"\s*:\s*"(\d+)"/, /board_id\\?":\\?"(\d+)/]) { const m = re.exec(html); if (m) { boardId = m[1]; break; } }
-    if (!boardId) return null;
-    const pathname = location.pathname;
+  /** One call to Pinterest's own resource API, from the page (so it carries your sign-in): the JSON's `resource_response`, or null. */
+  async function resource(name, options, sourceUrl) {
     const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || "";
-    const pins = new Map();
-    let bookmark = null, pagesDone = 0;
-    while (!ui.stopped && pins.size < 20000) {
-      const options = { board_id: boardId, board_url: pathname, field_set_key: "react_grid_pin", filter_section_pins: false, is_react: true, prepend: false, page_size: 100, redux_normalize_feed: true, add_vase: true };
-      if (bookmark) options.bookmarks = [bookmark];
-      let res, json = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let res = null, json = null;
       try {
-        res = await fetch("/resource/BoardFeedResource/get/?source_url=" + encodeURIComponent(pathname) + "&data=" + encodeURIComponent(JSON.stringify({ options, context: {} })), {
+        res = await fetch(`/resource/${name}/get/?source_url=` + encodeURIComponent(sourceUrl) + "&data=" + encodeURIComponent(JSON.stringify({ options, context: {} })), {
           headers: { "X-Requested-With": "XMLHttpRequest", "Accept": "application/json", "X-CSRFToken": csrf, "X-Pinterest-AppState": "active", "X-Pinterest-PWS-Handler": "www/[username]/[slug].js" }, credentials: "include",
         });
         json = await res.json();
       } catch { /* handled below */ }
-      if (!res || res.status === 429) { if (res?.status === 429) { await wait(30000); continue; } break; }
-      if (res.status !== 200) break;
-      const rr = json?.resource_response || {};
-      const rows = rr.data || [];
-      for (const p of rows) {
-        if (!p || (p.type && p.type !== "pin") || !p.id) continue;
-        const images = p.images || {};
-        const best = images.orig?.url || images.originals?.url || images["1200x"]?.url || images["736x"]?.url || Object.values(images).map((v) => v?.url).find(Boolean);
-        if (!pins.has(String(p.id))) pins.set(String(p.id), { id: String(p.id), image: best || undefined });
-      }
-      pagesDone += 1;
-      ui.label.textContent = text(pins.size);
+      if (res && res.status === 429) { await wait(30000); continue; }
+      return res && res.status === 200 ? (json?.resource_response || null) : null;
+    }
+    return null;
+  }
+
+  const pinFrom = (p) => {
+    if (!p || (p.type && p.type !== "pin") || !p.id) return null;
+    const images = p.images || {};
+    const best = images.orig?.url || images.originals?.url || images["1200x"]?.url || images["736x"]?.url || Object.values(images).map((v) => v?.url).find(Boolean);
+    return { id: String(p.id), image: best || undefined };
+  };
+
+  /** Reads the whole board the way Pinterest's own page does, in your signed-in browser: its feed, 100 pins a page, then each section's pins
+   *  (a board with sections shows only the loose pins on its main page), so secret boards work and nothing depends on scrolling.
+   *  Null when the board can't be found or the first page fails (the caller scrolls instead). */
+  async function feedPins(ui, text) {
+    const pathname = location.pathname;
+    const [user, slug] = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+    let boardId = null;
+    // the board's id: from the API by name (works whatever the page embeds), else from the page's own markup
+    const info = await resource("BoardResource", { username: user, slug, field_set_key: "detail" }, pathname);
+    if (info?.data?.id) boardId = String(info.data.id);
+    if (!boardId) {
+      const html = document.documentElement.innerHTML;
+      for (const re of [/board_id\\?",\\?"(\d+)/, /"board_id"\s*:\s*"(\d+)"/, /board_id\\?":\\?"(\d+)/]) { const m = re.exec(html); if (m) { boardId = m[1]; break; } }
+    }
+    if (!boardId) { console.log("[Grails] no board id; scrolling instead"); return null; }
+
+    const pins = new Map();
+    const say = (extra) => {
+      ui.label.textContent = text(pins.size) + (extra ? " · " + extra : "");
       chrome.runtime.sendMessage({ type: "collect-progress", scrolled: pins.size }).catch(() => {});
+    };
+    const take = (rows) => { for (const r of rows || []) { const p = pinFrom(r); if (p && !pins.has(p.id)) pins.set(p.id, p); } };
+
+    // the main grid
+    let bookmark = null, pages = 0;
+    while (!ui.stopped && pins.size < 20000) {
+      const options = { board_id: boardId, board_url: pathname, field_set_key: "react_grid_pin", filter_section_pins: false, is_react: true, prepend: false, page_size: 100, redux_normalize_feed: true, add_vase: true };
+      if (bookmark) options.bookmarks = [bookmark];
+      const rr = await resource("BoardFeedResource", options, pathname);
+      if (!rr) break;
+      take(rr.data);
+      pages += 1;
+      say();
       bookmark = rr.bookmark;
-      if (!bookmark || bookmark === "-end-" || rows.length === 0) break;
+      if (!bookmark || bookmark === "-end-" || !(rr.data || []).length) break;
       await wait(1200);
     }
-    return pagesDone > 0 ? [...pins.values()] : null;
+    if (pages === 0) { console.log("[Grails] the board feed gave nothing; scrolling instead"); return null; }
+    console.log("[Grails] board feed:", pins.size, "pins");
+
+    // sections: each one's own pins
+    const sec = await resource("BoardSectionsResource", { board_id: boardId, redux_normalize_feed: true }, pathname);
+    const sections = (sec?.data || []).filter((x) => x && x.id);
+    let n = 0;
+    for (const section of sections) {
+      if (ui.stopped) break;
+      n += 1;
+      let bm = null;
+      while (!ui.stopped && pins.size < 20000) {
+        const options = { section_id: String(section.id), page_size: 100, redux_normalize_feed: true };
+        if (bm) options.bookmarks = [bm];
+        const rr = await resource("BoardSectionPinsResource", options, pathname);
+        if (!rr) break;
+        take(rr.data);
+        say(`section ${n} of ${sections.length}`);
+        bm = rr.bookmark;
+        if (!bm || bm === "-end-" || !(rr.data || []).length) break;
+        await wait(1200);
+      }
+    }
+    console.log("[Grails] with", sections.length, "sections:", pins.size, "pins");
+    return [...pins.values()];
   }
 
   /** Scrolls the page to its end collecting pins ({id, image}); `limit` guards runaway boards. */
