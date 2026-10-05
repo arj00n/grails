@@ -3,7 +3,7 @@ import GrailsDesign
 import GrailsKit
 import SwiftUI
 
-/// First run, in the chromeless window: a wall waiting for pictures, where the library lives, the boards to bring, and the wall filling.
+/// First run, in the chromeless window: the paintings, a choice (import boards or start empty), the links to bring, and the pictures arriving.
 struct OnboardingView: View {
     var model: OnboardingModel
 
@@ -11,9 +11,9 @@ struct OnboardingView: View {
         ZStack {
             Ink.canvas.ignoresSafeArea()
             switch model.step {
-            case .hello: HelloStep(model: model).transition(.opacity)
-            case .library: LibraryStep(model: model).transition(.opacity)
-            case .importing: ImportStep(model: model).transition(.opacity)
+            case .hello, .choose: HelloChooseStep(model: model)
+            case .whereIt: LibraryStep(model: model).transition(.opacity)
+            case .paste: ImportStep(model: model).transition(.opacity)
             case .arriving: ArrivingStep(model: model).transition(.opacity)
             }
             topBar
@@ -25,15 +25,10 @@ struct OnboardingView: View {
     private var topBar: some View {
         VStack {
             HStack {
-                if model.step == .library && !model.returning {
+                if model.step == .whereIt && !model.returning {
                     BarButton(symbol: "chevron.left", help: "Back (Esc)", identifier: "onboarding-back") { model.back() }.padding(.leading, 86)
                 }
                 Spacer()
-                if model.step != .arriving {
-                    Button("Skip") { model.skip() }
-                        .buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary)
-                        .padding(.trailing, 20).accessibilityIdentifier("onboarding-skip")
-                }
             }
             .frame(height: 44)
             Spacer()
@@ -43,44 +38,54 @@ struct OnboardingView: View {
 
 let reduceMotionOn: Bool = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
 
-// MARK: Hello
+// MARK: Hello and Choose
 
-/// The title plate over the wall: a hard-edged canvas rectangle holding the name, Start and the painting's caption. Pure in `t`, so a
-/// headless snapshot can ask for any moment; `wall` is the live painting (or, in a snapshot, a picture of it).
-struct HelloFrame<Wall: View>: View {
+/// The title plate over the painting wall; when `choosing`, the painting, Start and the caption fade away and the options fade in around the same
+/// title, which doesn't move. Pure in `t`, so a headless snapshot can ask for any moment.
+struct HelloFrame<Wall: View, Chooser: View>: View {
     let t: Double
     let size: CGSize
     var caption: String
+    var choosing = false
     @ViewBuilder var wall: Wall
+    @ViewBuilder var chooser: Chooser
     var start: () -> Void = {}
+
+    private var curve: Animation { .timingCurve(0.22, 1, 0.36, 1, duration: reduceMotionOn ? 0.12 : 0.24) }
 
     var body: some View {
         let plate = PaintingWall.plate(window: size)
         ZStack(alignment: .topLeading) {
-            wall
+            wall.opacity(choosing ? 0 : 1).animation(curve, value: choosing)
             VStack(spacing: 14) {
                 title
                 Button("Start", action: start)
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
-                    .opacity(min(max((t - 1.3) / 0.1, 0), 1)).allowsHitTesting(t >= 1.3)
+                    .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1)).allowsHitTesting(t >= 1.3 && !choosing)
+                    .animation(.easeOut(duration: 0.1), value: choosing)
                     .accessibilityIdentifier("onboarding-start")
                 Text(caption).font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
-                    .opacity(min(max((t - 1.3) / 0.1, 0), 1))
+                    .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1))
+                    .animation(.easeOut(duration: 0.1), value: choosing)
                     .id(caption).transition(.opacity)
-                    .animation(.easeOut(duration: Motion.standard / 2), value: caption)
                     .accessibilityIdentifier("onboarding-caption")
             }
             .frame(width: plate.width, height: plate.height)
             .background(Ink.canvas)
             .offset(x: plate.minX, y: plate.minY)
+            chooser
+                .frame(width: size.width, height: size.height, alignment: .top)
+                .padding(.top, plate.minY + 84)
+                .opacity(choosing ? 1 : 0).allowsHitTesting(choosing)
+                .animation(choosing ? curve.delay(reduceMotionOn ? 0 : 0.1) : .easeOut(duration: 0.05), value: choosing)
         }
         .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
-    /// Typed on at 40 ms a letter, starting after a second.
+    /// Typed on at 40 ms a letter, starting after a second; once chosen it is simply there.
     private var title: some View {
         let word = Array("GRAILS")
-        let typed = min(max(Int((t - 1.0) / 0.04) + 1, 0), word.count)
+        let typed = choosing ? word.count : min(max(Int((t - 1.0) / 0.04) + 1, 0), word.count)
         return ZStack(alignment: .leading) {
             Text("GRAILS").font(.grailsDisplay(32)).hidden()
             Text(String(word.prefix(typed))).font(.grailsDisplay(32)).foregroundStyle(Ink.text)
@@ -89,18 +94,76 @@ struct HelloFrame<Wall: View>: View {
     }
 }
 
-private struct HelloStep: View {
+extension HelloFrame where Chooser == EmptyView {
+    init(t: Double, size: CGSize, caption: String, @ViewBuilder wall: () -> Wall, start: @escaping () -> Void = {}) {
+        self.init(t: t, size: size, caption: caption, choosing: false, wall: wall, chooser: { EmptyView() }, start: start)
+    }
+}
+
+/// The two (or three) cards: bring boards in, start empty, or join a library already found in a synced folder.
+struct ChooserCards: View {
+    var model: OnboardingModel
+
+    var body: some View {
+        VStack(spacing: 18) {
+            HStack(spacing: 8) {
+                if let f = model.found.first {
+                    card("Join \(f.name)", fact: "In your synced folder", id: "choose-join") { model.join(f) }
+                }
+                card("Import boards", fact: "Are.na · Pinterest · X", id: "choose-import", primary: true) { model.importBoards() }
+                card("Start empty", fact: nil, id: "choose-empty") { model.startEmpty() }
+            }
+            .frame(width: model.found.isEmpty ? 544 : 560)
+            Button(model.chosenPath.isEmpty ? "Choose where it lives" : model.chosenPath) { model.go(.whereIt) }
+                .buttonStyle(.plain).font(.grailsBody(12)).foregroundStyle(Ink.secondary)
+                .accessibilityIdentifier("choose-location")
+            Button("") { model.pasteFromClipboard() }.keyboardShortcut("v", modifiers: .command).frame(width: 0, height: 0).opacity(0)
+        }
+    }
+
+    private func card(_ title: String, fact: String?, id: String, primary: Bool = false, action: @escaping () -> Void) -> some View {
+        ChooserCard(title: title, fact: fact, primary: primary, action: action).accessibilityIdentifier(id)
+    }
+}
+
+private struct ChooserCard: View {
+    let title: String
+    let fact: String?
+    var primary = false
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.grailsBody(15, bold: true)).foregroundStyle(Ink.text).lineLimit(1)
+                if let fact { Text(fact).font(.grailsBody(12)).foregroundStyle(Ink.secondary).lineLimit(1) }
+                Spacer(minLength: 0)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, minHeight: 96, maxHeight: 96, alignment: .topLeading)
+            .background(RoundedRectangle(cornerRadius: Ink.cardRadius, style: .continuous).fill(hovering ? Ink.fill : Ink.surface))
+            .overlay(RoundedRectangle(cornerRadius: Ink.cardRadius, style: .continuous).strokeBorder(primary ? Ink.text.opacity(0.5) : Ink.hairline, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .hoverState($hovering)
+        .keyboardShortcut(primary ? .defaultAction : nil)
+    }
+}
+
+private struct HelloChooseStep: View {
     var model: OnboardingModel
     @State private var epoch = Date()
 
     var body: some View {
         GeometryReader { geo in
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotionOn)) { timeline in
+            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotionOn || model.step == .choose)) { timeline in
                 let t = reduceMotionOn ? 10 : timeline.date.timeIntervalSince(epoch)
                 let specs = PaintingWallEngine.shared?.specs ?? []
                 let shown = PaintingWall.captionIndex(PaintingWall.schedule(t: t, count: specs.count, reduceMotion: reduceMotionOn))
-                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "",
-                           wall: { PaintingWallBackground(epoch: epoch, reduceMotion: reduceMotionOn) }) { model.start() }
+                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "", choosing: model.step == .choose,
+                           wall: { PaintingWallBackground(epoch: epoch, reduceMotion: reduceMotionOn) }, chooser: { ChooserCards(model: model) }) { model.start() }
             }
         }
         .ignoresSafeArea()
@@ -144,7 +207,7 @@ struct LibraryStep: View {
             HStack {
                 if let p = model.problem { Text(p).font(.grailsBody(12)).foregroundStyle(Ink.destructive) }
                 Spacer()
-                Button("Continue") { model.continueFromLibrary() }
+                Button("Continue") { model.returning ? model.continueFromLibrary(next: .finish) : model.confirmLocation() }
                     .buttonStyle(PrimaryButtonStyle()).disabled(!model.canContinue)
                     .keyboardShortcut(.defaultAction).accessibilityIdentifier("library-continue")
             }
@@ -190,7 +253,7 @@ private struct LibraryRow: View {
     }
 }
 
-// MARK: Import
+// MARK: Paste
 
 struct ImportStep: View {
     var model: OnboardingModel
@@ -198,18 +261,18 @@ struct ImportStep: View {
     var body: some View {
         if let app = model.app {
             let importer = app.importModel
-            VStack(alignment: .leading, spacing: 18) {
-                Text("BRING YOUR BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text)
-                ImportView(model: importer, app: app, listHeight: 340)
+            VStack(alignment: .leading, spacing: 16) {
+                Text("IMPORT BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text)
+                ImportView(model: importer, app: app, listHeight: 300)
                 HStack {
                     Spacer()
-                    Button(importer.selectedItemCount > 0 ? "Import \(importer.selectedItemCount.formatted()) items" : "Import") { model.startImport() }
+                    Button(importer.selectedItemCount > 0 ? "Import \(importer.selectedItemCount.formatted()) pictures" : "Import") { model.startImport() }
                         .buttonStyle(PrimaryButtonStyle()).disabled(importer.selectedBoards.isEmpty)
                         .keyboardShortcut(.defaultAction).accessibilityIdentifier("onboarding-import")
                 }
             }
             .frame(width: 560)
-            // the import may have to wait for the extension sheet: the screen follows once it actually runs
+            // the import may need a moment to start: the screen follows once it actually runs
             .onChange(of: importer.phase) { _, phase in if phase == .running { model.go(.arriving) } }
         }
     }
@@ -217,89 +280,94 @@ struct ImportStep: View {
 
 // MARK: Arriving
 
-/// The wall beside the rows: pictures take their tiles as they land, the counter reads like a tape.
-struct ArrivingFrame: View {
-    let slots: [Mosaic.Slot]
-    let size: CGSize
-    let t: Double
-    var wall: WallModel
-    var done: Int
-    var total: Int
-
-    static let cardWidth: CGFloat = 300
-    /// The wall is laid out in the room left of the card: the same seed as Hello, fewer columns.
-    static func wall(_ size: CGSize) -> CGSize { CGSize(width: max(size.width - cardWidth - 48, 0), height: size.height) }
-    static func card(_ size: CGSize) -> CGRect { CGRect(x: size.width - cardWidth - 24, y: 56, width: cardWidth, height: size.height - 56 - 24) }
-
-    var body: some View {
-        ZStack(alignment: .topLeading) {
-            MosaicCanvas(slots: slots, t: t, pictures: wall.pictures)
-            Text(String(format: "%04d / %04d", done, max(total, done)))
-                .font(.grailsDisplay(16)).monospacedDigit().foregroundStyle(Ink.text)
-                .padding(.horizontal, 8).frame(height: 28)
-                .background(Ink.canvas, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
-                .padding(.leading, 86).padding(.top, 8)
-                .accessibilityIdentifier("onboarding-counter")
-        }
-    }
-}
-
-/// The whole Arriving screen at one moment: the wall, and the rows in a card beside it.
-struct ArrivingScreen: View {
+/// The progress column: the overall counter and bar, the time left once it can be said, the boards, Stop and Open library.
+struct ProgressColumn: View {
     var model: OnboardingModel
     var app: AppModel
-    var wall: WallModel
-    let slots: [Mosaic.Slot]
-    let size: CGSize
-    let t: Double
+    var elapsed: Double
+    var eta: Eta
+
+    static let width: CGFloat = 300
 
     var body: some View {
         let importer = app.importModel
         let total = max(importer.tasks.values.reduce(0) { $0 + $1.expected }, 1)
         let done = importer.tasks.values.reduce(0) { $0 + $1.handled.count }
-        let card = ArrivingFrame.card(size)
-        ZStack(alignment: .topLeading) {
-            ArrivingFrame(slots: slots, size: size, t: t, wall: wall, done: done, total: total)
-            VStack(alignment: .leading, spacing: 12) {
-                ImportView(model: importer, app: app, listHeight: nil)
-                Spacer(minLength: 0)
+        let paused = importer.tasks.values.contains { if case .waiting = $0.state { true } else { false } }
+        VStack(alignment: .leading, spacing: 14) {
+            Text("IMPORTING").font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("\(done.formatted()) / \(total.formatted())").font(.grailsDisplay(24)).monospacedDigit().foregroundStyle(Ink.text)
+                    .accessibilityLabel("\(done) of \(total) pictures")
+                    .accessibilityIdentifier("onboarding-counter")
+                ZStack(alignment: .leading) {
+                    Rectangle().fill(Ink.fill)
+                    GeometryReader { g in Rectangle().fill(Ink.text).frame(width: g.size.width * min(CGFloat(done) / CGFloat(total), 1)) }
+                }
+                .frame(height: 2)
                 HStack {
-                    Button("Stop All") { importer.stopAll() }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary)
-                        .opacity(importer.isRunning ? 1 : 0)
+                    Text(paused ? "Paused" : (eta.label(handled: done, total: total, elapsed: elapsed, paused: paused) ?? " "))
+                        .font(.grailsBody(12)).foregroundStyle(Ink.secondary)
                     Spacer()
-                    Button("Open library") { model.finish() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
-                        .accessibilityIdentifier("onboarding-open")
+                    Text("\(Int(min(Double(done) / Double(total), 1) * 100)) %").font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
                 }
             }
-            .padding(14)
-            .frame(width: card.width, height: card.height, alignment: .topLeading)
-            .surfaceCard()
-            .offset(x: card.minX, y: card.minY)
+            ImportView(model: importer, app: app, listHeight: nil)
+            Spacer(minLength: 0)
+            HStack {
+                Button("Stop") { importer.stopAll() }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary).opacity(importer.isRunning ? 1 : 0)
+                Spacer()
+                Button("Open library") { model.finish() }.buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction).accessibilityIdentifier("onboarding-open")
+            }
         }
-        .frame(width: size.width, height: size.height, alignment: .topLeading)
+        .padding(16)
+        .frame(width: Self.width, alignment: .topLeading)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(Ink.surface)
+        .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1) }
+    }
+}
+
+/// The whole Arriving screen: the grid filling on the left, the progress on the right.
+struct ArrivingScreen: View {
+    var model: OnboardingModel
+    var app: AppModel
+    var grid: ArrivalGridModel
+    var elapsed: Double
+    var eta: Eta
+
+    var body: some View {
+        HStack(spacing: 0) {
+            ArrivalGrid(model: grid, app: app).padding(.leading, 16).padding(.top, 52).padding(.trailing, 16)
+            ProgressColumn(model: model, app: app, elapsed: elapsed, eta: eta).padding(.top, 44)
+        }
     }
 }
 
 struct ArrivingStep: View {
     var model: OnboardingModel
-    @State private var wall = WallModel()
+    @State private var grid = ArrivalGridModel(reduceMotion: reduceMotionOn)
+    @State private var started = Date()
+    @State private var eta = Eta()
+    @State private var elapsed = 0.0
 
     var body: some View {
         if let app = model.app {
-            GeometryReader { geo in
-                let slots = Mosaic.layout(seed: model.seed, size: ArrivingFrame.wall(geo.size))
-                WallClock(reduceMotion: reduceMotionOn, wall: wall) { t in
-                    ArrivingScreen(model: model, app: app, wall: wall, slots: slots, size: geo.size, t: t)
+            ArrivingScreen(model: model, app: app, grid: grid, elapsed: elapsed, eta: eta)
+                .onAppear { grid.run(app: app); started = Date() }
+                .onDisappear { grid.stop() }
+                .task {
+                    // the pace of the last half minute, once a second
+                    while !Task.isCancelled {
+                        try? await Task.sleep(for: .seconds(1))
+                        elapsed = Date().timeIntervalSince(started)
+                        eta.add(handled: app.importModel.tasks.values.reduce(0) { $0 + $1.handled.count }, at: elapsed)
+                    }
                 }
-                .onAppear { wall.configure(slots: slots, reserved: nil); wall.run(app: app, reduceMotion: reduceMotionOn) }
-                .onChange(of: geo.size) { wall.configure(slots: Mosaic.layout(seed: model.seed, size: ArrivingFrame.wall(geo.size)), reserved: nil) }
-                .onDisappear { wall.stop() }
-            }
-            .ignoresSafeArea()
-            .onChange(of: app.importModel.phase) { _, phase in
-                // everything has arrived: a short hold on the full wall, then into the library
-                if phase == .finished { Task { try? await Task.sleep(for: .milliseconds(600)); model.finish() } }
-            }
+                .onChange(of: app.importModel.phase) { _, phase in
+                    // everything has arrived and the library is laid out underneath: a short hold, then the crossfade into it
+                    if phase == .finished { model.landWhenReady() }
+                }
         }
     }
 }

@@ -3,7 +3,8 @@ import GrailsDesign
 import GrailsKit
 import SwiftUI
 
-/// First run: Hello → Library → Import → Arriving. Each step has one main action; Esc goes back; Skip opens an empty library.
+/// First run: Hello → Choose (import boards, or start empty) → Paste → Arriving → the library. Each step has one main action. The library's
+/// location and the person's name are decided for them (this Mac, their account name) unless they ask to change them.
 @MainActor @Observable
 final class OnboardingModel {
     enum Choice: Hashable { case thisMac, root(String), found(String), other, link }
@@ -37,7 +38,7 @@ final class OnboardingModel {
         returning = s.done && !resuming
         if returning { s = OnboardingState() }
         state = s
-        step = resuming ? s.step : (returning ? .library : .hello)
+        step = resuming ? s.step : (returning ? .whereIt : .hello)
         handle = Handle.normalize(s.handle.isEmpty ? NSUserName() : s.handle)
         seed = Self.seed(for: NSUserName())
     }
@@ -51,22 +52,47 @@ final class OnboardingModel {
 
     // MARK: Moving between steps
 
-    func go(_ new: Step) {
+    func go(_ new: Step, duration: Double = Motion.standard) {
         guard new != step else { return }
-        withAnimation(.easeOut(duration: Motion.standard)) { step = new }
+        let curve = Animation.timingCurve(0.22, 1, 0.36, 1, duration: reduceMotionOn ? 0.12 : duration)
+        withAnimation(curve) { step = new }
         state.step = new
         state.save(defaults)
     }
 
     func back() {
         switch step {
-        case .library: if !returning { go(.hello) }
-        case .importing: break      // the library already exists; going back would make a second one
-        default: break
+        case .whereIt: if !returning { go(.choose) }
+        default: break      // once the library exists, going back would make a second one
         }
     }
 
-    func start() { go(.library); scan() }
+    /// Hello → Choose: 240 ms, the painting fades out and the two options fade in, with the name staying where it is.
+    func start() { scan(); go(.choose, duration: 0.24) }
+
+    /// What the person picks on Choose.
+    func importBoards(paste: String? = nil) {
+        guard app != nil else { return }
+        pendingPaste = paste
+        continueFromLibrary(next: .paste)
+    }
+
+    func startEmpty() { continueFromLibrary(next: .finish) }
+
+    func join(_ library: FoundLibrary) { choice = .found(library.id); continueFromLibrary(next: .paste) }
+
+    /// ⌘V on Choose: the clipboard's text goes into the import field, one action fewer.
+    func pasteFromClipboard() {
+        let text = NSPasteboard.general.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        importBoards(paste: (text?.isEmpty ?? true) ? nil : text)
+    }
+
+    /// The library's location was changed: back to Choose, which makes it when a choice is made.
+    func confirmLocation() {
+        if returning { continueFromLibrary(next: .finish) } else { go(.choose) }
+    }
+
+    @ObservationIgnored private var pendingPaste: String?
 
     // MARK: Library
 
@@ -81,7 +107,6 @@ final class OnboardingModel {
             }.value
             roots = r
             found = f
-            if choice == .thisMac, let first = f.first { choice = .found(first.id) }
         }
     }
 
@@ -119,20 +144,22 @@ final class OnboardingModel {
         }
     }
 
-    /// Opens or creates the library that is picked. One that already has pictures ends onboarding; a new one goes on to Import.
-    func continueFromLibrary() {
-        guard canContinue, let app else { return }
+    enum Next { case paste, finish }
+
+    /// Opens or creates the library that is picked (this Mac unless they changed it). One that already has pictures ends onboarding.
+    func continueFromLibrary(next: Next = .paste) {
+        guard canContinue, let app, !busy else { return }
         busy = true
         problem = nil
         defaults.set(Handle.normalize(handle), forKey: "userHandle")
         state.handle = Handle.normalize(handle)
         Task {
-            await open(app)
+            await open(app, next: next)
             busy = false
         }
     }
 
-    private func open(_ app: AppModel) async {
+    private func open(_ app: AppModel, next: Next) async {
         var url: URL?
         switch choice {
         case .thisMac: url = thisMac
@@ -145,20 +172,22 @@ final class OnboardingModel {
             if url == nil {
                 await app.openLink(link)
                 guard app.store != nil, app.libraryID == link.library else { return }
-                await opened(app)
+                await opened(app, next: next)
                 return
             }
         }
         guard let url else { return }
         await app.openOrCreate(at: url, remember: remember)
         guard app.store != nil else { problem = "Couldn't open that folder"; return }
-        await opened(app)
+        await opened(app, next: next)
     }
 
-    private func opened(_ app: AppModel) async {
+    private func opened(_ app: AppModel, next: Next) async {
         state.libraryPath = app.layout?.root.path
         let count = (try? await app.store?.index.count(ItemQuery())) ?? 0
-        if count > 0 || returning { finish() } else { go(.importing) }
+        if count > 0 || returning || next == .finish { finish(); return }
+        if let text = pendingPaste { app.importModel.ingest(text); pendingPaste = nil }
+        go(.paste)
     }
 
     /// Dev demos leave the person's own preferences alone.
@@ -166,21 +195,21 @@ final class OnboardingModel {
 
     // MARK: Import and after
 
-    /// Import: the ticked boards run as one job, and the wall fills with what arrives.
+    /// Import: the ticked boards run as one job; the screen follows to Arriving once it runs.
     func startImport() {
         guard let app else { return }
         app.importModel.opensFirstCollection = true
-        app.importModel.start()                     // may open the extension sheet first; the screen follows once it runs
+        app.importModel.start()
         if app.importModel.isRunning { go(.arriving) }
     }
 
-    /// Skip: an empty library on this Mac (or, past Library, the one that is open).
-    func skip() {
-        guard let app else { return }
-        if app.store != nil { finish(); return }
+    /// The import is done: wait until the library underneath is laid out on the first board's collection, hold on the finished screen for
+    /// 600 ms, then fade into it (180 ms, no scale).
+    func landWhenReady() {
         Task {
-            await app.openOrCreate(at: thisMac, remember: remember)
-            if app.store != nil { finish() }
+            for _ in 0..<100 where !(app?.importLandingReady ?? true) { try? await Task.sleep(for: .milliseconds(100)) }
+            try? await Task.sleep(for: .milliseconds(600))
+            finish()
         }
     }
 

@@ -8,6 +8,18 @@ public struct Politeness: Sendable {
     public static let none = Politeness(minimumGap: [:])
 }
 
+/// Reads a Pinterest board page by page in the app (see `PinterestCollector`): calls `deliver` with each page's entries and the bookmark that
+/// follows it, starting from `cursor` when the board was read before. The outcome says why it stopped.
+public typealias PageReader = @Sendable (_ board: BoardCandidate, _ cursor: String?, _ deliver: @Sendable ([RemoteBoard.Entry], String?) async -> Void) async throws -> CollectorOutcome
+
+public enum CollectorOutcome: Sendable, Equatable {
+    case complete
+    /// A secret board, or one Pinterest wants a sign-in for.
+    case gated
+    /// Pinterest changed its reply or kept failing: use the widget's latest 50.
+    case changed
+}
+
 /// Imports several boards in one go: boards in row order, each into its own collection, four downloads at a time across them, the
 /// next board read while the current one downloads. A picture that two boards share is downloaded once and filed in both.
 public actor ImportRunner {
@@ -19,6 +31,7 @@ public actor ImportRunner {
     private let concurrency: Int
     private var inputOpen: Bool
     private let rateLimitWait: Duration
+    private let collector: PageReader?
 
     private var job: ImportJob
     private var stopped: Set<String> = []
@@ -30,8 +43,9 @@ public actor ImportRunner {
     private var sinceJournal = 0
 
     public init(job: ImportJob, store: LibraryStore, service: LibraryCaptureService, politeness: Politeness = .standard,
-                loader: @escaping LinkFetcher.Loader = { try await URLSession.shared.data(for: $0) }, journal: URL? = nil, concurrency: Int = 4, keepOpen: Bool = false, rateLimitWait: Duration = .seconds(60)) {
+                loader: @escaping LinkFetcher.Loader = { try await URLSession.shared.data(for: $0) }, journal: URL? = nil, concurrency: Int = 4, keepOpen: Bool = false, rateLimitWait: Duration = .seconds(60), collector: PageReader? = nil) {
         self.rateLimitWait = rateLimitWait
+        self.collector = collector
         self.inputOpen = keepOpen
         self.job = job; self.store = store; self.service = service; self.politeness = politeness; self.loader = loader; self.journal = journal
         self.concurrency = max(1, concurrency)
@@ -92,6 +106,11 @@ public actor ImportRunner {
             if case .done = job.boards[i].state { continue }
             let id = job.boards[i].id
             do {
+                // a big Pinterest board is read page by page in the app, and downloads start with the first page
+                if let collector, job.boards[i].candidate.via == .collector, job.boards[i].readComplete != true {
+                    try await stream(i, collector: collector)
+                    continue
+                }
                 // entries kept from before (a resumed job) don't need reading again
                 let entries: [RemoteBoard.Entry]
                 var name = job.boards[i].candidate.name
@@ -118,7 +137,7 @@ public actor ImportRunner {
                 // start reading the next board while this one downloads
                 if i + 1 < job.boards.count, job.boards[i + 1].entries == nil, !stopAll { _ = read(i + 1) }
                 job.boards[i].total = entries.count
-                try await download(i, entries: entries, name: name, ref: ref)
+                try await download(i, name: name, ref: ref)
             } catch let e as BoardImportError {
                 switch e {
                 case .blocked(let why): job.boards[i].state = .blocked(why)
@@ -133,6 +152,66 @@ public actor ImportRunner {
             _ = id
         }
         for t in reads.values { t.cancel() }
+    }
+
+    // MARK: Streaming reads
+
+    private func stream(_ i: Int, collector: @escaping PageReader) async throws {
+        let candidate = job.boards[i].candidate
+        if job.boards[i].entries == nil { job.boards[i].entries = [] }
+        job.boards[i].readFailure = nil
+        set(i, .reading(found: job.boards[i].entries?.count ?? 0, total: candidate.count))
+        let cursor = job.boards[i].cursor
+        let me = self
+        let reader = Task {
+            do {
+                let outcome = try await collector(candidate, cursor) { entries, bookmark in await me.deliver(i, entries, bookmark) }
+                await me.finishRead(i, outcome: outcome)
+            } catch is CancellationError {
+                await me.finishRead(i, outcome: nil)
+            } catch {
+                await me.finishRead(i, outcome: .changed)
+            }
+        }
+        defer { reader.cancel() }
+        try await download(i, name: candidate.name, ref: candidate.ref, streaming: true)
+        switch job.boards[i].readFailure {
+        case "gated":
+            if (job.boards[i].entries ?? []).isEmpty { set(i, .blocked("Secret board")) }
+        case "changed":
+            // Pinterest stopped sharing the board in full: whatever came in stays, and the widget's latest 50 fills what it can
+            let board = try await BoardImporter(loader: loader).fetch(candidate.ref) { _, _ in }
+            let have = Set((job.boards[i].entries ?? []).compactMap(\.mediaUrls.first))
+            let fresh = board.entries.filter { e in e.mediaUrls.first.map { !have.contains($0) } ?? true }
+            if !fresh.isEmpty {
+                job.boards[i].entries = (job.boards[i].entries ?? []) + fresh
+                job.boards[i].total = job.boards[i].entries?.count ?? 0
+                job.boards[i].readComplete = true
+                try await download(i, name: board.name, ref: board.ref)
+            }
+            job.boards[i].note = "Pinterest stopped sharing this board in full, so it came in as its latest 50."
+            emit(i)
+        default: break
+        }
+    }
+
+    private func deliver(_ i: Int, _ entries: [RemoteBoard.Entry], _ bookmark: String?) {
+        guard job.boards.indices.contains(i) else { return }
+        job.boards[i].entries = (job.boards[i].entries ?? []) + entries
+        job.boards[i].cursor = bookmark
+        // while the read goes on the total is what Pinterest says the board holds (so the bar doesn't stall), never less than what's read
+        job.boards[i].total = max(job.boards[i].entries?.count ?? 0, job.boards[i].candidate.count ?? 0)
+    }
+
+    private func finishRead(_ i: Int, outcome: CollectorOutcome?) {
+        guard job.boards.indices.contains(i) else { return }
+        job.boards[i].readComplete = true
+        job.boards[i].total = job.boards[i].entries?.count ?? 0
+        switch outcome {
+        case .gated: job.boards[i].readFailure = "gated"
+        case .changed: job.boards[i].readFailure = "changed"
+        default: break
+        }
     }
 
     private func readBoard(_ candidate: BoardCandidate, index: Int) async throws -> RemoteBoard {
@@ -169,7 +248,7 @@ public actor ImportRunner {
 
     private enum Result { case added(String), had(String), failed }
 
-    private func download(_ i: Int, entries: [RemoteBoard.Entry], name: String, ref: BoardRef) async throws {
+    private func download(_ i: Int, name: String, ref: BoardRef, streaming: Bool = false) async throws {
         // a collection per board; a single post or pin lands loose
         if job.boards[i].collectionId == nil, !ref.isPost {
             let title = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -180,20 +259,22 @@ public actor ImportRunner {
         let collectionId = job.boards[i].collectionId
         let tags = job.tags
         let store = self.store, service = self.service
-        let total = entries.count
-        set(i, .downloading(done: job.boards[i].handled.count, total: total))
+        func total() -> Int { job.boards[i].total > 0 ? job.boards[i].total : (job.boards[i].entries?.count ?? 0) }
+        set(i, .downloading(done: job.boards[i].handled.count, total: total()))
         let boardID = job.boards[i].id
 
         var next = 0
         try await withThrowingTaskGroup(of: (Int, Result).self) { group in
             var active = 0
             func launchMore() {
-                while active < concurrency, next < entries.count {
+                // the board may still be growing (a streaming read), so look at it fresh each time
+                let all = job.boards[i].entries ?? []
+                while active < concurrency, next < all.count {
                     let index = next; next += 1
                     if job.boards[i].handled.contains(index) { continue }
-                    let entry = entries[index]
+                    let entry = all[index]
                     let one = stopped.contains(boardID)
-        let stoppedNow = stopAll || one
+                    let stoppedNow = stopAll || one
                     if stoppedNow { return }
                     // a picture an earlier board already brought in is filed here too, not downloaded again
                     if let key = entry.mediaUrls.first, let known = seen[key] {
@@ -205,24 +286,32 @@ public actor ImportRunner {
                     group.addTask { (index, await Self.save(entry, collectionId: collectionId, tags: tags, store: store, service: service)) }
                 }
             }
-            launchMore()
-            while let (index, result) = try await group.next() {
-                active -= 1
-                job.boards[i].handled.insert(index)
-                switch result {
-                case .added(let id):
-                    job.boards[i].added += 1; job.boards[i].addedIDs.append(id)
-                    if let key = entries[index].mediaUrls.first { seen[key] = id }
-                    continuation?.yield(.itemAdded(board: job.boards[i].id, item: id))
-                case .had(let id):
-                    job.boards[i].alreadyHad += 1
-                    if let key = entries[index].mediaUrls.first { seen[key] = id }
-                case .failed: job.boards[i].failed += 1
-                }
-                set(i, .downloading(done: job.boards[i].handled.count, total: total))
-                sinceJournal += 1
-                writeJournal(force: false)
+            while true {
                 launchMore()
+                while let (index, result) = try await group.next() {
+                    active -= 1
+                    job.boards[i].handled.insert(index)
+                    let key = job.boards[i].entries?[index].mediaUrls.first
+                    switch result {
+                    case .added(let id):
+                        job.boards[i].added += 1; job.boards[i].addedIDs.append(id)
+                        if let key { seen[key] = id }
+                        continuation?.yield(.itemAdded(board: job.boards[i].id, item: id))
+                    case .had(let id):
+                        job.boards[i].alreadyHad += 1
+                        if let key { seen[key] = id }
+                    case .failed: job.boards[i].failed += 1
+                    }
+                    set(i, .downloading(done: job.boards[i].handled.count, total: total()))
+                    sinceJournal += 1
+                    writeJournal(force: false)
+                    launchMore()
+                }
+                // a streaming read that is still going will bring more: wait for it instead of finishing
+                let moreComing = streaming && job.boards[i].readComplete != true && !(stopAll || stopped.contains(boardID))
+                let unseen = next < (job.boards[i].entries?.count ?? 0)
+                if moreComing || unseen { try await Task.sleep(for: .milliseconds(100)); continue }
+                break
             }
         }
         let one = stopped.contains(boardID)

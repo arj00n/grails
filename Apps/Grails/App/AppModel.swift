@@ -164,6 +164,8 @@ final class AppModel {
     /// A browser extension asking to be paired (answered with Allow).
     var pairRequest: PairingBroker.Request?
     @ObservationIgnored var lastImportReload = Date.distantPast
+    /// The library has been reloaded onto the first board's collection after an import (onboarding fades into it only then).
+    var importLandingReady = true
     /// How a page is opened in the browser; the demo swaps it for a recorder.
     @ObservationIgnored var browserOpener: (String) -> Void = { if let u = URL(string: $0) { NSWorkspace.shared.open(u) } }
     /// The "Add the extension" sheet.
@@ -305,7 +307,7 @@ final class AppModel {
         await openOrCreate(at: url, remember: env["GRAILS_LIBRARY"] == nil)
         // quit halfway through first-run import: pick up where it was
         let saved = OnboardingState.load()
-        if env["GRAILS_LIBRARY"] == nil, !saved.done, saved.step == .importing || saved.step == .arriving, store != nil {
+        if env["GRAILS_LIBRARY"] == nil, !saved.done, saved.step == .paste || saved.step == .arriving, store != nil {
             let o = OnboardingModel(app: self, resuming: true)
             if saved.step == .arriving, !importModel.isRunning { o.finish() } else { onboarding = o }
         }

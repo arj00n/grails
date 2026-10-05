@@ -2,7 +2,7 @@ import Foundation
 
 /// One board (or post, or pin) that the import panel is about to bring in: what it is called, how big it is, what it looks like.
 public struct BoardCandidate: Identifiable, Codable, Sendable, Equatable {
-    public enum Via: String, Codable, Sendable { case api, latest, browser }
+    public enum Via: String, Codable, Sendable { case api, latest, browser, collector }
 
     /// Stable across re-pastes: "arena:slug", "pinterest:user/board", "pin:id", "x:id".
     public var id: String
@@ -15,8 +15,11 @@ public struct BoardCandidate: Identifiable, Codable, Sendable, Equatable {
     /// The profile row this came from.
     public var parent: String?
     public var selected = true
-    /// How much of it can be reached: everything, only the latest 50 (Pinterest without the browser), or everything via the browser extension.
+    /// How much of it can be reached: everything (the API, or the in-app reader for a big Pinterest board), only the latest 50 (the widget, by choice or
+    /// as the fallback), or everything via the browser extension.
     public var via: Via = .api
+    /// Listed on a profile as secret: only readable signed in.
+    public var secret: Bool?
 
     public init(ref: BoardRef, name: String, count: Int? = nil, covers: [URL] = [], owner: String? = nil, parent: String? = nil, selected: Bool = true, via: Via = .api) {
         self.id = Self.id(for: ref)
@@ -25,6 +28,8 @@ public struct BoardCandidate: Identifiable, Codable, Sendable, Equatable {
 
     /// How many pictures an import of this will bring: Pinterest without the browser stops at its latest 50.
     public var reachableCount: Int { via == .latest ? min(count ?? 0, 50) : (count ?? 0) }
+    /// A Pinterest board over this size can't come whole from the widget.
+    public static let widgetLimit = 50
 
     public static func id(for ref: BoardRef) -> String {
         switch ref {
@@ -44,7 +49,7 @@ public enum BoardPreflight {
         case .pinterest(let user, let board):
             let s = try await PinterestBoardWidget.summary(user: user, board: board, loader: loader)
             let partial = (s.pinCount ?? 0) > s.pins.count
-            return BoardCandidate(ref: ref, name: s.name, count: s.pinCount ?? s.pins.count, covers: s.covers, via: partial ? .latest : .api)
+            return BoardCandidate(ref: ref, name: s.name, count: s.pinCount ?? s.pins.count, covers: s.covers, via: partial ? .collector : .api)
         case .pinterestPin, .tweet:
             let board = try await BoardImporter(loader: loader).fetch(ref)
             return BoardCandidate(ref: ref, name: board.name, count: board.entries.count, covers: board.entries.prefix(3).compactMap { $0.mediaUrls.first.flatMap(URL.init(string:)) })
@@ -115,5 +120,26 @@ public struct ArenaDirectory: Sendable {
             try await Task.sleep(for: pause)
         }
         return owned + others
+    }
+}
+
+
+/// Which explanation, if any, the import screen shows under the rows (one at a time, the more pressing first).
+public enum ImportBannerRule {
+    public enum Variant: Equatable, Sendable {
+        /// A big Pinterest board: the whole board is read in the app by default, or just its latest 50 if the person chooses.
+        case wholeBoard(latestOnly: Bool)
+        /// A secret board and no Pinterest sign-in yet.
+        case secret
+    }
+
+    /// `boards` are the ready boards (rows and ticked children); `secretRows` counts rows that came back secret; `latestOnly` is the person's toggle.
+    public static func variant(boards: [BoardCandidate], secretRows: Int, signedIn: Bool, latestOnly: Bool) -> Variant? {
+        if secretRows > 0, !signedIn { return .secret }
+        let big = boards.contains { b in
+            if case .pinterest = b.ref { return (b.count ?? 0) > BoardCandidate.widgetLimit && (b.via == .collector || b.via == .latest) }
+            return false
+        }
+        return big ? .wholeBoard(latestOnly: latestOnly) : nil
     }
 }

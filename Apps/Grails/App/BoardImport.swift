@@ -38,6 +38,8 @@ extension AppModel {
     }
 
     func importFinished(_ job: ImportJob, openFirst: Bool) async {
+        importLandingReady = false
+        defer { importLandingReady = true }
         await reload()
         kickAutoTag()
         // on the canvas, one calm fit once everything has arrived (the camera stayed put while items streamed in)

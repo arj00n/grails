@@ -68,113 +68,87 @@ struct OnboardingDemo {
         }
         check(model.step == .hello, "starts on Hello")
 
-        // Library: the synced drive shows up with the library already in it, and is preselected
+        // Choose: the options fade in around the title; a library found in the synced drive is offered as Join
         model.start()
+        check(model.step == .choose, "Start goes to Choose")
         await until(5) { !model.found.isEmpty }
-        await wait(300)
-        check(model.roots.count == 1 && model.found.map(\.name) == ["Team Inspo"], "found the drive and the library in it: \(model.roots.map(\.name)) \(model.found.map(\.name))")
-        check({ if case .found = model.choice { true } else { false } }(), "Found library is preselected")
-        snap(ZStack { LibraryStep(model: model) }, "library")
-        model.choice = .thisMac
-        model.handle = Handle.normalize("Ana M")
-        snap(ZStack { LibraryStep(model: model) }, "library-this-mac")
-        model.continueFromLibrary()
-        await until(10) { model.step == .importing }
-        check(model.step == .importing && app.store != nil, "a new empty library goes on to Import")
-        check(FileManager.default.fileExists(atPath: dir + "/This Mac.grails/library.json"), "library created on This Mac")
+        await wait(400)
+        check(model.found.map(\.name) == ["Team Inspo"], "the library in the synced drive is found: \(model.found.map(\.name))")
+        snap({ _ in HelloFrame(t: 10, size: size, caption: "", choosing: true, wall: { Color.clear }, chooser: { ChooserCards(model: model) }) }, "choose")
+        snap(ZStack { LibraryStep(model: model) }, "where")
 
-        // Import: paste a mixed list, then go
+        // Choose → Import boards: the library is made without asking, then Paste
+        model.importBoards()
+        await until(10) { model.step == .paste }
+        check(model.step == .paste && app.store != nil, "Import boards makes the library and goes to Paste")
+        check(FileManager.default.fileExists(atPath: dir + "/This Mac.grails/library.json"), "library made on This Mac with no questions")
+
+        // Paste: a Pinterest board of 240 pins is read by the in-app reader (a real web view against a stand-in server), no extension
+        let fixture = CollectorFixture(pins: 240)
+        let port = (try? await fixture.start()) ?? 0
+        PinterestCollector.shared.origin = URL(string: "http://127.0.0.1:\(port)")!
         app.importModel.ingest("""
         https://www.are.na/ana/demo-one and pinterest.com/ana/interiors/, plus https://www.are.na/demo
-        also https://example.com/x and pinterest.com/anaprofile
+        also https://example.com/x
         """)
         await until(10) { !app.importModel.stillChecking }
         app.importModel.setSelected("arena:other-one", true)
-        snap(ZStack { ImportStep(model: model) }, "import")
-        check(app.importModel.selectedItemCount > 0, "rows ready: \(app.importModel.selectedItemCount) items")
+        check(app.importModel.banner == .wholeBoard(latestOnly: false), "a board over 50 pins shows the banner and defaults to the whole board: \(String(describing: app.importModel.banner))")
+        check(app.importModel.selectedBoards.contains { $0.via == .collector }, "the big board is routed to the in-app reader")
+        let whole = app.importModel.selectedItemCount
+        snap(ZStack { ImportStep(model: model) }, "paste")
+        app.importModel.setLatestOnly(true)
+        check(app.importModel.selectedItemCount < whole && app.importModel.banner == .wholeBoard(latestOnly: true), "Latest 50 only changes the total: \(whole) → \(app.importModel.selectedItemCount)")
+        snap(ZStack { ImportStep(model: model) }, "paste-latest-only")
+        app.importModel.setLatestOnly(false)
+        check(app.importModel.selectedItemCount == whole, "Get all restores it")
+        // the extension is no longer in the way: the sheet is reached only on request
+        check(!app.extensionSetup.isOpen && model.step == .paste, "no extension sheet and no browser on the default path")
 
-        // the extension sheet: choose, waiting for the browser, connected
-        let setup = app.extensionSetup
-        app.extensionPaired = false                                   // whatever this Mac remembers
-        let installed = ChromiumBrowser.installed()
-        say("browsers found: \(installed.map(\.name))")
-        let pick = Set(installed.prefix(1).map(\.id))
-        setup.demo(browsers: installed, selected: pick, opened: false)
-        await wait(1200)
-        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-choose")
-        await wait(600)
-        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-choose")           // the first render of a new sheet can be caught mid-fade
-        snap(ZStack { ExtensionModal(model: app) }, "extension-choose-alone")
-        setup.demo(browsers: [], selected: [], opened: false)
-        await wait(500)
-        snap(ZStack { ExtensionModal(model: app) }, "extension-choose-nobrowsers")
-        setup.demo(browsers: installed, selected: pick, opened: false)
-        await wait(500)
-        setup.demo(browsers: installed, selected: pick, opened: true)
-        await wait(400)
-        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-waiting")
-        setup.demo(browsers: installed, selected: pick, opened: true, connected: true)
-        await wait(400)
-        snap(ZStack { ImportStep(model: model); ExtensionModal(model: app) }, "extension-connected")
-        setup.close()
-
-        // a Pinterest board that needs the browser while the extension isn't connected: the import waits for it, then goes by itself
-        let wall = WallModel()
-        let arrivingSlots = Mosaic.layout(seed: model.seed, size: ArrivingFrame.wall(size))
-        wall.configure(slots: arrivingSlots, reserved: nil)
+        // Arriving: pictures join the grid a few at a time and never move once shown
         var opened: [String] = []
         app.browserOpener = { opened.append($0) }
-        app.importModel.useBrowser("pinterest:ana/interiors")
-        app.extensionPaired = false
         model.startImport()
-        check(app.importModel.phase == .composing && setup.isOpen && setup.continueImport, "an import that needs the extension opens the sheet first, and doesn't start")
-        check(model.step == .importing, "the screen stays on Import meanwhile")
-        setup.demo(browsers: installed, selected: pick, opened: true)             // Install was clicked
-        _ = app.apiServer?.pairing.open(origin: "chrome-extension://demo")        // the extension asks to connect
-        await until(10) { app.importModel.phase == .running }
-        check(app.extensionPaired && !setup.isOpen, "the extension is let in with no second question and the sheet gets out of the way")
-        check(model.step == .arriving, "the import goes on to Arriving by itself")
-        check(app.importModel.pendingBrowser.count == 1, "the board Chrome still has to scroll is a row from the start (\(app.importModel.pendingBrowser.count))")
-        check(opened.first?.contains("#grails=") == true, "Chrome is opened on that board with the job in the address: \(opened.first ?? "nothing")")
-        await wait(500)
-        snap(ArrivingScreen(model: model, app: app, wall: wall, slots: arrivingSlots, size: size, t: 10), "arriving-pending")
-        // Chrome hands the board over, then says it is done
-        await app.importModel.receive(BoardImportRequest(boards: [ExtensionBoard(url: "https://www.pinterest.com/ana/interiors/", name: "Interiors", pins: (0..<6).map { ExtensionPin(id: "\(7000 + $0)", image: "https://i.pinimg.com/236x/aa/bb/cc/pin\(900 + $0).jpg") })]))
-        check(app.importModel.pendingBrowser.isEmpty, "the row becomes a normal one once Chrome has delivered the board")
-        if let n = app.importModel.collectNonce { app.importModel.collectDone(nonce: n) }
-
-        // Arriving: the wall takes the pictures as they land
-        var shots = 0
-        var placed = Set<String>()
-        while app.importModel.phase == .running, shots < 3 {
-            await wait(250)
-            fill(wall, &placed)
-            snap(ArrivingScreen(model: model, app: app, wall: wall, slots: arrivingSlots, size: size, t: 10), "arriving-\(shots)")
-            shots += 1
+        await until(10) { model.step == .arriving }
+        check(model.step == .arriving, "Import goes on to Arriving (no sheet, no browser)")
+        let grid = ArrivalGridModel(reduceMotion: false)
+        grid.configure(width: size.width - ProgressColumn.width - 32, height: size.height - 52)
+        grid.run(app: app)
+        var eta = Eta()
+        var earlier: [[ArrivalGridModel.Tile]]?
+        var stable = true
+        var snaps = 0
+        let began = Date()
+        while app.importModel.phase == .running, snaps < 4 {
+            await wait(700)
+            let now = Date().timeIntervalSince(began)
+            eta.add(handled: app.importModel.tasks.values.reduce(0) { $0 + $1.handled.count }, at: now)
+            let cols = grid.columns
+            if let before = earlier { for c in before.indices where c < cols.count { if Array(cols[c].prefix(before[c].count)) != before[c] { stable = false } } }
+            earlier = cols
+            snap(ArrivingScreen(model: model, app: app, grid: grid, elapsed: now, eta: eta), "arriving-\(snaps)")
+            snaps += 1
         }
-        await until(30) { app.importModel.phase == .finished }
+        await until(40) { app.importModel.phase == .finished }
         check(app.importModel.phase == .finished, "import finished, \(app.importModel.arrivedCount) added")
-        fill(wall, &placed)
-        snap(ArrivingScreen(model: model, app: app, wall: wall, slots: arrivingSlots, size: size, t: 10), "arriving-full")
-        check(wall.pictures.count > 0, "\(wall.pictures.count) pictures on the wall")
+        await wait(1200)
+        snap(ArrivingScreen(model: model, app: app, grid: grid, elapsed: Date().timeIntervalSince(began), eta: eta), "arriving-full")
+        check(stable, "no tile that was shown ever moved or changed (append only)")
+        check(grid.count > 0, "\(grid.count) pictures in the grid")
+        check(fixture.requests() >= 3, "the reader paged the board: \(fixture.requests()) feed requests")
+        check(opened.isEmpty, "no browser was opened: \(opened)")
+        grid.stop()
 
-        // Finish: a hold, then the library, with the first board's collection open
-        await until(5) { app.onboarding == nil }
+        // Landing: a hold, then the library on the first board's collection, as a calm grid
+        await until(8) { app.onboarding == nil }
         check(app.onboarding == nil, "onboarding ended by itself")
         if case .collection = app.source { check(true, "first collection open") } else { check(false, "first collection open (source \(app.source))") }
+        check(app.viewMode == .grid, "the library opens as a grid")
         check(OnboardingState.load(UserDefaults(suiteName: "xyz.arjoon.grails.onboarding-demo")!).done, "finished is remembered")
         check(app.toast?.hasPrefix("Imported") == true, "toast: \(app.toast ?? "none")")
+        fixture.stop()
         say(failed ? "FAIL" : "PASS")
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_DEMO_QUIT"] != nil { NSApp.terminate(nil) }
-    }
-
-    /// Every arrival so far, onto the wall.
-    private func fill(_ wall: WallModel, _ placed: inout Set<String>) {
-        guard let layout = app.layout else { return }
-        for id in app.importModel.arrivals where placed.insert(id).inserted {
-            guard let cg = ThumbnailLoader.decode(layout.thumbURL(id), maxPixel: 256) else { continue }
-            wall.place((cg, Double(cg.width) / Double(max(cg.height, 1))), instant: true)
-        }
     }
 
     /// The view as an image, light and dark.

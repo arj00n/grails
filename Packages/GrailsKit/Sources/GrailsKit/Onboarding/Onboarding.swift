@@ -72,7 +72,19 @@ public enum SyncedRoots {
 
 /// Where first-run onboarding is, kept so quitting halfway picks up again.
 public struct OnboardingState: Codable, Equatable, Sendable {
-    public enum Step: String, Codable, Sendable { case hello, library, importing, arriving }
+    /// hello → choose (import boards, or start empty) → paste → arriving. `whereIt` is the library's location, only reached on request.
+    public enum Step: String, Codable, Sendable {
+        case hello, choose, paste, arriving, whereIt
+
+        public init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            switch raw {
+            case "library": self = .choose            // saved by the first version of onboarding
+            case "importing": self = .paste
+            default: self = Step(rawValue: raw) ?? .hello
+            }
+        }
+    }
     public var step: Step = .hello
     public var libraryPath: String?
     public var handle: String = ""

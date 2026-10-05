@@ -81,7 +81,7 @@ import Testing
         #expect(board.name == "Interiors" && board.entries.count == 50 && board.expectedTotal == 1204)
         #expect(board.note == "Latest 50 of 1204")
         let c = try await BoardPreflight.check(.pinterest(user: "ana", board: "interiors"), loader: loader)
-        #expect(c.count == 1204 && c.via == .latest && c.covers.count == 3 && c.name == "Interiors")
+        #expect(c.count == 1204 && c.via == .collector && c.covers.count == 3 && c.name == "Interiors")
     }
 
     @Test func aSmallBoardIsWholeAndAMissingOneIsSaid() async throws {

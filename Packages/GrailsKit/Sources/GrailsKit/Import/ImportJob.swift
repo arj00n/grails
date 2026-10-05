@@ -26,6 +26,12 @@ public struct BoardTask: Codable, Sendable, Identifiable, Equatable {
     public var note: String?
     /// What was read from the board, kept so resuming doesn't read it (or need the browser) again.
     public var entries: [RemoteBoard.Entry]?
+    /// The in-app reader's place in the board (Pinterest's bookmark), so a resumed board doesn't start over.
+    public var cursor: String?
+    /// The reader has read to the end of the board.
+    public var readComplete: Bool?
+    /// Why the reader gave up on this board, if it did ("gated", "changed").
+    public var readFailure: String?
 
     public var id: String { candidate.id }
     public init(candidate: BoardCandidate) { self.candidate = candidate }

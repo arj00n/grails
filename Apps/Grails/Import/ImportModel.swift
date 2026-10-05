@@ -7,7 +7,7 @@ import SwiftUI
 @MainActor @Observable
 final class ImportModel {
     enum Phase: Equatable { case composing, running, finished }
-    enum Status: Equatable { case checking, ready, expanding, needsBrowser, rejected(String), blocked(String), offline }
+    enum Status: Equatable { case checking, ready, expanding, needsBrowser, secret, rejected(String), blocked(String), offline }
 
     struct Row: Identifiable, Equatable {
         var id: String
@@ -80,7 +80,8 @@ final class ImportModel {
             rows.append(Row(id: id, candidate: c, status: .expanding, title: slug))
             enqueue(id)
         case .pinterestUser(let user):
-            rows.append(Row(id: id, candidate: c, status: .needsBrowser, title: user))
+            rows.append(Row(id: id, candidate: c, status: .expanding, title: user))
+            enqueue(id)
         case .pinterestShort(let url):
             rows.append(Row(id: id, candidate: c, status: .checking, title: url.host ?? "pin.it"))
             enqueue(id)
@@ -124,6 +125,29 @@ final class ImportModel {
         return out
     }
 
+    /// The person chose the widget's latest 50 for big Pinterest boards instead of reading them whole.
+    private(set) var latestOnly = false
+
+    func setLatestOnly(_ on: Bool) {
+        latestOnly = on
+        func fix(_ b: inout BoardCandidate) {
+            guard case .pinterest = b.ref, (b.count ?? 0) > BoardCandidate.widgetLimit, b.via == .collector || b.via == .latest else { return }
+            b.via = on ? .latest : .collector
+        }
+        for i in rows.indices {
+            if rows[i].board != nil { fix(&rows[i].board!) }
+            for j in rows[i].children.indices { fix(&rows[i].children[j]) }
+        }
+    }
+
+    var secretRows: Int { rows.filter { $0.status == .secret }.count }
+
+    /// Which explanation to show under the rows.
+    var banner: ImportBannerRule.Variant? {
+        ImportBannerRule.variant(boards: rows.flatMap { r in (r.status == .ready ? [r.board].compactMap { $0 } : []) + r.children.filter(\.selected) },
+                                 secretRows: secretRows, signedIn: false, latestOnly: latestOnly)
+    }
+
     var selectedItemCount: Int { selectedBoards.reduce(0) { $0 + $1.reachableCount } }
     var stillChecking: Bool { rows.contains { $0.status == .checking || $0.status == .expanding } }
 
@@ -144,11 +168,27 @@ final class ImportModel {
         switch row.candidate {
         case .board(let ref):
             do { update(id) { $0.board = nil }; let b = try await BoardPreflight.check(ref, loader: loader); update(id) { $0.board = b; $0.title = b.name; $0.status = .ready } }
-            catch { update(id) { $0.status = Self.status(for: error) } }
+            catch {
+                // the widget doesn't know a secret board: say so (and offer the Pinterest sign-in) instead of calling it missing
+                if case .pinterest = ref, case BoardImportError.notFoundOrPrivate = error { update(id) { $0.status = .secret } }
+                else { update(id) { $0.status = Self.status(for: error) } }
+            }
         case .arenaUser(let slug):
             do {
                 let list = try await ArenaDirectory(loader: loader).channels(user: slug)
                 update(id) { $0.children = list; $0.status = list.isEmpty ? .rejected("No channels") : .ready }
+            } catch { update(id) { $0.status = Self.status(for: error) } }
+        case .pinterestUser(let user):
+            do {
+                let list = try await PinterestCollector.shared.listBoards(user: user)
+                let children = list.compactMap { b -> BoardCandidate? in
+                    guard case .board(let ref)? = LinkHarvester.harvest("https://www.pinterest.com" + b.path).first, case .pinterest = ref else { return nil }
+                    var c = BoardCandidate(ref: ref, name: b.name, count: b.pinCount, covers: b.cover.flatMap(URL.init(string:)).map { [$0] } ?? [], parent: id, selected: !b.secret,
+                                           via: b.pinCount > BoardCandidate.widgetLimit ? .collector : .api)
+                    c.secret = b.secret ? true : nil
+                    return c
+                }
+                update(id) { $0.children = children; $0.status = children.isEmpty ? .rejected("No boards") : .ready }
             } catch { update(id) { $0.status = Self.status(for: error) } }
         case .pinterestShort(let url):
             do {
@@ -325,7 +365,7 @@ final class ImportModel {
         tasks = Dictionary(job.boards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         arrivals = []; arrivedCount = 0; finishedJob = nil
         let support = AppModel.supportURL
-        let runner = ImportRunner(job: job, store: store, service: service, politeness: .standard, loader: loader, journal: ImportJournal.fileURL(for: job, in: support), keepOpen: keepOpen)
+        let runner = ImportRunner(job: job, store: store, service: service, politeness: .standard, loader: loader, journal: ImportJournal.fileURL(for: job, in: support), keepOpen: keepOpen, collector: PinterestCollector.reader())
         self.runner = runner
         consumer = Task { [weak self] in
             for await event in runner.events() {
@@ -376,7 +416,7 @@ final class ImportModel {
 
     func reset() {
         rows = []; phase = .composing; tasks = [:]; order = []; arrivals = []; arrivedCount = 0; finishedJob = nil
-        queue = []; pendingBrowser = []; browserStalled = false; stallWatch?.cancel()
+        queue = []; pendingBrowser = []; browserStalled = false; stallWatch?.cancel(); latestOnly = false
     }
 }
 

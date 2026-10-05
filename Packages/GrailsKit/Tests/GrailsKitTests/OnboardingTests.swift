@@ -50,7 +50,7 @@ import Testing
         let defaults = UserDefaults(suiteName: "onboarding-test-\(UUID().uuidString)")!
         #expect(OnboardingState.load(defaults) == OnboardingState())
         var s = OnboardingState()
-        s.step = .importing; s.libraryPath = "/tmp/x.grails"; s.handle = "ana"
+        s.step = .paste; s.libraryPath = "/tmp/x.grails"; s.handle = "ana"
         s.save(defaults)
         #expect(OnboardingState.load(defaults) == s)
         s.done = true; s.save(defaults)
@@ -68,5 +68,16 @@ import Testing
         #expect(t.expected == 50)
         t.total = 48
         #expect(t.expected == 48)
+    }
+}
+
+
+@Suite struct OnboardingStepMigrationTests {
+    @Test func stepsSavedByTheFirstVersionLandOnTheirNewEquivalents() throws {
+        func decode(_ step: String) throws -> OnboardingState.Step {
+            try JSONDecoder().decode(OnboardingState.self, from: Data(#"{"step":"\#(step)","handle":"","done":false}"#.utf8)).step
+        }
+        #expect(try decode("library") == .choose && decode("importing") == .paste && decode("arriving") == .arriving && decode("hello") == .hello)
+        #expect(try decode("something-else") == .hello)
     }
 }

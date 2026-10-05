@@ -41,6 +41,8 @@ targets:
         LSApplicationCategoryType: public.app-category.graphics-design
         NSHumanReadableCopyright: MIT licensed
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
         CFBundleDocumentTypes:
           - CFBundleTypeName: Grails Library
             CFBundleTypeRole: Editor
