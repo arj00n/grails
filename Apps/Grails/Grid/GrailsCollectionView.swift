@@ -8,6 +8,8 @@ final class GrailsCollectionView: NSCollectionView {
     var onClickOpen: ((Int) -> Void)?
     /// Set when a press turned into a drag (the data source was asked for what to carry): that press never opens the picture.
     var dragBegan = false
+    /// The picture a plain press landed on, waiting for the button to come up.
+    private var pendingOpen: (item: Int, point: CGPoint)?
     /// Double-click on an item; true when it was a section title and got renamed in place instead of opened.
     var onRenameSection: ((Int) -> Bool)?
     var onEscape: (() -> Void)?
@@ -71,12 +73,26 @@ final class GrailsCollectionView: NSCollectionView {
             return
         }
         dragBegan = false
+        pendingOpen = nil
         super.mouseDown(with: event)
-        // a plain click on a picture opens it: one click, no drag (a drag moves things), no ⌘ or ⇧ (those build a selection)
-        if event.clickCount == 1, !dragBegan, let hit, event.modifierFlags.intersection([.command, .shift, .control]).isEmpty {
-            let up = window?.currentEvent?.locationInWindow ?? down
-            if hypot(up.x - down.x, up.y - down.y) < 4 { onClickOpen?(hit.item) }
+        // a plain click on a picture opens it, but only once the button comes up and nothing was dragged: pressing and moving picks the
+        // picture up instead (⌘ and ⇧ build a selection and never open)
+        if event.clickCount == 1, let hit, event.modifierFlags.intersection([.command, .shift, .control]).isEmpty {
+            pendingOpen = (hit.item, down)
         }
+    }
+
+    override func mouseDragged(with event: NSEvent) {
+        if let p = pendingOpen, hypot(event.locationInWindow.x - p.point.x, event.locationInWindow.y - p.point.y) >= 3 { pendingOpen = nil }
+        super.mouseDragged(with: event)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let open = pendingOpen
+        pendingOpen = nil
+        super.mouseUp(with: event)
+        guard let open, !dragBegan, hypot(event.locationInWindow.x - open.point.x, event.locationInWindow.y - open.point.y) < 3 else { return }
+        onClickOpen?(open.item)
     }
 
     override func scrollWheel(with event: NSEvent) {

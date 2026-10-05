@@ -60,7 +60,7 @@ public enum BoardPreflight {
         let enc = slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
         guard let url = URL(string: "https://api.are.na/v2/channels/\(enc)?per=3&page=1") else { throw BoardImportError.notABoardLink }
         let (data, response): (Data, URLResponse)
-        do { (data, response) = try await loader(BoardImporter.arenaRequest(url)) } catch { throw BoardImportError.network(error.localizedDescription) }
+        do { (data, response) = try await TransientRetry.load(loader, BoardImporter.arenaRequest(url)) } catch { throw BoardImportError.network(error.localizedDescription) }
         if let http = response as? HTTPURLResponse {
             if http.statusCode == 404 || http.statusCode == 401 { throw BoardImportError.notFoundOrPrivate("that Are.na channel") }
             if http.statusCode == 403 {
@@ -99,7 +99,7 @@ public struct ArenaDirectory: Sendable {
         while page <= 60 {
             guard let url = URL(string: "https://api.are.na/v3/users/\(enc)/contents?type=Channel&per=100&page=\(page)") else { throw BoardImportError.notABoardLink }
             let (data, response): (Data, URLResponse)
-            do { (data, response) = try await loader(BoardImporter.arenaRequest(url)) } catch { throw BoardImportError.network(error.localizedDescription) }
+            do { (data, response) = try await TransientRetry.load(loader, BoardImporter.arenaRequest(url)) } catch { throw BoardImportError.network(error.localizedDescription) }
             if let http = response as? HTTPURLResponse {
                 if http.statusCode == 404 { throw BoardImportError.notFoundOrPrivate("that Are.na profile") }
                 if http.statusCode == 403 || http.statusCode == 429 { throw BoardImportError.blocked("Are.na is asking us to slow down. Try again in a minute.") }

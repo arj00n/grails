@@ -123,6 +123,7 @@ public struct RemoteBoard: Sendable {
 
 public struct BoardImporter: Sendable {
     let loader: LinkFetcher.Loader
+    var retryDelays = TransientRetry.defaultDelays
     public var pageSize = 100
     public var maxPages = 100
 
@@ -165,7 +166,7 @@ public struct BoardImporter: Sendable {
         while page <= maxPages {
             guard let url = URL(string: "https://api.are.na/v2/channels/\(slug.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug)?per=\(pageSize)&page=\(page)") else { throw BoardImportError.notABoardLink }
             let (data, response): (Data, URLResponse)
-            do { (data, response) = try await loader(Self.arenaRequest(url)) } catch { throw BoardImportError.network(error.localizedDescription) }
+            do { (data, response) = try await TransientRetry.load(loader, Self.arenaRequest(url), delays: retryDelays) } catch { throw BoardImportError.network(error.localizedDescription) }
             if let http = response as? HTTPURLResponse {
                 if http.statusCode == 404 { throw BoardImportError.notFoundOrPrivate("that Are.na channel") }
                 if http.statusCode == 403, String(decoding: data.prefix(400), as: UTF8.self).localizedCaseInsensitiveContains("blocked") {
@@ -334,5 +335,32 @@ final class PinterestFeedParser: NSObject, XMLParserDelegate {
             }
         } else if name == "title", feed.title == nil, !t.isEmpty { feed.title = t }
         text = ""
+    }
+}
+
+/// Are.na's gateway answers 502/503/504 now and then, or a connection drops, and a retry a moment later works. A board is never failed
+/// on the first such answer.
+enum TransientRetry {
+    static let defaultDelays: [Duration] = [.seconds(1), .seconds(3), .seconds(6)]
+
+    static func load(_ loader: LinkFetcher.Loader, _ request: URLRequest, delays: [Duration] = defaultDelays) async throws -> (Data, URLResponse) {
+        var attempt = 0
+        while true {
+            do {
+                let (data, response) = try await loader(request)
+                if let http = response as? HTTPURLResponse, [502, 503, 504].contains(http.statusCode), attempt < delays.count {
+                    try await Task.sleep(for: delays[attempt]); attempt += 1; continue
+                }
+                return (data, response)
+            } catch {
+                guard attempt < delays.count, isTransient(error) else { throw error }
+                try await Task.sleep(for: delays[attempt]); attempt += 1
+            }
+        }
+    }
+
+    static func isTransient(_ error: Error) -> Bool {
+        guard let e = error as? URLError else { return false }
+        return [.timedOut, .networkConnectionLost, .cannotConnectToHost, .secureConnectionFailed, .badServerResponse].contains(e.code)
     }
 }

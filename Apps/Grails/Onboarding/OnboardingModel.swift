@@ -131,6 +131,25 @@ final class OnboardingModel {
         }
     }
 
+    /// The place in a word or two: "Pictures", "Google Drive", the folder's name.
+    var thisMacLabel: String { Self.place(of: thisMac) }
+
+    var chosenLabel: String {
+        switch choice {
+        case .thisMac: thisMacLabel
+        case .root(let id): roots.first { $0.id == id }?.name ?? thisMacLabel
+        case .found(let id): found.first { $0.id == id }.map { Self.place(of: $0.url) } ?? thisMacLabel
+        case .other: otherURL.map(Self.place(of:)) ?? "Choose a folder"
+        case .link: "A link"
+        }
+    }
+
+    /// The folder a library sits in, by name ("~/Pictures/Grails Library.grails" → "Pictures").
+    static func place(of library: URL) -> String {
+        let parent = library.deletingLastPathComponent().lastPathComponent
+        return parent.isEmpty ? library.lastPathComponent : parent
+    }
+
     static func tilde(_ url: URL) -> String { url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") }
 
     func chooseFolder() {

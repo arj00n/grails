@@ -13,3 +13,4 @@ site/download/*.dmg
 site/download/*.zip
 site/.vercel
 .build-collab/
+.claude/worktrees/

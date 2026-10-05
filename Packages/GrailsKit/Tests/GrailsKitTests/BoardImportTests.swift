@@ -135,6 +135,29 @@ import Testing
         #expect(board.skipped == ["text blocks": 1, "channels inside it": 1, "other attachments": 1, "images without a file": 1])
     }
 
+    @Test func aGatewayTimeoutIsRetriedInsteadOfFailingTheBoard() async throws {
+        let (_, png) = try setup()
+        let page = Self.arenaPage([Self.image(1), Self.image(2)], length: 2)
+        let calls = Counter()
+        let flaky: LinkFetcher.Loader = { req in
+            let url = req.url!
+            if url.host == "api.are.na" {
+                calls.add("arena")
+                let n = calls.all.count
+                return n <= 2 ? (Data(), Self.response(url, 504)) : (page, Self.response(url))
+            }
+            return (png, Self.response(url, type: "image/png"))
+        }
+        var importer = BoardImporter(loader: flaky)
+        importer.retryDelays = [.milliseconds(5), .milliseconds(5), .milliseconds(5)]
+        let board = try await importer.fetch(.arena(slug: "flaky"))
+        #expect(board.entries.count == 2 && calls.all.count == 3)
+        // and a board that keeps failing still says so, after the retries
+        var down = BoardImporter(loader: { req in (Data(), Self.response(req.url!, 504)) })
+        down.retryDelays = [.milliseconds(1)]
+        await #expect(throws: BoardImportError.self) { _ = try await down.fetch(.arena(slug: "down")) }
+    }
+
     @Test func importsIntoACollectionAndAReimportOnlyAddsWhatIsNew() async throws {
         let (store, png) = try setup()
         let counter = Counter()

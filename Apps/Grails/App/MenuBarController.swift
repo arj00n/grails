@@ -10,7 +10,11 @@ final class MenuBarController: NSObject {
         self.model = model
         super.init()
         guard let button = statusItem.button else { return }
-        button.image = NSImage(systemSymbolName: "tray.and.arrow.down", accessibilityDescription: "Grails")
+        // the app's own G, drawn on whole pixels, as a template so the menu bar tints it
+        let glyph = NSImage(named: "MenuBarGlyph")
+        glyph?.isTemplate = true
+        glyph?.accessibilityDescription = "Grails"
+        button.image = glyph ?? NSImage(systemSymbolName: "tray.and.arrow.down", accessibilityDescription: "Grails")
         button.toolTip = "Grails: drop images, files or links here to save them to your Inbox"
         let drop = DropView(frame: button.bounds)
         drop.autoresizingMask = [.width, .height]

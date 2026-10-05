@@ -64,7 +64,7 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
             wall.frame(width: size.width, height: size.height).opacity(choosing ? 0 : 1).animation(curve, value: choosing)
             VStack(spacing: 14) {
                 title
-                Button("Start", action: start)
+                Button("Get Started", action: start)
                     .buttonStyle(PrimaryButtonStyle()).keyboardShortcut(.defaultAction)
                     .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1)).allowsHitTesting(t >= 1.3 && !choosing)
                     .animation(.easeOut(duration: 0.1), value: choosing)
@@ -129,19 +129,46 @@ struct ChooserCards: View {
                 card("Start empty", fact: nil, id: "choose-empty") { model.startEmpty() }
             }
             .frame(width: model.found.isEmpty ? 544 : 560)
-            HStack(spacing: 16) {
-                Button(model.chosenPath.isEmpty ? "Choose where it lives" : model.chosenPath) { model.go(.whereIt) }
-                    .accessibilityIdentifier("choose-location")
-                Button("Set up a team library") { model.openTeamSetup() }
-                    .accessibilityIdentifier("choose-team")
+            HStack(spacing: 8) {
+                LocationMenu(model: model)
+                Button { model.openTeamSetup() } label: { Label("Set up a team library", systemImage: "person.2").labelStyle(.titleAndIcon) }
+                    .buttonStyle(OutlineButtonStyle()).accessibilityIdentifier("choose-team")
             }
-            .buttonStyle(.plain).font(.grailsBody(12)).foregroundStyle(Ink.secondary)
             Button("") { model.pasteFromClipboard() }.keyboardShortcut("v", modifiers: .command).frame(width: 0, height: 0).opacity(0)
         }
     }
 
     private func card(_ title: String, fact: String?, id: String, primary: Bool = false, action: @escaping () -> Void) -> some View {
         ChooserCard(title: title, fact: fact, primary: primary, action: action).accessibilityIdentifier(id)
+    }
+}
+
+/// Where the library will live, as a control: the folder's friendly name, and a menu to change it.
+private struct LocationMenu: View {
+    var model: OnboardingModel
+
+    var body: some View {
+        Menu {
+            Button { model.choice = .thisMac } label: { Label(model.thisMacLabel, systemImage: model.choice == .thisMac ? "checkmark" : "internaldrive") }
+            ForEach(model.roots) { r in
+                Button { model.choice = .root(r.id) } label: { Label(r.name, systemImage: model.choice == .root(r.id) ? "checkmark" : "externaldrive") }
+            }
+            Divider()
+            Button("Other folder…") { model.chooseFolder() }
+            Button("More options…") { model.go(.whereIt) }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "folder").font(.system(size: 12))
+                Text(model.chosenLabel).lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold)).foregroundStyle(Ink.secondary)
+            }
+            .font(.grailsBody(13)).foregroundStyle(Ink.text)
+            .padding(.horizontal, 12).frame(height: 28)
+            .overlay(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.hairline, lineWidth: 1))
+        }
+        .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden).fixedSize()
+        .accessibilityLabel("Where the library is kept: \(model.chosenLabel)")
+        .accessibilityIdentifier("choose-location")
     }
 }
 
