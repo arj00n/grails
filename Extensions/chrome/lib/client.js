@@ -44,7 +44,12 @@ export class GrailsClient {
       try { json = text ? JSON.parse(text) : {}; } catch { /* non-JSON error page */ }
       if (res.ok) return json;
       const message = json.error || `Grails answered ${res.status}`;
-      if (res.status === 401) throw new GrailsError("unauthorized", "Grails didn't accept the pairing code. Copy it again from Settings ▸ Extensions.", 401);
+      if (res.status === 401) {
+        // the app made a new code (reinstalled, or its settings were reset): forget the old one and ask to pair again (the person clicks Allow)
+        await this.setSettings({ token: "" });
+        this.requestPairing().catch(() => {});
+        throw new GrailsError("unauthorized", "Grails has a new pairing code. Click Allow in the app to reconnect.", 401);
+      }
       if (res.status === 403) throw new GrailsError("forbidden", message, 403);
       if (res.status >= 500) throw new GrailsError("server", message, res.status);
       throw new GrailsError("bad-request", message, res.status);

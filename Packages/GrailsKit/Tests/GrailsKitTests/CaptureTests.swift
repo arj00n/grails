@@ -467,13 +467,17 @@ actor FakeService: CaptureService {
         await #expect(throws: (any Error).self) { _ = try await URLSession.shared.data(for: req) }
     }
 
-    @Test func keychainTokenIsStableUntilRegenerated() {
-        let storage = KeychainTokenStorage(service: "xyz.arjoon.grails.tests.\(UUID().uuidString)")
+    @Test func theTokenFileIsStablePrivateAndRegenerates() throws {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("grails-token-\(UUID().uuidString)/api-token")
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let storage = FileTokenStorage(url: url)
+        #expect(!storage.exists)
         let t1 = storage.token()
-        #expect(t1.count >= 40 && storage.token() == t1)
+        #expect(storage.exists && t1.count >= 40 && storage.token() == t1)
+        #expect(FileTokenStorage(url: url).token() == t1)                                  // survives a relaunch
+        let mode = (try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)?.intValue
+        #expect(mode == 0o600)                                                            // only this user can read it
         let t2 = storage.regenerate()
         #expect(t2 != t1 && storage.token() == t2)
-        _ = storage.regenerate()
-        SecItemDelete([kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "xyz.arjoon.grails.tests"] as CFDictionary)
     }
 }

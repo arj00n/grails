@@ -24,45 +24,33 @@ public final class InMemoryTokenStorage: TokenStorage, @unchecked Sendable {
     public func regenerate() -> String { lock.lock(); defer { lock.unlock() }; value = TokenGenerator.make(); return value }
 }
 
-/// The pairing token lives in the login Keychain so it survives app updates and never sits in a plain file.
-public final class KeychainTokenStorage: TokenStorage, @unchecked Sendable {
-    private let service: String
-    private let account = "api-token"
-    /// Where the pairing token lived before the rename; carried over so the browser extension stays paired.
-    private let legacyService: String?
-    public init(service: String = "xyz.arjoon.grails", legacyService: String? = "in.justswish.stash") { self.service = service; self.legacyService = legacyService }
+/// The pairing token lives in a file only this user can read (mode 0600), next to the app's other support files. Not the Keychain: an app that
+/// isn't signed with a stable identity (every new build counts as a new app) makes macOS ask for the login password each time it reads
+/// its own Keychain item, which is alarming and buys nothing here: the token only lets a browser extension talk to this app on localhost.
+public final class FileTokenStorage: TokenStorage, @unchecked Sendable {
+    private let url: URL
+    private let lock = NSLock()
+    public init(url: URL) { self.url = url }
 
-    private func read(_ service: String) -> String? {
-        var q: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-        q[kSecReturnData as String] = true
-        q[kSecMatchLimit as String] = kSecMatchLimitOne
-        var out: CFTypeRef?
-        if SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess, let d = out as? Data, let s = String(data: d, encoding: .utf8), !s.isEmpty { return s }
-        return nil
-    }
-
-    private func store(_ t: String) {
-        SecItemDelete(query as CFDictionary)
-        var add = query
-        add[kSecValueData as String] = Data(t.utf8)
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(add as CFDictionary, nil)
-    }
-
-    private var query: [String: Any] {
-        [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service, kSecAttrAccount as String: account]
-    }
+    /// Whether a token has been made yet (a new one means any extension paired before has to pair again).
+    public var exists: Bool { FileManager.default.fileExists(atPath: url.path) }
 
     public func token() -> String {
-        if let s = read(service) { return s }
-        if let legacyService, let old = read(legacyService) { store(old); return old }
-        return regenerate()
+        lock.lock(); defer { lock.unlock() }
+        if let s = (try? String(contentsOf: url, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines), !s.isEmpty { return s }
+        return write(TokenGenerator.make())
     }
 
     @discardableResult
     public func regenerate() -> String {
-        let t = TokenGenerator.make()
-        store(t)
+        lock.lock(); defer { lock.unlock() }
+        return write(TokenGenerator.make())
+    }
+
+    private func write(_ t: String) -> String {
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        try? Data(t.utf8).write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
         return t
     }
 }

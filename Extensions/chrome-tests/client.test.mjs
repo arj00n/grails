@@ -50,7 +50,15 @@ test("maps failures to specific errors", async () => {
 test("an auth error stops the scan instead of trying every port", async () => {
   const { client, calls } = make(() => res(401, {}));
   await assert.rejects(client.ping());
-  assert.equal(calls.length, 1);
+  assert.equal(calls.filter((c) => c.url.includes("/api/v1/ping")).length, 1);
+});
+
+test("a code Grails no longer knows is forgotten and the extension asks to pair again", async () => {
+  const { client, calls, state } = make((url) => (url.endsWith("/api/v1/pair") ? res(202, { requestId: "r1" }) : url.includes("/api/v1/pair/") ? res(403, {}) : res(401, {})));
+  await assert.rejects(client.ping(), (e) => e instanceof GrailsError && e.kind === "unauthorized");
+  assert.equal(state.token, "");
+  await new Promise((r) => setTimeout(r, 20));
+  assert.ok(calls.some((c) => c.url.endsWith("/api/v1/pair") && c.opts.method === "POST"));
 });
 
 test("importBoard posts the pin ids to /api/v1/imports", async () => {

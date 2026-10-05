@@ -251,8 +251,10 @@ final class AppModel {
     @ObservationIgnored var captureService: LibraryCaptureService?
     @ObservationIgnored var apiServer: LocalAPIServer?
     @ObservationIgnored var menuBar: MenuBarController?
-    /// GRAILS_API_TOKEN lets UI tests use a known token; otherwise the pairing token lives in the Keychain.
-    @ObservationIgnored let tokens: TokenStorage = ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"].map { InMemoryTokenStorage($0) as TokenStorage } ?? KeychainTokenStorage()
+    /// GRAILS_API_TOKEN lets UI tests use a known token; otherwise the pairing token lives in a private file (never the Keychain: it makes
+    /// macOS ask for the login password).
+    static let tokenFile = supportURL.appendingPathComponent("api-token")
+    @ObservationIgnored let tokens: TokenStorage = ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"].map { InMemoryTokenStorage($0) as TokenStorage } ?? FileTokenStorage(url: AppModel.tokenFile)
     var apiStatus = "Starting…"
     var apiPort: UInt16 = 0
 
@@ -264,6 +266,11 @@ final class AppModel {
         layoutMode = GridLayoutMode(rawValue: d.string(forKey: "layoutMode") ?? "") ?? .square
         showInfo = ProcessInfo.processInfo.environment["GRAILS_SHOW_INFO"] != nil   // dev/UI tests
         importModel.app = self
+        // a new token (first run, or the Keychain's gone) means a browser extension paired before has to ask again
+        if ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"] == nil, !FileManager.default.fileExists(atPath: Self.tokenFile.path) {
+            extensionPaired = false
+            d.set(false, forKey: "extensionPaired")
+        }
     }
 
     // MARK: Library lifecycle
