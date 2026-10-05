@@ -61,7 +61,7 @@ enum FakeCloud {
 
     @Test func otherSyncClientsAreAllListed() throws {
         let roots = CloudPlaces.otherRoots(home: try FakeCloud.home())
-        #expect(roots.map(\.service) == [.dropbox, .iCloud])
+        #expect(roots.map(\.service) == [.dropbox])
     }
 }
 

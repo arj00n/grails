@@ -73,7 +73,7 @@ final class CollabDemo {
         let owner = home("owner", accounts: [("arjun@studio.com", ["Design", "Marketing"]), ("arjun.v@gmail.com", [])], dropbox: true)
         c.home = owner
         c.beginSetup()
-        for _ in 0..<50 where !c.scanned { try? await Task.sleep(for: .milliseconds(100)) }
+        for _ in 0..<50 where !c.scanned || c.accounts.contains(where: { $0.state == .checking }) { try? await Task.sleep(for: .milliseconds(100)) }
         try? await Task.sleep(for: .milliseconds(200))
         check(c.accounts.map(\.email) == ["arjun@studio.com", "arjun.v@gmail.com"], "both Google accounts found, work first: \(c.accounts.map(\.email))")
         check(c.accounts.first?.sharedDrives.map(\.name) == ["Design", "Marketing"], "the work account's Shared drives are listed")

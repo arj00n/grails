@@ -32,27 +32,38 @@ final class CollabModel {
 
     func scan() async {
         let home = home
-        let (a, o, e) = await Task.detached(priority: .userInitiated) { () -> ([DriveAccount], [OtherRoot], [String: [FoundLibrary]]) in
-            let a = CloudPlaces.driveAccounts(home: home)
-            let o = CloudPlaces.otherRoots(home: home).map { OtherRoot(service: $0.service, url: $0.root.url) }
+        // the names at once, so the list is never blank; each account is then looked into on its own (macOS may ask to allow it, and until
+        // that is answered the listing waits) and fills in as it answers
+        let (names, o) = await Task.detached(priority: .userInitiated) { () -> ([DriveAccount], [OtherRoot]) in
+            (CloudPlaces.driveAccountFolders(home: home), CloudPlaces.otherRoots(home: home).map { OtherRoot(service: $0.service, url: $0.root.url) })
+        }.value
+        accounts = names
+        others = o
+        scanned = true
+        await withTaskGroup(of: DriveAccount.self) { group in
+            for a in names { let root = a.root; group.addTask(priority: .userInitiated) { await Task.detached { CloudPlaces.account(at: root) }.value } }
+            for await done in group {
+                if let i = accounts.firstIndex(where: { $0.email == done.email }) { accounts[i] = done }
+            }
+        }
+        reconcileService()
+        let places = Array((accounts.flatMap { $0.sharedDrives.map(\.url) + ($0.myDrive.map { [$0] } ?? []) } + others.map(\.url)).prefix(24))
+        existing = await Task.detached(priority: .utility) { () -> [String: [FoundLibrary]] in
             var e: [String: [FoundLibrary]] = [:]
-            var places = a.flatMap { $0.sharedDrives.map(\.url) + ($0.myDrive.map { [$0] } ?? []) } + o.map(\.url)
-            places = Array(places.prefix(24))
             for p in places {
                 let found = CloudPlaces.libraries(in: p)
                 if !found.isEmpty { e[p.path] = found }
             }
-            return (a, o, e)
+            return e
         }.value
-        accounts = a
-        others = o
-        existing = e
-        scanned = true
-        // a choice that's gone (Drive signed out meanwhile) falls back to the best one left
+    }
+
+    /// A choice that's gone (Drive signed out meanwhile) falls back to the best one left.
+    private func reconcileService() {
         let valid: Bool
         switch service {
-        case .google(let email)?: valid = a.contains { $0.email == email && $0.state == .ready }
-        case .other(let path)?: valid = o.contains { $0.url.path == path }
+        case .google(let email)?: valid = accounts.contains { $0.email == email && $0.state == .ready }
+        case .other(let path)?: valid = others.contains { $0.url.path == path }
         case nil: valid = false
         }
         if !valid { service = defaultService }

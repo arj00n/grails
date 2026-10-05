@@ -44,6 +44,8 @@ public struct DriveAccount: Equatable, Sendable, Identifiable {
         case empty
         /// macOS refused to list it (Privacy & Security), so nothing inside can be seen.
         case unreadable
+        /// Its name is known; looking inside it hasn't answered yet (macOS may be asking the person to allow it).
+        case checking
     }
 
     public var email: String
@@ -90,7 +92,17 @@ public enum CloudPlaces {
         return accounts.sorted { ($0.isPersonal ? 1 : 0, $0.email) < ($1.isPersonal ? 1 : 0, $1.email) }
     }
 
-    static func account(at root: URL, fileManager fm: FileManager) -> DriveAccount {
+    /// The accounts by folder name alone, which never waits on anything: they're listed at once and each is looked into afterwards.
+    public static func driveAccountFolders(home: URL = FileManager.default.homeDirectoryForCurrentUser, fileManager fm: FileManager = .default) -> [DriveAccount] {
+        let storage = storage(home: home)
+        let names = ((try? fm.contentsOfDirectory(atPath: storage.path)) ?? []).filter { $0.hasPrefix("GoogleDrive-") }.sorted()
+        let accounts = names.map { n -> DriveAccount in
+            DriveAccount(email: String(n.dropFirst("GoogleDrive-".count)), root: storage.appendingPathComponent(n, isDirectory: true), state: .checking)
+        }
+        return accounts.sorted { ($0.isPersonal ? 1 : 0, $0.email) < ($1.isPersonal ? 1 : 0, $1.email) }
+    }
+
+    public static func account(at root: URL, fileManager fm: FileManager = .default) -> DriveAccount {
         let email = String(root.lastPathComponent.dropFirst("GoogleDrive-".count))
         guard let top = try? fm.contentsOfDirectory(atPath: root.path) else { return DriveAccount(email: email, root: root, state: .unreadable) }
         let visible = top.filter { !$0.hasPrefix(".") }
@@ -113,8 +125,7 @@ public enum CloudPlaces {
             guard let s = CloudService.of(cloudStorageFolder: name), s != .googleDrive else { continue }
             out.append((s, SyncedRoot(name: s.label, url: storage.appendingPathComponent(name, isDirectory: true))))
         }
-        let icloud = home.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs", isDirectory: true)
-        if fm.fileExists(atPath: icloud.path) { out.append((.iCloud, SyncedRoot(name: "iCloud Drive", url: icloud))) }
+        // iCloud Drive is left out on purpose: touching it makes macOS ask the person for access, and it can't share a folder as a team needs
         return out
     }
 

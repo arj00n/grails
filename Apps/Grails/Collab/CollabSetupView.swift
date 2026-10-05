@@ -73,7 +73,7 @@ private struct ServiceStep: View {
                     ChoiceRow(selected: c.service == .other(o.url.path), title: o.service.label, detail: c.tilde(o.url)) { c.service = .other(o.url.path) }
                 }
             }
-            if ready.isEmpty && c.scanned {
+            if ready.isEmpty && c.scanned && !c.accounts.contains(where: { $0.state == .checking }) {
                 let installed = c.driveAppInstalled()
                 NoticeBox(title: installed ? "Google Drive isn't signed in" : "No Google Drive here",
                           detail: installed ? "Open Drive for desktop and sign in with your work account." : "Install Drive for desktop and sign in with your work account.") {
@@ -99,6 +99,7 @@ private struct ServiceStep: View {
             return "\(a.email) · \(n == 0 ? "No" : "\(n)") Shared drive\(n == 1 ? "" : "s")"
         case .empty: return "\(a.email) · Signed out"
         case .unreadable: return "\(a.email) · Not allowed to look"
+        case .checking: return "\(a.email) · Looking…"
         }
     }
 }
