@@ -2,8 +2,8 @@ import AppKit
 import GrailsDesign
 import SwiftUI
 
-/// Hello's background: a famous painting as coloured dither pixels, replaced by the next in a diagonal wave every few seconds, with a
-/// magnifying loupe at the pointer. Layer-backed: the engine hands over a small bitmap and Core Animation scales it, nearest-neighbour.
+/// Hello's background: a famous painting as coloured dither pixels, turned into the next by a slow dither cross-construct every 14 seconds, with a
+/// reveal of the real painting at the pointer. Layer-backed: the engine hands over a small bitmap and Core Animation scales it, nearest-neighbour.
 final class PaintingWallView: NSView {
     var epoch = Date()
     var reduceMotion = false { didSet { dirty = true } }

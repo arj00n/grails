@@ -2,6 +2,8 @@
 
 Spec, 2026-10-05. Replaces the drifting field behind Hello (`AsciiWallView`, `AsciiField`) described in `docs/ONBOARDING.md` §1.1. **Pixels only:** the field is square ordered-dither pixels coloured from the painting. No characters, glyph ramp or text are drawn in the field. House rules from `docs/UI_SYSTEM.md` apply to the chrome. The field itself may be colourful, and its 0.9 s intro and 1.6 s transitions are background motion, not UI transitions under the 240 ms rule.
 
+> **Revised 2026-10-05 after trying it:** the diagonal wave (§4) is replaced by a slow, soft cross-construct: 9 s hold + 5 s transition (period 14 s), smootherstep easing, the two paintings' inks blend per pixel and each pixel takes the new colour when the blend passes its own noise value (`PaintingWall.cross`). The loupe (§5) is replaced by revealing the true-colour painting under the pointer (100 pt, 0.75 s trail), and the title plate has a 90 pt soft falloff. Portrait paintings are zoomed to fill the window (`Scripts/paintings.json`). Where this file disagrees, the code and PROGRESS.md win.
+
 ## 0. Decisions
 
 1. **14 public-domain paintings** (§1), Cabanel's *Fallen Angel* first and four Monets. All 14 Commons file pages checked through the Commons API on 2026-10-05.

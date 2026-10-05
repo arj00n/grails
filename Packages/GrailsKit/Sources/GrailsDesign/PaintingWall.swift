@@ -2,7 +2,7 @@ import CoreGraphics
 import Foundation
 
 /// The paintings behind Hello, as square ordered-dither pixels coloured from the picture. Everything here is pure: placement, tone,
-/// the per-pixel grid, the transition wave, the schedule and the pointer's loupe, so each can be checked without a screen.
+/// the per-pixel grid, the transition, the schedule and the pointer's reveal, so each can be checked without a screen.
 /// Spec: docs/ONBOARDING_PAINTINGS.md.
 public enum PaintingWall {
     // MARK: Manifest (written by Scripts/gen-paintings.py)
@@ -49,11 +49,10 @@ public enum PaintingWall {
     /// The plate behind the title, Start and caption.
     public static let plateSize = CGSize(width: 304, height: 148)
     public static let feather = 48.0
-    public static let period = 8.0
-    public static let waveDuration = 1.6
-    public static let introStart = 0.1, introDuration = 0.9
-    public static let waveWidth = 0.10
-    public static let seamHz = 15.0
+    /// A painting holds for `period - transition` seconds, then takes `transition` seconds to turn into the next.
+    public static let period = 14.0
+    public static let transition = 5.0
+    public static let introStart = 0.1, introDuration = 1.0
     public static let loupeRadius = 100.0, loupeDecay = 0.45, loupeLife = 0.75
     /// Around the plate the painting thins out over this distance, so the blank middle has soft edges.
     public static let plateFalloff = 90.0
@@ -174,19 +173,12 @@ public enum PaintingWall {
         }
     }
 
-    // MARK: Transition wave
+    // MARK: Transition: the dither turns into the next painting
 
-    /// When a pixel flips during a wave, 0..<1: a diagonal from the top left, ragged by 15 % of the dither map so the front advances as dither.
-    public static func tau(x: Int, y: Int, cols: Int, rows: Int) -> Double {
-        let d = (Double(x) / Double(max(cols - 1, 1)) + Double(y) / Double(max(rows - 1, 1))) / 2
-        return 0.85 * d + 0.15 * Dither.bayer(x, y)
-    }
-
-    public static func ease(_ p: Double) -> Double { let q = 1 - min(max(p, 0), 1); return 1 - q * q }
-
-    /// 0 = still the old picture, 1 = the new one, with a front `waveWidth` wide.
-    public static func wave(tau: Double, progress p: Double) -> Double {
-        min(max((ease(p) * (1 + waveWidth) - tau) / waveWidth, 0), 1)
+    /// Soft at both ends (smootherstep): it eases in, moves, and settles.
+    public static func ease(_ p: Double) -> Double {
+        let x = min(max(p, 0), 1)
+        return x * x * x * (x * (x * 6 - 15) + 10)
     }
 
     public struct Sample: Equatable, Sendable {
@@ -195,18 +187,14 @@ public enum PaintingWall {
         public init(ink: UInt8, colour: UInt8) { self.ink = ink; self.colour = colour }
     }
 
-    /// What a pixel shows at wave position `s`: exactly `from` at 0 and exactly `to` at 1; in between a lit seam whose thresholds are
-    /// re-rolled each `tick` so it sparkles. Plate pixels are never lit: pass `ink` 0 for them.
-    public static func state(x: Int, y: Int, from: Sample?, to: Sample, s: Double, tick: Int) -> (lit: Bool, colour: UInt8, toPainting: Bool) {
-        if s <= 0 {
-            let f = from ?? Sample(ink: 0, colour: 0)
-            return (Dither.lit(ink: Double(f.ink) / 255, x: x, y: y), f.colour, false)
-        }
-        if s >= 1 { return (Dither.lit(ink: Double(to.ink) / 255, x: x, y: y), to.colour, true) }
+    /// What a pixel shows when the old painting is `1 - e` of the way out and the new one `e` of the way in: the two inks blend, so the
+    /// dither pattern itself changes shape, and the pixel takes the new colour once `e` passes its own noise value. Exactly `from` at
+    /// 0 and exactly `to` at 1. `from` is nil while the first painting develops from nothing.
+    public static func cross(x: Int, y: Int, from: Sample?, to: Sample, e: Double) -> (lit: Bool, colour: UInt8, toPainting: Bool) {
         let a = Double(from?.ink ?? 0) / 255, b = Double(to.ink) / 255
-        let ink = min(max(a, b) + 0.25, 1) * (b == 0 && a == 0 ? 0 : 1)
-        let lit = ink > Dither.hash01(x, y, tick) * 0.92 + 0.04
-        return (lit, s >= 0.5 ? to.colour : (from?.colour ?? to.colour), s >= 0.5)
+        let ink = e <= 0 ? a : (e >= 1 ? b : a + (b - a) * e)
+        let useTo = from == nil || e >= 1 || (e > 0 && Dither.noise(x, y) < e)
+        return (Dither.lit(ink: ink, x: x, y: y), useTo ? to.colour : (from?.colour ?? to.colour), useTo)
     }
 
     // MARK: Schedule
@@ -219,18 +207,18 @@ public enum PaintingWall {
         public var progress: Double?
     }
 
-    /// Every `period` seconds a `waveDuration` wave brings the next picture; the first picture develops by itself (`intro`).
+    /// Every `period` seconds the dither takes `transition` seconds to turn into the next picture; the first picture develops by itself (`intro`).
     public static func schedule(t: Double, count: Int, reduceMotion: Bool) -> Schedule {
         guard count > 0, !reduceMotion, t >= 0 else { return Schedule(index: 0, next: 0, progress: nil) }
         let k = Int(t / period), phase = t - Double(k) * period
-        if k >= 1, phase < waveDuration { return Schedule(index: (k - 1) % count, next: k % count, progress: phase / waveDuration) }
+        if k >= 1, phase < transition { return Schedule(index: (k - 1) % count, next: k % count, progress: phase / transition) }
         return Schedule(index: k % count, next: (k + 1) % count, progress: nil)
     }
 
     /// How far the first picture has developed, 0...1.
     public static func intro(t: Double) -> Double { min(max((t - introStart) / introDuration, 0), 1) }
 
-    /// The picture whose caption is shown: it changes when the wave passes the middle of the plate.
+    /// The picture whose caption is shown: it changes when the transition is half done.
     public static func captionIndex(_ s: Schedule) -> Int {
         guard let p = s.progress else { return s.index }
         return ease(p) >= 0.5 ? s.next : s.index

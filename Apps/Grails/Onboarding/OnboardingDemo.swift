@@ -44,7 +44,7 @@ struct OnboardingDemo {
         func wait(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func until(_ seconds: Double, _ cond: () -> Bool) async { for _ in 0..<Int(seconds * 10) where !cond() { await wait(100) } }
 
-        // Hello: the paintings, the wave between them, the loupe, the plate with its caption
+        // Hello: the paintings, the cross-construct between them, the reveal, the plate with its caption
         let engine = PaintingWallEngine.shared
         check(engine != nil && engine!.specs.count == 14, "painting manifest loads: \(engine?.specs.count ?? 0) works")
         if let engine {
@@ -59,10 +59,11 @@ struct OnboardingDemo {
                 }, name, size: size)
             }
             for (name, t) in [("0000", 0.05), ("0450", 0.45), ("0900", 0.9), ("1300", 1.3)] { hello("hello-\(name)", t: t) }
-            for i in engine.specs.indices { hello("hello-rest-\(engine.specs[i].id)", t: 8.0 * Double(i) + 4) }
-            for (n, p) in [(25, 0.25), (50, 0.5), (75, 0.75)] { hello("hello-wave-\(n)", t: 8.0 + 1.6 * p) }
+            for i in engine.specs.indices { hello("hello-rest-\(engine.specs[i].id)", t: PaintingWall.period * Double(i) + 7) }
+            for (n, p) in [(10, 0.1), (25, 0.25), (50, 0.5), (75, 0.75), (90, 0.9)] { hello("hello-transition-\(n)", t: PaintingWall.period + PaintingWall.transition * p) }
+            hello("hello-transition-loupe", t: PaintingWall.period + PaintingWall.transition * 0.5, touches: (0..<8).map { PaintingWall.Touch(x: 330 + Double($0) * 18, y: 560 - Double($0) * 10, age: Double($0) * 0.05) })
             hello("hello-loupe", t: 3, touches: (0..<8).map { PaintingWall.Touch(x: 450 - Double($0) * 9, y: 290 + Double($0) * 4, age: Double($0) * 0.06) })
-            hello("hello-loupe-vermeer", t: 8.0 * 2 + 4, touches: (0..<10).map { PaintingWall.Touch(x: 330 + Double($0) * 22, y: 560 - Double($0) * 14, age: Double($0) * 0.05) })
+            hello("hello-loupe-vermeer", t: PaintingWall.period * 2 + 7, touches: (0..<10).map { PaintingWall.Touch(x: 330 + Double($0) * 22, y: 560 - Double($0) * 14, age: Double($0) * 0.05) })
             hello("hello-reduce-motion", t: 10, reduceMotion: true)
             say(bench(engine))
         }
@@ -151,30 +152,30 @@ struct OnboardingDemo {
 }
 
 extension OnboardingDemo {
-    /// Median and p95 milliseconds for a frame in the middle of a wave, at two window sizes, and the work done while a painting holds.
+    /// Median and p95 milliseconds for a frame in the middle of a transition, at two window sizes, and the work done while a painting holds.
     func bench(_ engine: PaintingWallEngine) -> String {
         var lines: [String] = []
         for (label, size) in [("1280x800", CGSize(width: 1280, height: 800)), ("2560x1600", CGSize(width: 2560, height: 1600))] {
             for i in 0..<2 { engine.prepare(i, size: size) }
             var times: [Double] = []
             for k in 0..<60 {
-                let t = 8.0 + 1.6 * (0.2 + 0.6 * Double(k) / 60)
+                let t = PaintingWall.period + PaintingWall.transition * (0.2 + 0.6 * Double(k) / 60)
                 let start = CFAbsoluteTimeGetCurrent()
                 _ = engine.frame(size: size, t: t, dark: true, reduceMotion: false, touches: [])
                 times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
             }
             times.sort()
-            // the pointer moving fast: head plus a full trail, on the first painting held (no wave)
+            // the pointer moving fast: head plus a full trail, on the first painting held (no transition)
             let trail = (0..<19).map { PaintingWall.Touch(x: 600 + Double($0) * 14, y: 300 + Double($0) * 9, age: Double($0) * 0.04) }
             var loupe: [Double] = []
             for _ in 0..<30 {
                 let start = CFAbsoluteTimeGetCurrent()
-                _ = engine.frame(size: size, t: 4, dark: true, reduceMotion: false, touches: trail)
+                _ = engine.frame(size: size, t: 9, dark: true, reduceMotion: false, touches: trail)
                 loupe.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
             }
             loupe.sort()
             lines.append("bench \(label) with a full pointer trail: median \(String(format: "%.2f", loupe[15])) ms, p95 \(String(format: "%.2f", loupe[28])) ms")
-            lines.append("bench \(label): wave frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms")
+            lines.append("bench \(label): transition frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms")
         }
         return lines.joined(separator: "\n")
     }

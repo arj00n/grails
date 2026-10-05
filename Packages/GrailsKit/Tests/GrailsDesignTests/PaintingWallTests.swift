@@ -121,46 +121,57 @@ private func spec(mode: PaintingWall.Placement.Mode = .cover, anchor: [Double] =
     }
 }
 
-@Suite struct WaveTests {
-    let cols = 427, rows = 267
-
-    @Test func theEndsAreExact() {
-        for y in stride(from: 0, to: rows, by: 7) { for x in stride(from: 0, to: cols, by: 5) {
-            let t = PaintingWall.tau(x: x, y: y, cols: cols, rows: rows)
-            #expect(t >= 0 && t < 1)
-            #expect(PaintingWall.wave(tau: t, progress: 0) == 0 && PaintingWall.wave(tau: t, progress: 1) == 1)
-        } }
-    }
-
-    @Test func aPixelNeverGoesBackAndTheFrontMovesFromTheTopLeft() {
-        let t = PaintingWall.tau(x: 200, y: 100, cols: cols, rows: rows)
-        var last = 0.0
-        for k in 0...100 { let s = PaintingWall.wave(tau: t, progress: Double(k) / 100); #expect(s >= last); last = s }
-        let early = PaintingWall.wave(tau: PaintingWall.tau(x: 10, y: 10, cols: cols, rows: rows), progress: 0.3)
-        let late = PaintingWall.wave(tau: PaintingWall.tau(x: 400, y: 250, cols: cols, rows: rows), progress: 0.3)
-        #expect(early > late)
-    }
-
-    @Test func easeOutNeverOvershoots() {
-        for k in 0...100 { let e = PaintingWall.ease(Double(k) / 100); #expect(e >= 0 && e <= 1) }
-        #expect(PaintingWall.ease(0.5) > 0.5)
-    }
-
-    @Test func stateIsExactlyFromThenToWithASeamBetween() {
+@Suite struct TransitionTests {
+    @Test func theEndsAreExactAndEasingIsSoftAtBoth() {
         let from = PaintingWall.Sample(ink: 200, colour: 3), to = PaintingWall.Sample(ink: 90, colour: 9)
-        for (x, y) in [(0, 0), (5, 3), (100, 77)] {
-            let a = PaintingWall.state(x: x, y: y, from: from, to: to, s: 0, tick: 4), b = PaintingWall.state(x: x, y: y, from: from, to: to, s: 1, tick: 4)
+        for (x, y) in [(0, 0), (5, 3), (100, 77), (400, 250)] {
+            let a = PaintingWall.cross(x: x, y: y, from: from, to: to, e: 0), b = PaintingWall.cross(x: x, y: y, from: from, to: to, e: 1)
             #expect(a.lit == Dither.lit(ink: 200.0 / 255, x: x, y: y) && a.colour == 3 && !a.toPainting)
             #expect(b.lit == Dither.lit(ink: 90.0 / 255, x: x, y: y) && b.colour == 9 && b.toPainting)
         }
-        // at the front the seam is re-rolled by tick
-        let dim = PaintingWall.Sample(ink: 100, colour: 3)       // mid ink + 0.25 is not always lit, so the seam flickers
-        let seams = Set((0..<12).map { PaintingWall.state(x: 9, y: 9, from: dim, to: PaintingWall.Sample(ink: 60, colour: 9), s: 0.5, tick: $0).lit })
-        #expect(seams.count == 2)
-        // an empty pixel on both sides stays empty, so the plate never lights
-        #expect((0..<20).allSatisfy { !PaintingWall.state(x: 3, y: 3, from: PaintingWall.Sample(ink: 0, colour: 0), to: PaintingWall.Sample(ink: 0, colour: 0), s: 0.5, tick: $0).lit })
-        // the first picture develops from nothing
-        #expect(!PaintingWall.state(x: 4, y: 4, from: nil, to: to, s: 0, tick: 0).lit)
+        #expect(PaintingWall.ease(0) == 0 && PaintingWall.ease(1) == 1 && abs(PaintingWall.ease(0.5) - 0.5) < 1e-9)
+        #expect(PaintingWall.ease(0.1) < 0.02 && PaintingWall.ease(0.9) > 0.98)             // slow in, slow out
+        var last = 0.0
+        for k in 0...100 { let e = PaintingWall.ease(Double(k) / 100); #expect(e >= last && e <= 1); last = e }
+    }
+
+    @Test func theDitherGraduallyTakesTheNewPaintingsShape() {
+        // a flat old tone and a flat new tone: the share of lit pixels moves steadily from one to the other, never past either
+        func share(_ e: Double) -> Double {
+            var lit = 0
+            for y in 0..<32 { for x in 0..<32 where PaintingWall.cross(x: x, y: y, from: .init(ink: 230, colour: 1), to: .init(ink: 40, colour: 2), e: e).lit { lit += 1 } }
+            return Double(lit) / 1024
+        }
+        var last = 1.0
+        for k in 0...10 { let s = share(Double(k) / 10); #expect(s <= last + 0.01 && s >= share(1) - 0.01); last = s }
+        #expect(share(0) > 0.8 && share(1) < 0.2)
+    }
+
+    @Test func colourCrossesOverGrainByGrainWithNoBlock() {
+        var toColour = 0
+        for y in 0..<64 { for x in 0..<64 where PaintingWall.cross(x: x, y: y, from: .init(ink: 255, colour: 1), to: .init(ink: 255, colour: 2), e: 0.5).colour == 2 { toColour += 1 } }
+        #expect(abs(Double(toColour) / 4096 - 0.5) < 0.06)                                   // about half have switched at half way
+        // and they are spread, not clustered: every 8×8 tile has some of each
+        for ty in 0..<8 { for tx in 0..<8 {
+            var n = 0
+            for y in 0..<8 { for x in 0..<8 where PaintingWall.cross(x: tx * 8 + x, y: ty * 8 + y, from: .init(ink: 255, colour: 1), to: .init(ink: 255, colour: 2), e: 0.5).colour == 2 { n += 1 } }
+            #expect(n > 10 && n < 54)
+        } }
+    }
+
+    @Test func thePictureDevelopsFromNothing() {
+        let to = PaintingWall.Sample(ink: 180, colour: 7)
+        #expect((0..<20).allSatisfy { !PaintingWall.cross(x: $0, y: 3, from: nil, to: .init(ink: 0, colour: 0), e: 0.5).lit })
+        #expect(PaintingWall.cross(x: 4, y: 4, from: nil, to: to, e: 0.5).colour == 7)
+        let early = (0..<64).filter { PaintingWall.cross(x: $0, y: 5, from: nil, to: to, e: 0.2).lit }.count
+        let late = (0..<64).filter { PaintingWall.cross(x: $0, y: 5, from: nil, to: to, e: 0.9).lit }.count
+        #expect(early < late)
+    }
+
+    @Test func noiseIsEvenlySpread() {
+        var buckets = [Int](repeating: 0, count: 10)
+        for y in 0..<100 { for x in 0..<100 { let v = Dither.noise(x, y); #expect(v >= 0 && v < 1); buckets[Int(v * 10)] += 1 } }
+        #expect(buckets.allSatisfy { $0 > 800 && $0 < 1200 })
     }
 }
 
@@ -189,23 +200,23 @@ private func spec(mode: PaintingWall.Placement.Mode = .cover, anchor: [Double] =
 }
 
 @Suite struct ScheduleTests {
-    @Test func theFirstPictureHoldsThenEveryEightSecondsAWaveBringsTheNext() {
+    @Test func theFirstPictureHoldsThenEveryFourteenSecondsTheDitherTurnsIntoTheNext() {
         #expect(PaintingWall.schedule(t: 0.5, count: 14, reduceMotion: false) == .init(index: 0, next: 1, progress: nil))
-        #expect(PaintingWall.schedule(t: 7.9, count: 14, reduceMotion: false).progress == nil)
-        let w = PaintingWall.schedule(t: 8.8, count: 14, reduceMotion: false)
+        #expect(PaintingWall.schedule(t: 13.9, count: 14, reduceMotion: false).progress == nil)
+        let w = PaintingWall.schedule(t: 16.5, count: 14, reduceMotion: false)
         #expect(w.index == 0 && w.next == 1 && abs(w.progress! - 0.5) < 1e-9)
-        #expect(PaintingWall.schedule(t: 9.7, count: 14, reduceMotion: false) == .init(index: 1, next: 2, progress: nil))
-        #expect(PaintingWall.schedule(t: 8.0 * 14 + 0.1, count: 14, reduceMotion: false).next == 0)       // wraps
+        #expect(PaintingWall.schedule(t: 19.5, count: 14, reduceMotion: false) == .init(index: 1, next: 2, progress: nil))          // 9 s hold
+        #expect(PaintingWall.schedule(t: 14.0 * 14 + 0.1, count: 14, reduceMotion: false).next == 0)                              // wraps
     }
 
     @Test func reduceMotionIsOneStillPicture() {
-        for t in [0.0, 3, 8.5, 100] { #expect(PaintingWall.schedule(t: t, count: 14, reduceMotion: true) == .init(index: 0, next: 0, progress: nil)) }
+        for t in [0.0, 3, 14.5, 100] { #expect(PaintingWall.schedule(t: t, count: 14, reduceMotion: true) == .init(index: 0, next: 0, progress: nil)) }
     }
 
-    @Test func theCaptionChangesWhenTheWavePassesTheMiddle() {
-        #expect(PaintingWall.captionIndex(PaintingWall.schedule(t: 8.1, count: 14, reduceMotion: false)) == 0)
-        #expect(PaintingWall.captionIndex(PaintingWall.schedule(t: 9.4, count: 14, reduceMotion: false)) == 1)
-        #expect(PaintingWall.intro(t: 0.05) == 0 && PaintingWall.intro(t: 1.0) == 1 && PaintingWall.intro(t: 0.55) > 0.4)
+    @Test func theCaptionChangesHalfWayThroughTheTransition() {
+        #expect(PaintingWall.captionIndex(PaintingWall.schedule(t: 14.5, count: 14, reduceMotion: false)) == 0)
+        #expect(PaintingWall.captionIndex(PaintingWall.schedule(t: 14.0 + 4.0, count: 14, reduceMotion: false)) == 1)
+        #expect(PaintingWall.intro(t: 0.05) == 0 && PaintingWall.intro(t: 1.2) == 1 && PaintingWall.intro(t: 0.6) > 0.4)
     }
 }
 

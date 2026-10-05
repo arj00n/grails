@@ -21,6 +21,14 @@ public enum Dither {
         return Double((h ^ (h >> 16)) & 0xFFFF) / 65_535
     }
 
+    /// Fixed, even-looking noise in 0..<1 per pixel (interleaved gradient noise): a pixel adopts the next painting's colour once a
+    /// transition passes its value, so colours cross over grain by grain with no pattern.
+    public static func noise(_ x: Int, _ y: Int) -> Double {
+        let f = 0.06711056 * Double(x) + 0.00583715 * Double(y)
+        let v = 52.9829189 * (f - f.rounded(.down))
+        return v - v.rounded(.down)
+    }
+
     /// Whether a pixel with `ink` (0...1) is lit at (x, y). Ink under 0.04 is never lit and over 0.96 always is.
     public static func lit(ink: Double, x: Int, y: Int) -> Bool { ink > bayer(x, y) * 0.92 + 0.04 }
 }
