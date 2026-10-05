@@ -56,7 +56,7 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
     var body: some View {
         let plate = PaintingWall.plate(window: size)
         ZStack(alignment: .topLeading) {
-            wall.opacity(choosing ? 0 : 1).animation(curve, value: choosing)
+            wall.frame(width: size.width, height: size.height).opacity(choosing ? 0 : 1).animation(curve, value: choosing)
             VStack(spacing: 14) {
                 title
                 Button("Start", action: start)
@@ -73,9 +73,10 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
             .frame(width: plate.width, height: plate.height)
             .background(Ink.canvas)
             .offset(x: plate.minX, y: plate.minY)
+            // laid out by offset, never padding: padding would make this child taller than the window and stretch the wall with it
             chooser
-                .frame(width: size.width, height: size.height, alignment: .top)
-                .padding(.top, plate.minY + 84)
+                .frame(width: size.width, alignment: .top)
+                .offset(y: plate.minY + 84)
                 .opacity(choosing ? 1 : 0).allowsHitTesting(choosing)
                 .animation(choosing ? curve.delay(reduceMotionOn ? 0 : 0.1) : .easeOut(duration: 0.05), value: choosing)
         }

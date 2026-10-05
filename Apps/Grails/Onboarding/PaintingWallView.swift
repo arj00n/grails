@@ -13,6 +13,7 @@ final class PaintingWallView: NSView {
     private let baseLayer = CALayer()
     private var link: CADisplayLink?
     private var dirty = true
+    private var debugged = false
 
     override var isFlipped: Bool { false }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
@@ -53,6 +54,11 @@ final class PaintingWallView: NSView {
         dirty = false
         let t = reduceMotion ? 10 : Date().timeIntervalSince(epoch)
         let dark = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        // dev: GRAILS_DEBUG_WALL=<file> writes where the wall is, once (it must equal the window's content area)
+        if let path = ProcessInfo.processInfo.environment["GRAILS_DEBUG_WALL"], t > 3, !debugged {
+            debugged = true
+            try? "bounds \(bounds) window content \(String(describing: window?.contentView?.bounds)) top-left in window \(convert(bounds, to: nil))".write(toFile: path, atomically: true, encoding: .utf8)
+        }
         guard let frame = engine.frame(size: bounds.size, t: t, dark: dark, reduceMotion: reduceMotion) else { return }
         CATransaction.begin()
         CATransaction.setDisableActions(true)
