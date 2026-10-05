@@ -221,7 +221,6 @@ private struct ShareStep: View {
                 if c.openedShare { QuietButton(title: "Open again") { c.openShare() } } else { QuietButton(title: "Skip") { c.flow.send(.shared) } }
             }
         }
-        .onAppear { c.loadInvites() }
     }
 
     static func words(_ p: Placement) -> (title: String, detail: String, steps: [String]) {
@@ -250,15 +249,13 @@ private struct InviteStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            StepTitle(title: "Invite your team", detail: "Add the people you shared it with. Each gets the link and the steps.")
-            AddTeammateField(c: c)
-            TeammateList(c: c, maxRows: 5)
-            Spacer(minLength: 0)
-            InviteActions(c: c, finishTitle: "Next") { c.flow.send(.invited) } leading: {
+            StepTitle(title: "Send this to your team")
+            InviteMessageCard(c: c)
+            InviteActions(c: c, sent: { c.flow.send(.invited) }) {
                 QuietButton(title: "Back") { c.flow.send(.back) }
+                QuietButton(title: "Skip", identifier: "invite-skip") { c.flow.send(.invited) }
             }
         }
-        .task { await c.refreshSeen() }
     }
 }
 
@@ -269,17 +266,13 @@ private struct DoneStep: View {
     let onDone: () -> Void
 
     var body: some View {
-        let roster = c.roster
         VStack(alignment: .leading, spacing: 14) {
-            StepTitle(title: "\(c.app?.libraryName ?? "Library") is ready",
-                      detail: "\(c.currentPlacement?.label ?? "") · \(roster.joinedCount) of \(roster.rows.count) joined")
-            TeammateList(c: c, maxRows: 6)
+            StepTitle(title: "\(c.app?.libraryName ?? "Library") is ready", detail: c.currentPlacement?.label)
             Spacer(minLength: 0)
             ActionBar(primary: "Done", identifier: "collab-done", action: onDone) {
-                QuietButton(title: "Invite more") { c.flow.send(.back) }
+                QuietButton(title: "Invite") { c.flow.send(.back) }
                 QuietButton(title: "Copy link") { c.copyLink() }
             }
         }
-        .task { await c.refreshSeen() }
     }
 }

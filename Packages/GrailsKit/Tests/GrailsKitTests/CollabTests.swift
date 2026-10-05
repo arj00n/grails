@@ -167,14 +167,14 @@ enum FakeCloud {
 
     @Test func theInviteSaysWhereItIsAndWhatToDoInOrder() {
         let link = InviteText.link(libraryID: "01ABC", name: "Team Inspo", hint: hint, page: page)
-        let m = InviteText.invite(library: "Team Inspo", link: link, hint: hint, from: "arjun", to: "ben.ito@studio.com")
+        let m = InviteText.invite(library: "Team Inspo", link: link, hint: hint, from: "arjun")
         #expect(m.subject == "Join Team Inspo on Grails")
         #expect(m.body == """
-        Hi Ben,
+        Hi,
 
         I've set up Team Inspo, our team's picture library in Grails. It lives in the Shared drive “Design” in our studio.com Google Drive.
 
-        1. Install Google Drive for desktop and sign in as ben.ito@studio.com: https://www.google.com/drive/download/
+        1. Install Google Drive for desktop and sign in with your studio.com account: https://www.google.com/drive/download/
         2. Install Grails: https://grails.arjoon.xyz
         3. Open this link: \(link.absoluteString)
 
@@ -182,18 +182,10 @@ enum FakeCloud {
 
         arjun
         """)
-        let many = InviteText.invite(library: "Team Inspo", link: link, hint: hint, from: "arjun")
-        #expect(many.body.hasPrefix("Hi,\n") && many.body.contains("sign in with your studio.com account"))
-        let my = InviteText.invite(library: "Refs", link: link, hint: LibraryHint(kind: .myDrive, domain: "gmail.com"), from: "", to: "Cleo")
-        #expect(my.body.hasPrefix("Hi Cleo,") && my.body.contains("a folder in my Google Drive") && my.body.contains("Organize ▸ Add shortcut ▸ My Drive"))
+        let my = InviteText.invite(library: "Refs", link: link, hint: LibraryHint(kind: .myDrive, domain: "gmail.com"), from: "")
+        #expect( my.body.contains("a folder in my Google Drive") && my.body.contains("Organize ▸ Add shortcut ▸ My Drive"))
         let dropbox = InviteText.invite(library: "Refs", link: link, hint: LibraryHint(kind: .dropbox), from: "a")
         #expect(dropbox.body.contains("Accept the shared folder in Dropbox") && !dropbox.body.contains("Google"))
-    }
-
-    @Test func mailtoEncodesSoEveryMailAppReadsTheSame() throws {
-        let m = InviteText.Message(subject: "Join A & B", body: "Hi,\nline two?")
-        let url = try #require(InviteText.mailto(to: ["ana@studio.com", "Ben", "ben@studio.com"], message: m))
-        #expect(url.absoluteString == "mailto:ana@studio.com,ben@studio.com?subject=Join%20A%20%26%20B&body=Hi%2C%0D%0Aline%20two%3F")
     }
 
     @Test func theAccessRequestNamesWhatToAddAndWho() {
@@ -204,60 +196,7 @@ enum FakeCloud {
     }
 }
 
-@Suite struct InviteListTests {
-    @Test func addsEmailsOrNamesOnceEach() {
-        var list = InviteList(libraryID: "L")
-        #expect(list.add("Ana Lopez <ana.lopez@studio.com>, ben@studio.com; BEN@studio.com").map(\.contact) == ["ana.lopez@studio.com", "ben@studio.com"])
-        #expect(list.add("Cleo, Dev Patel\n").map(\.contact) == ["Cleo", "Dev Patel"])
-        #expect(list.add("ana.lopez@studio.com").isEmpty)
-        #expect(list.teammates.count == 4)
-    }
-
-    @Test func rowsMoveFromInvitedToJoinedWhenTheirHandleTurnsUp() {
-        var list = InviteList(libraryID: "L")
-        list.add("ana.lopez@studio.com, ben@studio.com, Cleo Park")
-        var roster = list.roster(seen: [], ownHandle: "arjun")
-        #expect(roster.rows.map(\.status) == [.notInvited, .notInvited, .notInvited])
-        list.markInvited(list.teammates.map(\.id))
-        roster = list.roster(seen: [SeenPerson(handle: "arjun", items: 40)], ownHandle: "arjun")
-        #expect(roster.rows.map(\.status) == [.invited, .invited, .invited] && roster.others.isEmpty)
-        roster = list.roster(seen: [SeenPerson(handle: "analopez", opened: true), SeenPerson(handle: "Cleo", items: 3), SeenPerson(handle: "zed", items: 1)], ownHandle: "arjun")
-        #expect(roster.rows.map(\.status) == [.joined, .invited, .joined])
-        #expect(roster.rows[0].handle == "analopez" && roster.rows[0].guessed)
-        #expect(roster.rows[2].handle == "Cleo")
-        #expect(roster.others.map(\.handle) == ["zed"] && roster.joinedCount == 2)
-    }
-
-    @Test func theOwnerCanLinkOrUnlinkAHandleByHand() {
-        var list = InviteList(libraryID: "L")
-        list.add("ben@studio.com")
-        let ben = list.teammates[0].id
-        let seen = [SeenPerson(handle: "ben", items: 2), SeenPerson(handle: "bb-king", items: 5)]
-        #expect(list.roster(seen: seen, ownHandle: "me").rows[0].handle == "ben")
-        list.link(ben, handle: nil, unlinking: "ben")          // "that ben isn't my Ben"
-        #expect(list.roster(seen: seen, ownHandle: "me").rows[0].status == .invited || list.roster(seen: seen, ownHandle: "me").rows[0].status == .notInvited)
-        list.link(ben, handle: "bb-king")
-        let r = list.roster(seen: seen, ownHandle: "me")
-        #expect(r.rows[0].status == .joined && r.rows[0].handle == "bb-king" && !r.rows[0].guessed && r.others.map(\.handle) == ["ben"])
-    }
-
-    @Test func anAmbiguousNameMatchesNoOne() {
-        var list = InviteList(libraryID: "L")
-        list.add("sam.lee@studio.com, sam.ito@studio.com")
-        let r = list.roster(seen: [SeenPerson(handle: "sam", items: 1)], ownHandle: "me")
-        #expect(r.rows.allSatisfy { $0.status != .joined } && r.others.map(\.handle) == ["sam"])
-    }
-
-    @Test func theChecklistSurvivesARelaunch() {
-        let defaults = UserDefaults(suiteName: "invites-\(UUID().uuidString)")!
-        var list = InviteStore.load(libraryID: "L1", defaults: defaults)
-        #expect(list.teammates.isEmpty)
-        list.add("ana@studio.com"); list.markInvited([list.teammates[0].id], at: Date(timeIntervalSince1970: 100))
-        InviteStore.save(list, defaults: defaults)
-        #expect(InviteStore.load(libraryID: "L1", defaults: defaults) == list)
-        #expect(InviteStore.load(libraryID: "L2", defaults: defaults).teammates.isEmpty)
-    }
-
+@Suite struct SeenPeopleTests {
     @Test func seenPeopleFoldPresenceAndContributionsTogether() {
         let t = Date(timeIntervalSince1970: 0)
         let seen = SeenPerson.merge(members: [MemberRecord(handle: "ana", firstSeen: t, lastSeen: t), MemberRecord(handle: "cleo", firstSeen: t, lastSeen: t)],

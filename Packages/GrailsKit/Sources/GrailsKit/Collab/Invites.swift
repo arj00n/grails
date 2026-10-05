@@ -82,17 +82,15 @@ public enum InviteText {
         public var body: String
     }
 
-    /// The invite. `to` is what the owner typed for this person (an email or a name), nil for a message to several people.
-    public static func invite(library: String, link: URL, hint: LibraryHint?, from sender: String, to contact: String? = nil) -> Message {
-        let firstName = contact.flatMap(Self.firstName)
-        let email = contact.flatMap { Teammate.looksLikeEmail($0) ? $0.lowercased() : nil }
-        var lines: [String] = [firstName.map { "Hi \($0)," } ?? "Hi,", ""]
+    /// The invite: one message for everyone, since the link is the same for all of them.
+    public static func invite(library: String, link: URL, hint: LibraryHint?, from sender: String) -> Message {
+        var lines: [String] = ["Hi,", ""]
         lines.append("I've set up \(library), our team's picture library in Grails." + (hint.map { " It lives in \($0.whereSentence)." } ?? ""))
         lines.append("")
         var steps: [String] = []
         switch hint?.service ?? .googleDrive {
         case .googleDrive:
-            let account = email.map { "sign in as \($0)" } ?? (hint?.domain).map { DriveAccount.consumerDomains.contains($0) ? "sign in" : "sign in with your \($0) account" } ?? "sign in"
+            let account = (hint?.domain).map { DriveAccount.consumerDomains.contains($0) ? "sign in" : "sign in with your \($0) account" } ?? "sign in"
             steps.append("Install Google Drive for desktop and \(account): \(DriveWeb.download.absoluteString)")
             if hint?.kind == .myDrive {
                 steps.append("On drive.google.com, open Shared with me, right-click “\(library)” and choose Organize ▸ Add shortcut ▸ My Drive.")
@@ -124,21 +122,5 @@ public enum InviteText {
         if let link { lines += ["", "The invite: \(link.absoluteString)"] }
         lines += ["", "Thanks!"]
         return Message(subject: "Access to \(library)", body: lines.joined(separator: "\n"))
-    }
-
-    /// `mailto:` with recipients, subject and body, encoded so any mail app reads it the same (RFC 6068: `%20`, `%0D%0A`).
-    public static func mailto(to: [String], message: Message) -> URL? {
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
-        func enc(_ s: String) -> String { s.addingPercentEncoding(withAllowedCharacters: allowed) ?? "" }
-        let recipients = to.filter(Teammate.looksLikeEmail).map { enc($0).replacingOccurrences(of: "%40", with: "@") }.joined(separator: ",")
-        let body = message.body.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\n", with: "\r\n")
-        return URL(string: "mailto:\(recipients)?subject=\(enc(message.subject))&body=\(enc(body))")
-    }
-
-    /// "ana.lopez@studio.com" → "Ana", "Ben Ito" → "Ben".
-    static func firstName(_ contact: String) -> String? {
-        let base = Teammate.looksLikeEmail(contact) ? String(contact.split(separator: "@")[0]) : contact
-        guard let first = base.split(whereSeparator: { " ._-+".contains($0) }).first, first.count > 1, first.allSatisfy(\.isLetter) else { return nil }
-        return first.prefix(1).uppercased() + first.dropFirst().lowercased()
     }
 }

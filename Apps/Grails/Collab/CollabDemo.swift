@@ -139,46 +139,31 @@ final class CollabDemo {
         check(opened.last?.absoluteString == "https://drive.google.com/drive/folders/\(designID)?authuser=arjun@studio.com", "Open Drive opens the Shared drive's page: \(opened.last?.absoluteString ?? "-")")
         snap(setup, "setup-4-share-opened", size)
 
-        // 5. Invite: three people, one email to the two with addresses
+        // 5. Invite: one message for everyone, to copy or share anywhere
         c.flow.send(.shared)
-        c.draft = "Ana Lopez <ana.lopez@studio.com>, ben@studio.com, Cleo Park"
-        c.addDraft()
-        check(c.invites.teammates.map(\.contact) == ["ana.lopez@studio.com", "ben@studio.com", "Cleo Park"], "three people added from one paste")
-        snap(setup, "setup-5-invite", size)
-        c.emailInvites()
-        let mail = opened.last?.absoluteString ?? ""
-        check(mail.hasPrefix("mailto:ana.lopez@studio.com,ben@studio.com?subject=Join%20Team%20Inspo%20on%20Grails&body="), "one email to both addresses: \(mail.prefix(90))…")
         let link = c.inviteLink?.absoluteString ?? ""
         check(link == "https://grails.arjoon.xyz/open#lib=\(app.libraryID)&name=Team%20Inspo&k=sd&at=Design&dom=studio.com" || UserDefaults.standard.string(forKey: "linkPage")?.isEmpty == false,
               "invite link: \(link)")
-        let msg = c.message()?.body ?? ""
+        let msg = c.message?.body ?? ""
         say("---- invite message ----\n\(msg)\n------------------------")
-        check(msg.contains("It lives in the Shared drive “Design” in our studio.com Google Drive.") && msg.contains("sign in with your studio.com account") && msg.contains(link),
+        check(msg.hasPrefix("Hi,\n") && msg.contains("It lives in the Shared drive “Design” in our studio.com Google Drive.") && msg.contains("sign in with your studio.com account") && msg.contains(link),
               "the message says where it lives, which account, and carries the link")
-        check(c.roster.rows.map(\.status) == [.invited, .invited, .notInvited], "emailed rows are Invited, Cleo (no address) isn't: \(c.roster.rows.map(\.status))")
-        snap(setup, "setup-5-invite-sent", size)
-        c.markInvited(c.pending)
+        snap(setup, "setup-5-invite", size)
+        NSPasteboard.general.clearContents()
+        c.copyMessage()
+        check(NSPasteboard.general.string(forType: .string) == msg, "Copy message puts the whole message on the clipboard")
 
-        // 6. Done, and people turning up: Ana opens it (presence record), Cleo adds something, someone unexpected too
+        // 6. Done, and people turning up: Ana opens it (presence record), Cleo adds something
         c.flow.send(.invited)
+        check(c.flow.step == .done, "after the message goes out the set-up is done")
         if let layout = app.layout {
             try? Members.record(handle: "analopez", in: layout)
             try? FixtureLibrary.writeRemoteItem(into: layout, name: "Cleo's pick", addedBy: "cleo")
-            try? FixtureLibrary.writeRemoteItem(into: layout, name: "Zed's pick", addedBy: "zed")
         }
         await app.refreshLibrary(announce: false)
         await c.refreshSeen()
-        let rows = c.roster.rows
-        check(rows.map(\.status) == [.joined, .invited, .joined], "Ana (opened it) and Cleo (added an item) move to Joined, Ben stays Invited: \(rows.map(\.status))")
-        check(rows[0].handle == "analopez" && rows[0].guessed && rows[2].handle == "cleo", "matched by name, and marked as a guess: \(rows.map { $0.handle ?? "-" })")
-        check(c.roster.others.map(\.handle) == ["zed"], "someone not on the list shows under Also here: \(c.roster.others.map(\.handle))")
+        check(Set(c.seen.map(\.handle)).isSuperset(of: ["analopez", "cleo"]), "people who opened it or added to it show as here: \(c.seen.map(\.handle))")
         snap(setup, "setup-6-done", size)
-        // the owner says who zed is
-        c.link(c.invites.teammates[1].id, handle: "zed")
-        check(c.roster.rows[1].status == .joined && !c.roster.rows[1].guessed && c.roster.others.isEmpty, "linking zed to Ben by hand makes Ben Joined")
-        c.link(c.invites.teammates[1].id, handle: nil, unlinking: "zed")
-        // the checklist is kept per library and comes back after a relaunch
-        check(InviteStore.load(libraryID: app.libraryID, defaults: c.defaults).teammates.count == 3, "the checklist is saved for this library")
         snap({ InviteView(model: self.app) }, "invite", InviteView.size)
 
         // 7. The teammate's side: every reason an invite's library isn't found, worked out from fake Macs

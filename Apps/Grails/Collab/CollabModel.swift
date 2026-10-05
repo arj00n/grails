@@ -239,32 +239,10 @@ final class CollabModel {
 
     // MARK: Invites
 
-    private(set) var invites = InviteList(libraryID: "")
     private(set) var seen: [SeenPerson] = []
-    var draft = ""
-
-    var roster: InviteList.Roster { invites.roster(seen: seen, ownHandle: app?.userHandle ?? "") }
-
-    func loadInvites() {
-        guard let id = app?.libraryID, !id.isEmpty else { return }
-        if invites.libraryID != id { invites = InviteStore.load(libraryID: id, defaults: defaults) }
-    }
-
-    private func save() { InviteStore.save(invites, defaults: defaults) }
-
-    func addDraft() {
-        loadInvites()
-        invites.add(draft, now: now())
-        draft = ""
-        save()
-    }
-
-    func remove(_ id: String) { invites.remove(id); save() }
-    func link(_ id: String, handle: String?, unlinking: String? = nil) { invites.link(id, handle: handle, unlinking: unlinking); save() }
 
     /// Who has turned up: presence records in the library and everyone who has added something.
     func refreshSeen() async {
-        loadInvites()
         guard let app, let layout = app.layout else { return }
         let members = await Task.detached { Members.all(in: layout) }.value
         seen = SeenPerson.merge(members: members, contributors: app.contributors)
@@ -287,30 +265,16 @@ final class CollabModel {
         return InviteText.link(libraryID: app.libraryID, name: app.libraryName, hint: hint, page: page)
     }
 
-    func message(to contact: String? = nil) -> InviteText.Message? {
+    /// The invite: one message for everyone, since the link is the same for all of them.
+    var message: InviteText.Message? {
         guard let app, let link = inviteLink else { return nil }
-        return InviteText.invite(library: app.libraryName, link: link, hint: hint, from: app.userHandle, to: contact)
+        return InviteText.invite(library: app.libraryName, link: link, hint: hint, from: app.userHandle)
     }
 
-    /// Teammates with an email address who haven't been sent an invite yet.
-    var pendingEmails: [Teammate] { invites.teammates.filter { $0.invitedAt == nil && $0.email != nil } }
-    var pending: [Teammate] { invites.teammates.filter { $0.invitedAt == nil } }
-
-    /// One email to everyone not yet invited (Mail, or whichever app handles mailto), then they're marked Invited.
-    func emailInvites(_ people: [Teammate]? = nil) {
-        let list = people ?? pendingEmails
-        let emails = list.compactMap(\.email)
-        guard !emails.isEmpty, let m = message(to: list.count == 1 ? list[0].contact : nil), let url = InviteText.mailto(to: emails, message: m) else { return }
-        opener(url)
-        markInvited(list)
-    }
-
-    func copyMessage(for people: [Teammate]? = nil) {
-        let list = people ?? pending
-        guard let m = message(to: list.count == 1 ? list[0].contact : nil) else { return }
+    func copyMessage() {
+        guard let m = message else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(m.body, forType: .string)
-        markInvited(list)
         app?.showToast("Invite copied")
     }
 
@@ -319,11 +283,6 @@ final class CollabModel {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(link.absoluteString, forType: .string)
         app?.showToast("Invite link copied")
-    }
-
-    func markInvited(_ people: [Teammate]) {
-        invites.markInvited(people.map(\.id), at: now())
-        save()
     }
 
     // MARK: Presenting
