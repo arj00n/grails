@@ -212,6 +212,7 @@ The preview is a page, not a lightbox: `canvas` background (white in light, as o
 
 **Item kinds:**
 - **Video:** autoplays muted, loops if under 30 s, floating controls; K or a click plays/pauses. Neighbour players are never created, only poster frames.
+- **Video tiles (grid, canvas, Arriving):** play muted and looping after the pointer rests 250 ms, from the poster frame, with a 120 ms ease-out crossfade (100 ms back); one shared player; never for online-only originals, with Reduce Motion, or with Settings ▸ Play videos on hover off.
 - **GIF / animated WebP:** `CGAnimateImageAtURLWithBlock`, current page only.
 - **Link:** snapshot or preview image on the stage; the info column leads with the URL title; ⌘↩ opens it.
 - **PDF:** a `PDFView` on the stage. Vertical scrolling pages the PDF, horizontal swipes still step items, and dismiss is Esc or pinch.
