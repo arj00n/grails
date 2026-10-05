@@ -619,7 +619,11 @@ final class AppModel {
         guard !ids.isEmpty else { return }
         let all = ids.allSatisfy { summary($0)?.liked == true }
         let like = !all
-        Task { await perform(like ? "Like" : "Unlike") { try await $0.setLiked(like, ids: ids) } }
+        Task {
+            guard await perform(like ? "Like" : "Unlike", { try await $0.setLiked(like, ids: ids) }) != nil else { return }
+            let word = like ? "Liked" : "Unliked"
+            showToast(ids.count == 1 ? word : "\(word) \(ids.count) items")
+        }
     }
 
     func trashSelection() {
