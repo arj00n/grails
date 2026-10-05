@@ -538,6 +538,7 @@ struct GridView: NSViewRepresentable {
         /// Each dragged tile carries its file (for Finder, Figma, Slack) and its id (for the sidebar's drop targets).
         func collectionView(_ cv: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
             guard let s = items[safe: indexPath.item], s.kind != .section else { return nil }
+            (cv as? GrailsCollectionView)?.dragBegan = true
             let pb = NSPasteboardItem()
             if let ids = try? JSONEncoder().encode([s.id]) { pb.setData(ids, forType: NSPasteboard.PasteboardType(UTType.grailsItems.identifier)) }
             if let url = model.originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {

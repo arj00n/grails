@@ -6,6 +6,8 @@ final class GrailsCollectionView: NSCollectionView {
     var onOpen: (() -> Void)?
     /// A plain click landed on the item at this index.
     var onClickOpen: ((Int) -> Void)?
+    /// Set when a press turned into a drag (the data source was asked for what to carry): that press never opens the picture.
+    var dragBegan = false
     /// Double-click on an item; true when it was a section title and got renamed in place instead of opened.
     var onRenameSection: ((Int) -> Bool)?
     var onEscape: (() -> Void)?
@@ -68,9 +70,10 @@ final class GrailsCollectionView: NSCollectionView {
             _ = onRenameSection?(hit.item)
             return
         }
+        dragBegan = false
         super.mouseDown(with: event)
         // a plain click on a picture opens it: one click, no drag (a drag moves things), no ⌘ or ⇧ (those build a selection)
-        if event.clickCount == 1, let hit, event.modifierFlags.intersection([.command, .shift, .control]).isEmpty {
+        if event.clickCount == 1, !dragBegan, let hit, event.modifierFlags.intersection([.command, .shift, .control]).isEmpty {
             let up = window?.currentEvent?.locationInWindow ?? down
             if hypot(up.x - down.x, up.y - down.y) < 4 { onClickOpen?(hit.item) }
         }
