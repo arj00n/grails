@@ -89,6 +89,7 @@ struct PairPrompt: View {
 
     var body: some View {
         VStack {
+            Spacer()
             HStack(spacing: 10) {
                 Text("Chrome wants in").font(.grailsBody(13)).foregroundStyle(Ink.text)
                 Button("Not now") { model.denyPairing(request) }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary)
@@ -96,9 +97,9 @@ struct PairPrompt: View {
             }
             .padding(.horizontal, 14).padding(.vertical, 8)
             .surfaceCard()
-            Spacer()
         }
-        .padding(.top, 14)
+        // at the bottom, clear of the window's own buttons at the top
+        .padding(.bottom, 28)
         .accessibilityIdentifier("pair-prompt")
     }
 }
