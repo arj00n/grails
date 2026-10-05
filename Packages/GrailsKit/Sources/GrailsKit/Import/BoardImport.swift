@@ -99,7 +99,7 @@ public enum BoardImportError: Error, LocalizedError, Equatable {
 
 /// Everything fetched about a board before any file is downloaded.
 public struct RemoteBoard: Sendable {
-    public struct Entry: Sendable, Equatable {
+    public struct Entry: Sendable, Equatable, Codable {
         /// Direct file URLs, best first; the importer uses the first that downloads.
         public var mediaUrls: [String]
         public var pageUrl: String?
