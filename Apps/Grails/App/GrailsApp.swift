@@ -6,10 +6,12 @@ struct GrailsApp: App {
     @NSApplicationDelegateAdaptor(GrailsAppDelegate.self) private var delegate
     @State private var model = AppModel()
     @State private var shortcuts = ShortcutStore.shared
+    @State private var updater = UpdaterController.shared
 
     init() {
         LegacyDefaults.migrate()
         Typeface.register()
+        UpdaterController.start()
         #if DEBUG
         installDebugCrashLog()
         #endif
@@ -24,6 +26,9 @@ struct GrailsApp: App {
         .handlesExternalEvents(matching: [])
         .windowStyle(.hiddenTitleBar)
         .commands {
+            CommandGroup(after: .appInfo) {
+                Button("Check for Updates…") { updater.checkForUpdates() }.disabled(!updater.canCheck)
+            }
             CommandGroup(replacing: .newItem) {
                 Button("New Collection…") { model.run(.newCollection) }.shortcut(.newCollection)
                 Button("New Folder…") { model.promptNewCollection(kind: "folder", parent: nil) }
@@ -100,6 +105,6 @@ struct GrailsApp: App {
                 Button("Empty Trash…") { model.confirmEmptyTrash() }
             }
         }
-        Settings { SettingsView(model: model) }
+        Settings { SettingsView(model: model, updater: updater) }
     }
 }
