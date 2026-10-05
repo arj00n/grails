@@ -155,6 +155,7 @@ final class AppModel {
     /// The items the preview pages through (see PreviewSet): fixed when it opens.
     var previewSet: PreviewSet?
     var previewSetVersion = 0
+    var workspaceMenuOpen = false
     @ObservationIgnored var hiddenPanels: (Bool, Bool)?
     /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
     /// flies to or from the preview. Set by whichever of the grid and canvas is showing.

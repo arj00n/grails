@@ -19,6 +19,7 @@ struct RootView: View {
             content
             panels
             topBar
+            workspaceMenu
             overlays
         }
         .background(Ink.canvas)
@@ -34,6 +35,7 @@ struct RootView: View {
         .task { await model.openInitialLibrary() }
         .onAppear { applyAppearance(); Self.snapshotIfRequested() }
         .onChange(of: appearance) { applyAppearance() }
+        .onChange(of: model.sidebarVisible) { model.workspaceMenuOpen = false }
     }
 
     /// Layers and AppKit views read the app's appearance when they resolve a colour, so keep it in step with the setting.
@@ -122,6 +124,17 @@ struct RootView: View {
                     .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1) }
                     
             }
+        }
+    }
+
+    /// The workspace menu hangs under the pinned switcher at the top of the sidebar; a click anywhere else closes it.
+    @ViewBuilder private var workspaceMenu: some View {
+        if model.workspaceMenuOpen, model.sidebarVisible {
+            Color.clear.contentShape(Rectangle()).ignoresSafeArea().onTapGesture { model.workspaceMenuOpen = false }
+            WorkspaceMenu(model: model)
+                .frame(width: Self.sidebarWidth - 16)
+                .padding(.leading, 8)
+                .padding(.top, Self.barHeight + 8 + WorkspaceSwitcher.height + 4)
         }
     }
 

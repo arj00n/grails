@@ -19,9 +19,15 @@ struct SidebarView: View {
 
     /// One row style for every state: hover is a light fill, the open view a stronger one, same shape and inset.
     var body: some View {
+        VStack(spacing: 0) {
+            WorkspaceSwitcher(model: model).padding(.top, 8).padding(.bottom, 4)
+            list
+        }
+    }
+
+    private var list: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 1) {
-                WorkspaceSwitcher(model: model).padding(.horizontal, 8).padding(.bottom, 6)
 
                 SidebarRow(model: model, title: "Inbox", symbol: "tray", source: .inbox)
                 SidebarRow(model: model, title: "All", symbol: "square.grid.2x2", count: model.totalCount, source: .all)
