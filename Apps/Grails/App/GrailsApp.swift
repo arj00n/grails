@@ -33,8 +33,15 @@ struct GrailsApp: App {
                 Button("New Library…") { LibraryPicker.createNew(model) }
                 Button("Open Library…") { LibraryPicker.openExisting(model) }.keyboardShortcut("o")
                 Divider()
-                Button("Export as Web Page…") { model.exportWebPage() }.keyboardShortcut("e", modifiers: [.command, .option])
-                Button("Export Selection as Web Page…") { model.exportWebPage(selectionOnly: true) }.disabled(model.selection.isEmpty)
+                Menu("Export View As") {
+                    ForEach(ShareFormat.allCases) { f in
+                        if f == .html { Button(f.menuTitle) { model.exportWebPage(format: f) }.keyboardShortcut("e", modifiers: [.command, .option]) }
+                        else { Button(f.menuTitle) { model.exportWebPage(format: f) } }
+                    }
+                }
+                Menu("Export Selection As") {
+                    ForEach(ShareFormat.allCases) { f in Button(f.menuTitle) { model.exportWebPage(selectionOnly: true, format: f) } }
+                }.disabled(model.selection.isEmpty)
                 Button("Copy Link to This View") { model.copyViewLink() }.keyboardShortcut("l", modifiers: [.command, .option])
                 Button("Copy Invite Link") { model.copyInviteLink() }
                 Button("Join with Link…") { model.promptJoinWithLink() }

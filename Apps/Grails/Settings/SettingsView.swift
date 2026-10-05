@@ -8,6 +8,7 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance = "dark"
     @AppStorage("gridBackground") private var background = "black"
     @AppStorage("userHandle") private var handle = GrailsPathsShim.handle
+    @AppStorage("linkPage") private var linkPage = ""
     @AppStorage("sidebar.showCollections") private var showCollections = true
     @AppStorage("sidebar.showTags") private var showTags = true
     @AppStorage("sidebar.showSmart") private var showSmart = true
@@ -66,6 +67,7 @@ struct SettingsView: View {
 
             Form {
                 TextField("Your name", text: $handle)
+                TextField("Link page", text: $linkPage, prompt: Text("https://example.com/grails/open"))
                 LabeledContent("Library") {
                     Text(model.layout?.root.path ?? "—").textSelection(.enabled).lineLimit(2)
                 }

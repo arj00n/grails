@@ -19,7 +19,11 @@ final class GrailsAppDelegate: NSObject, NSApplicationDelegate {
 extension AppModel {
     // MARK: Making links
 
-    private func copyToPasteboard(_ url: URL, toast: String) {
+    /// Where links point when you've set a link page in Settings (a chat app makes that clickable); the app's own scheme otherwise.
+    private func copyToPasteboard(_ link: GrailsLink, toast: String) {
+        let typed = (UserDefaults.standard.string(forKey: "linkPage") ?? "").trimmingCharacters(in: .whitespaces)
+        let page = typed.isEmpty ? nil : URL(string: typed)
+        let url = page.map { link.webURL(page: $0) } ?? link.url
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
         showToast(toast)
@@ -28,13 +32,13 @@ extension AppModel {
     /// A link to a library, collection, tag or item that opens on any Mac that has this library.
     func copyLink(_ target: GrailsLink.Target, canvas: Bool = false) {
         guard !libraryID.isEmpty else { return }
-        copyToPasteboard(GrailsLink(library: libraryID, name: libraryName, target: target, canvas: canvas).url, toast: "Link copied")
+        copyToPasteboard(GrailsLink(library: libraryID, name: libraryName, target: target, canvas: canvas), toast: "Link copied")
     }
 
     /// For someone who hasn't added this library yet: opening it asks them to pick the shared folder.
     func copyInviteLink() {
         guard !libraryID.isEmpty else { return }
-        copyToPasteboard(GrailsLink(library: libraryID, name: libraryName).url, toast: "Invite link copied")
+        copyToPasteboard(GrailsLink(library: libraryID, name: libraryName), toast: "Invite link copied")
     }
 
     /// The link for what's on screen: the open collection or tag, in the same view mode.

@@ -242,3 +242,18 @@ extension Sequence {
         #expect(GrailsLink(text: "not a link") == nil)
     }
 }
+
+@Suite struct GrailsLinkPageTests {
+    @Test func webAddressesRoundTrip() throws {
+        let link = GrailsLink(library: "01J9", name: "Studio & Co", target: .collection("01JC"), canvas: true)
+        let page = URL(string: "https://example.com/grails/open")!
+        let web = link.webURL(page: page)
+        #expect(web.absoluteString.hasPrefix("https://example.com/grails/open#lib=01J9"))
+        #expect(web.query == nil)                                  // the details never travel to the server
+        #expect(GrailsLink(url: web) == link)
+        #expect(GrailsLink(text: web.absoluteString) == link)
+        #expect(GrailsLink(url: URL(string: "https://example.com/grails/open")!) == nil)
+        // links made before the rename still read
+        #expect(GrailsLink(url: URL(string: "stash://open?lib=01J9&name=Old")!)?.library == "01J9")
+    }
+}

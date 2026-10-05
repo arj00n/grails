@@ -2,7 +2,7 @@ import Foundation
 import GrailsKit
 
 // Export a library (or its first N items) as a web page, the same page Grails's File ▸ Export as Web Page makes.
-//   grails-share <Library.grails> <output folder> [--limit N] [--clusters N] [--title "Name"] [--no-zip] [--no-sources]
+//   grails-share <Library.grails> <output folder> [--limit N] [--clusters N] [--title "Name"] [--format folder|html|pdf] [--no-zip] [--no-sources]
 // --clusters N splits the items into N titled clusters, to see the sections and canvas view.
 var args = Array(CommandLine.arguments.dropFirst())
 @MainActor func take(_ flag: String) -> String? {
@@ -14,7 +14,8 @@ let limit = take("--limit").flatMap(Int.init) ?? 200
 let clusterCount = take("--clusters").flatMap(Int.init) ?? 0
 let title = take("--title") ?? "Grails export"
 let noZip = has("--no-zip"), noSources = has("--no-sources")
-guard args.count == 2 else { print("usage: grails-share <Library.grails> <output folder> [--limit N] [--clusters N] [--title Name] [--no-zip] [--no-sources]"); exit(2) }
+let format = take("--format") ?? "folder"        // folder | html | pdf
+guard args.count == 2 else { print("usage: grails-share <Library.grails> <output folder> [--limit N] [--clusters N] [--title Name] [--format folder|html|pdf] [--no-zip] [--no-sources]"); exit(2) }
 
 do {
     let store = try await LibraryStore.open(at: URL(fileURLWithPath: (args[0] as NSString).expandingTildeInPath), index: nil, userHandle: NSUserName())
@@ -30,10 +31,15 @@ do {
     }
     let out = URL(fileURLWithPath: (args[1] as NSString).expandingTildeInPath)
     try FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-    let r = try await store.exportWebPage(title: title, ids: ids, clusters: clusters, options: .init(includeSources: !noSources, makeZip: !noZip), to: out) { done, total in
-        FileHandle.standardError.write(Data("\r  \(done) of \(total)".utf8))
+    let tick: @Sendable (Int, Int) -> Void = { done, total in FileHandle.standardError.write(Data("\r  \(done) of \(total)".utf8)) }
+    let r: WebExportReport
+    switch format {
+    case "html": r = try await store.exportSingleFile(title: title, ids: ids, clusters: clusters, includeSources: !noSources, to: out, progress: tick)
+    case "pdf": r = try await store.exportPDF(title: title, ids: ids, clusters: clusters, includeSources: !noSources, to: out, progress: tick)
+    default: r = try await store.exportWebPage(title: title, ids: ids, clusters: clusters, options: .init(includeSources: !noSources, makeZip: !noZip), to: out, progress: tick)
     }
-    print("\nExported \(r.exported) items (\(r.thumbnailOnly) thumbnail-only, \(r.skipped) skipped), \(r.bytes / 1_000_000) MB → \(r.folder.path)")
+    if let f = r.file { print("\nFile: \(f.path)") }
+    print("\nExported \(r.exported) items (\(r.thumbnailOnly) thumbnail-only, \(r.skipped) skipped), \(r.bytes / 1_000_000) MB" + (r.file == nil ? " → \(r.folder.path)" : ""))
     if let z = r.zip { print("Zip: \(z.path)") }
 } catch {
     print("error: \((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)")

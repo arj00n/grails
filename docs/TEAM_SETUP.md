@@ -55,5 +55,9 @@ In Drive for desktop ▸ Preferences ▸ Google Drive, choose how the shared dri
 - Each library is a workspace. Switch from the top of the sidebar (⌃1–⌃9), add one with Add Workspace, colour them from the right-click menu.
 - **Invite a teammate**: Copy Invite Link, send it. When they open it, Grails asks them to pick the synced `.grails` folder and checks it is the same library.
 - **Link to something**: right-click a collection, tag or item ▸ Copy Link, or ⌥⌘L for the current view. Teammates with the library open straight to it.
-- **Share outside the team**: File ▸ Export as Web Page… (⌥⌘E) makes a folder and a zip. Open `index.html` to check it, then upload the folder to any static host
-  or send the zip. It is a snapshot; export again to update it.
+- **Share outside the team**: File ▸ Export View As ▸ **Single HTML File** (one file with every picture inside: send it, drop it in chat, open it anywhere),
+  **PDF** (a cover and slide-sized pages, source links clickable) or **Web Page Folder** (a folder and zip you can put on any static host). Nothing is uploaded
+  by Grails, and the pages ask search engines not to index them. It is a snapshot; export again to update it.
+- **Clickable links in chat**: put `docs/router/index.html` on a web page you own (for example `https://example.com/grails/open/`), then enter that address as
+  *Link page* in Settings ▸ Library. Copy Link then gives a web address that chat apps make clickable; opening it hands the link to the app. The link's details
+  stay after the `#`, so the host never sees them.

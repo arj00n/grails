@@ -1,6 +1,6 @@
 # Progress
 
-## Status: M0–M5 done → **v0.1.0 cut locally (not pushed or published)**. Since then: simpler UI + continuous zoom, infinite canvas, local auto-tagging (below). Next: M6 media formats (Phase 2). Waiting on Arjun: publish v0.1.0?
+## Status: renamed Grails (was Stash). M0–M5 done → v0.1.0 cut locally (not pushed or published). Since then: continuous zoom, canvas clusters, local auto-tagging, X/Pinterest/Are.na import, workspaces, links and file exports. Next: M6 media formats.
 
 ## Workspaces and sharing — 2026-10-05
 - **Workspaces** = libraries, now first-class: a registry (`Workspace`: library id, folder, colour, your own order) instead of 6 recents. Sidebar top is a
@@ -8,9 +8,13 @@
 - **Links**: `grails://open?lib=<library id>&c=|t=|i=` (`GrailsLink`) for a library (invite), collection, tag or item; Copy Link in the sidebar and item menus,
   File ▸ Copy Link to This View (⌥⌘L), Copy Invite Link, Join with Link…. The link carries the library id, not a path: a Mac that has the library switches to it,
   one that doesn't is asked to pick the synced folder and it's checked against the id. `grails://` is registered in Info.plist; `GrailsAppDelegate` also opens `.grails` folders.
-- **Web page export** (`Share/WebExport.swift`, File ▸ Export as Web Page… ⌥⌘E, `grails-share` CLI): a folder + zip with `index.html` (grid with titled sections, canvas
-  view with pan/zoom for clusters, lightbox, source links optional), `data.js`, `media/` (pictures at ≤1600 px, GIF/SVG as is, videos ≤40 MB) and `thumbs/`.
-  Nothing is uploaded: you drop the folder on any static host (Cloudflare Pages, Netlify Drop, GitHub Pages) or send the zip.
+- **Exports** (`Share/`, File ▸ Export View As / Export Selection As, ⌥⌘E, `grails-share --format folder|html|pdf`): **single HTML file** (everything inlined, 1100 px
+  pictures, short clips), **PDF** (cover + slide-sized pages per cluster, clickable source links) and a **web folder + zip** (≤1600 px pictures, videos ≤40 MB). The page has
+  a grid with titled sections, a canvas view with pan/zoom, a lightbox and optional source links, and asks search engines not to index it. Nothing is uploaded.
+- **Link page**: `docs/router/index.html` on your own site turns `https://…/open#lib=…` into `grails://open?…`; set its address under Settings ▸ Library ▸ Link page and
+  Copy Link makes clickable web links (details stay after the `#`, never sent to the host).
+- **Renamed from Stash to Grails** (bundle `xyz.arjoon.grails`, scheme `grails://`, libraries `.grails`; `.stash` libraries, `stash://` links, old preferences and the
+  extension pairing token still carry over).
 
 ## X posts, in-place cluster rename, similar-tag merging, smooth grid zoom — 2026-10-05
 - **Grid zoom** glides tiles between column counts (fractional column count in `TileLayout`, tiles lerp between the two neighbouring whole-column

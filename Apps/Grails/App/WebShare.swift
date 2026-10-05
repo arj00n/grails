@@ -2,8 +2,16 @@ import AppKit
 import GrailsKit
 
 /// Share a view as a web page: a folder (and zip) anyone can open in a browser, with no Grails and no login.
+enum ShareFormat: String, CaseIterable, Identifiable {
+    case html, pdf, folder
+    var id: String { rawValue }
+    var menuTitle: String {
+        switch self { case .html: "Single HTML File…"; case .pdf: "PDF…"; case .folder: "Web Page Folder…" }
+    }
+}
+
 extension AppModel {
-    func exportWebPage(selectionOnly: Bool = false) {
+    func exportWebPage(selectionOnly: Bool = false, format: ShareFormat = .html) {
         guard boardImportTask == nil else { showToast("Another job is already running"); return }
         guard let store else { return }
         let ids = selectionOnly ? items.filter { selection.contains($0.id) }.map(\.id) : items.map(\.id)
@@ -28,11 +36,16 @@ extension AppModel {
         boardImportTask = Task {
             defer { model.boardImport = nil; model.boardImportTask = nil }
             do {
-                let report = try await store.exportWebPage(title: name, ids: ids, clusters: clusters, to: parent) { done, total in
-                    Task { @MainActor in model.boardImport = (label, done, total) }
+                let tick: @Sendable (Int, Int) -> Void = { done, total in Task { @MainActor in model.boardImport = (label, done, total) } }
+                let report: WebExportReport
+                switch format {
+                case .html: report = try await store.exportSingleFile(title: name, ids: ids, clusters: clusters, to: parent, progress: tick)
+                case .pdf: report = try await store.exportPDF(title: name, ids: ids, clusters: clusters, to: parent, progress: tick)
+                case .folder: report = try await store.exportWebPage(title: name, ids: ids, clusters: clusters, to: parent, progress: tick)
                 }
-                NSWorkspace.shared.activateFileViewerSelecting([report.zip ?? report.folder])
+                NSWorkspace.shared.activateFileViewerSelecting([report.file ?? report.zip ?? report.folder])
                 var text = "Exported \(report.exported) item\(report.exported == 1 ? "" : "s")"
+                if report.bytes > 0 { text += " (\(ByteCountFormatter.string(fromByteCount: report.bytes, countStyle: .file)))" }
                 if report.thumbnailOnly > 0 { text += ", \(report.thumbnailOnly) as thumbnails (not downloaded on this Mac)" }
                 model.showToast(text, seconds: 5)
             } catch is CancellationError {

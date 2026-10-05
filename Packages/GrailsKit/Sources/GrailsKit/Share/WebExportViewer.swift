@@ -2,9 +2,13 @@ import Foundation
 
 /// The page a web export opens: one self-contained HTML file (no network, no libraries) that reads `data.js`.
 enum WebExportViewer {
-    static func html(title: String) -> String {
+    /// `inlineData`: the page's JSON, carried inside the file (single-file export); nil loads `data.js` next to the page.
+    static func html(title: String, inlineData: String?) -> String {
         let safe = title.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
-        return page.replacingOccurrences(of: "{{TITLE}}", with: safe)
+        var out = page.replacingOccurrences(of: "{{TITLE}}", with: safe)
+        let tag = #"<script src="data.js"></script>"#
+        if let inlineData { out = out.replacingOccurrences(of: tag, with: "<script>window.GRAILS_SHARE = " + inlineData + ";</script>") }
+        return out
     }
 
     private static let page = #"""
@@ -13,6 +17,7 @@ enum WebExportViewer {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
 <title>{{TITLE}}</title>
 <style>
 :root { color-scheme: dark; --fg: rgba(255,255,255,.92); --dim: rgba(255,255,255,.55); --faint: rgba(255,255,255,.12); }
@@ -104,7 +109,7 @@ footer { position: fixed; z-index: 10; right: 14px; bottom: 10px; font-size: 11p
     stage.textContent = ""; bar.textContent = "";
     var m;
     if (it.video) { m = el("video"); m.src = it.video; m.poster = it.thumb; m.controls = true; m.autoplay = true; m.loop = true; m.playsInline = true; }
-    else { m = el("img"); m.src = it.thumb; m.alt = it.name; var full = new Image(); full.onload = function () { if (D.order[cur] === id) m.src = it.full; }; full.src = it.full; }
+    else { m = el("img"); m.src = it.thumb; m.alt = it.name; if (it.full) { var full = new Image(); full.onload = function () { if (D.order[cur] === id) m.src = it.full; }; full.src = it.full; } }
     stage.appendChild(m);
     bar.appendChild(el("b", null, it.name));
     if (it.author) bar.appendChild(el("span", null, it.author));

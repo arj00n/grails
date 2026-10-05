@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import Testing
 @testable import GrailsKit
@@ -42,5 +43,30 @@ import Testing
         let js2 = try String(contentsOf: again.folder.appendingPathComponent("data.js"), encoding: .utf8)
         #expect(!js2.contains("example.com"))
         #expect(!js2.contains("\"canvas\""))
+    }
+
+    @Test func singleFileAndPDFCarryEverything() async throws {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<6 { items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "q\(i)", rgb: (Double(i) / 6, 0.4, 0.7)), source: ItemSource(pageUrl: "https://example.com/\(i)")).item) }
+        let clusters = [CanvasCluster(id: "a", title: "One", x: 0, y: 0, width: 900, tile: 200, items: items.prefix(3).map(\.id)),
+                        CanvasCluster(id: "b", title: "Two", x: 1000, y: 0, width: 900, tile: 200, items: items.suffix(3).map(\.id))]
+        let out = TestSupport.tempDir()
+
+        let html = try await store.exportSingleFile(title: "Deck", ids: items.map(\.id), clusters: clusters, to: out)
+        let file = try #require(html.file)
+        #expect(file.pathExtension == "html")
+        let text = try String(contentsOf: file, encoding: .utf8)
+        #expect(text.contains("data:image/"))
+        #expect(!text.contains("data.js"))
+        #expect(text.contains("noindex"))
+        #expect(!FileManager.default.fileExists(atPath: out.appendingPathComponent("Deck").path))   // no loose folder left behind
+
+        let pdf = try await store.exportPDF(title: "Deck", ids: items.map(\.id), clusters: clusters, to: out)
+        let pdfURL = try #require(pdf.file)
+        #expect(pdfURL.pathExtension == "pdf")
+        let doc = try #require(CGPDFDocument(pdfURL as CFURL))
+        #expect(doc.numberOfPages >= 3)         // cover + one page per cluster
     }
 }

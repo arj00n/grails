@@ -38,7 +38,20 @@ public struct GrailsLink: Equatable, Sendable {
         return c.url ?? URL(string: "grails://open")!
     }
 
+    /// The same link as a web address on a page you host (`docs/router/index.html`): the details ride in the `#` part, so the
+    /// host never sees them, and the page hands them to the app. Chat apps make these clickable; they don't for `grails://`.
+    public func webURL(page: URL) -> URL {
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery ?? ""
+        return URL(string: page.absoluteString.split(separator: "#").first.map(String.init)! + "#" + query) ?? page
+    }
+
     public init?(url: URL) {
+        // a router-page address: take the details from after the #
+        if ["http", "https"].contains(url.scheme?.lowercased() ?? ""), let fragment = url.fragment, !fragment.isEmpty,
+           let inner = URL(string: "grails://open?" + fragment), let link = GrailsLink(url: inner) {
+            self = link
+            return
+        }
         guard ["grails", "stash"].contains(url.scheme?.lowercased() ?? ""), url.host?.lowercased() == "open",
               let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else { return nil }
         func value(_ k: String) -> String? { items.first { $0.name == k }?.value.flatMap { $0.isEmpty ? nil : $0 } }
