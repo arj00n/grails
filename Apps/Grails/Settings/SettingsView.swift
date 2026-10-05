@@ -3,6 +3,7 @@ import SwiftUI
 
 struct SettingsView: View {
     var model: AppModel
+    var updater: UpdaterController
     @AppStorage("tileSpacing") private var spacing: Double = 8
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage("userHandle") private var handle = GrailsPathsShim.handle
@@ -79,6 +80,16 @@ struct SettingsView: View {
                         Button("Invite…") { model.collab.presentInvite() }.accessibilityIdentifier("settings-invite")
                     }
                 }
+                Section("Updates") {
+                    Toggle("Check automatically", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.setChecksAutomatically($0) }))
+                    HStack {
+                        Button("Check now") { updater.checkForUpdates() }.disabled(!updater.canCheck)
+                        if let d = updater.lastChecked {
+                            Text(d.formatted(.relative(presentation: .named))).foregroundStyle(Ink.secondary).monospacedDigit()
+                        }
+                    }
+                }
+                .disabled(!updater.isAvailable)
             }
             .tabItem { Label("Library", systemImage: "books.vertical") }
 

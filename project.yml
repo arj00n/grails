@@ -14,6 +14,9 @@ settings:
 packages:
   GrailsKit:
     path: Packages/GrailsKit
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
 targets:
   Grails:
     type: application
@@ -32,6 +35,7 @@ targets:
       - package: GrailsKit
       - package: GrailsKit
         product: GrailsDesign
+      - package: Sparkle
     info:
       path: Config/Grails-Info.plist
       properties:
@@ -43,6 +47,11 @@ targets:
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
+        SUFeedURL: https://grails.arjoon.xyz/appcast.xml
+        SUPublicEDKey: /4dorZV2EzPZZOFitvANmGhVsMO+SjyjXjt563um8P0=
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+        SUAllowsAutomaticUpdates: false
         CFBundleURLTypes:
           - CFBundleURLName: xyz.arjoon.grails
             CFBundleURLSchemes: [grails, stash]

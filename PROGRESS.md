@@ -2,6 +2,12 @@
 
 ## Status: renamed Grails (was Stash). M0–M5 done → v0.1.0 cut locally (not pushed or published). Since then: continuous zoom, canvas clusters, local auto-tagging, X/Pinterest/Are.na import, workspaces, links and file exports. Next: M6 media formats.
 
+## Updates (Sparkle 2) — 2026-10-06
+- Grails checks `https://grails.arjoon.xyz/appcast.xml` daily and on Grails ▸ Check for Updates…; Settings ▸ Library ▸ Updates has the toggle, Check now and
+  the last check. EdDSA-signed DMGs, nothing installs without asking, off in `GRAILS_*_DEMO` runs. `Scripts/release.sh` cuts a release; `docs/UPDATES.md`.
+- Verified with a local feed: an older ad-hoc copy found, downloaded, validated and installed a newer ad-hoc DMG; a tampered signature was rejected.
+  Not yet published: the DMG host (private GitHub repo vs the site) is still open.
+
 ## Workspaces and sharing — 2026-10-05
 - **Workspaces** = libraries, now first-class: a registry (`Workspace`: library id, folder, colour, your own order) instead of 6 recents. Sidebar top is a
   popover (coloured tile, ⌃1–⌃9 via the Workspace menu, Locate for a folder that isn't mounted, colour / Show in Finder / Remove from List).

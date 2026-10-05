@@ -12,6 +12,7 @@ Plain static files: no framework, no build step, no npm. Deployed with the Verce
 | `assets/paintings/` | 14 JPEGs + `manifest.json` from `Scripts/gen-paintings.py`; `NOTICE.md` credits them |
 | `assets/fonts/` | Geist and Geist Mono (WOFF2, unmodified), `Geist-OFL.txt` |
 | `download/` | The DMG and the extension zip (deployed) |
+| `appcast.xml` | The app's update feed (Sparkle); `Scripts/release.sh` adds each release, see `docs/UPDATES.md` |
 | `tools/` | Pages that render `og.png` and `assets/still-*.png` (not deployed) |
 
 ## Preview
