@@ -18,25 +18,27 @@ public enum LibraryFinder {
             starts.append(a.root.appendingPathComponent(DriveFolderNames.shortcutTargets, isDirectory: true))
         }
         starts += otherRoots
+        // breadth first, so a library next to a big, deep folder is found before the walk has spent its time inside that folder
         var seen = Set<String>()
-        func walk(_ dir: URL, depth: Int) -> URL? {
-            guard depth <= 4, Date() < deadline else { return nil }
-            let real = dir.resolvingSymlinksInPath().path
-            guard seen.insert(real).inserted else { return nil }
-            if fm.fileExists(atPath: dir.appendingPathComponent("library.json").path) {
-                return libraryID(at: dir) == id ? dir : nil       // never look inside a library
-            }
+        var queue: [(url: URL, depth: Int)] = starts.map { ($0, 1) }
+        var next = 0
+        while next < queue.count, Date() < deadline {
+            let (dir, depth) = queue[next]
+            next += 1
+            guard seen.insert(dir.resolvingSymlinksInPath().path).inserted else { continue }
             let names = ((try? fm.contentsOfDirectory(atPath: dir.path)) ?? []).filter { !$0.hasPrefix(".") || $0 == DriveFolderNames.shortcutTargets }
             for name in names.sorted() {
                 let url = dir.appendingPathComponent(name, isDirectory: true)
                 var isDir: ObjCBool = false
                 // fileExists follows symlinks, so My Drive shortcuts to shared folders are walked too
                 guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { continue }
-                if let hit = walk(url, depth: depth + 1) { return hit }
+                if fm.fileExists(atPath: url.appendingPathComponent("library.json").path) {
+                    if libraryID(at: url) == id { return url }
+                    continue                                      // never look inside a library
+                }
+                if depth < 4 { queue.append((url, depth + 1)) }
             }
-            return nil
         }
-        for s in starts { if let hit = walk(s, depth: 1) { return hit } }
         return nil
     }
 
