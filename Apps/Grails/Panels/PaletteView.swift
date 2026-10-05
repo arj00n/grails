@@ -63,7 +63,7 @@ struct PaletteView: View {
             }
         }
         .frame(maxWidth: 600)
-        .glassCard(radius: 22)
+        .surfaceCard()
         .task(id: "\(query)|\(refreshToken)") {
             let r = await rows(query)
             guard !Task.isCancelled else { return }

@@ -1,63 +1,104 @@
 import AppKit
+import GrailsDesign
 import SwiftUI
 
-/// The look: flat. Black underneath, solid surfaces with hairline edges, white as the only accent. Nothing blurs or floats;
-/// panels are docked, and the life is in the hover fills and the small symbol animations.
+/// The look: flat and quiet, Are.na's greys. Pictures are the only colour; chrome is solid surfaces with hairline edges and one
+/// signal colour for focus. Values live in GrailsDesign (`Palette`); here they become dynamic colours that follow light and dark.
+
+extension NSColor {
+    /// A token as a colour that resolves itself for whichever appearance it is drawn in.
+    static func ink(_ token: Token) -> NSColor {
+        NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let c = Palette.rgb(token, dark: dark)
+            return NSColor(srgbRed: c.r, green: c.g, blue: c.b, alpha: 1)
+        }
+    }
+
+    /// For CALayers, which don't follow appearance by themselves: the colour as it looks in `view`'s appearance right now.
+    func cgColor(in view: NSView) -> CGColor {
+        var out = cgColor
+        view.effectiveAppearance.performAsCurrentDrawingAppearance { out = self.cgColor }
+        return out
+    }
+
+    /// On top of pictures (captions, badges, the heart): readable on any image, in either theme.
+    static let onImage = NSColor.white
+    static let onImageScrim = NSColor.black.withAlphaComponent(0.58)
+}
 
 enum Ink {
-    static let canvas = Color.black
-    static let surface = Color(white: 0.06)
-    static let raised = Color(white: 0.10)
-    static let hairline = Color.white.opacity(0.09)
-    static let fill = Color.white.opacity(0.06)
-    static let fillHover = Color.white.opacity(0.12)
-    static let text = Color.white.opacity(0.92)
-    static let secondary = Color.white.opacity(0.55)
-    static let tertiary = Color.white.opacity(0.32)
-    static let radius: CGFloat = 8
+    static let canvas = Color(nsColor: .ink(.canvas))
+    static let surface = Color(nsColor: .ink(.surface))
+    static let fill = Color(nsColor: .ink(.fill))
+    static let fillHover = Color(nsColor: .ink(.fillStrong))
+    static let hairline = Color(nsColor: .ink(.hairline))
+    static let text = Color(nsColor: .ink(.text))
+    static let link = Color(nsColor: .ink(.link))
+    static let secondary = Color(nsColor: .ink(.secondary))
+    static let tertiary = Color(nsColor: .ink(.tertiary))
+    static let focus = Color(nsColor: .ink(.focus))
+    static let positive = Color(nsColor: .ink(.positive))
+    static let destructive = Color(nsColor: .ink(.destructive))
+    static let alert = Color(nsColor: .ink(.alert))
+
+    /// Controls and bar buttons, chips, menus and cards, tiles.
+    static let radius: CGFloat = 4
+    static let chipRadius: CGFloat = 3
+    static let cardRadius: CGFloat = 6
+    static let tileRadius: CGFloat = 3
+}
+
+/// A card that floats over content (palette, dialogs, recent searches): a hairline edge and, only here, a shadow.
+private struct SurfaceCard: ViewModifier {
+    var radius: CGFloat
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        content
+            .background(Ink.surface, in: shape)
+            .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 1))
+            .shadow(color: .black.opacity(scheme == .dark ? 0.5 : 0.08), radius: scheme == .dark ? 12 : 10, y: scheme == .dark ? 8 : 0)
+    }
 }
 
 extension View {
-    /// A flat dark surface with a hairline edge.
-    func glass<S: InsettableShape>(in shape: S, interactive: Bool = false) -> some View {
-        self.background(Ink.raised, in: shape)
-            .overlay(shape.strokeBorder(Ink.hairline, lineWidth: 1))
+    func surfaceCard(radius: CGFloat = Ink.cardRadius) -> some View { modifier(SurfaceCard(radius: radius)) }
+
+    /// A small rectangular chip background.
+    func chipSurface(selected: Bool = false) -> some View {
+        self.background(selected ? Ink.fillHover : Ink.fill, in: RoundedRectangle(cornerRadius: Ink.chipRadius, style: .continuous))
     }
 
-    /// Menus, dialogs and the palette: a raised flat card.
-    func glassCard(radius: CGFloat = 12) -> some View {
-        self.glass(in: RoundedRectangle(cornerRadius: min(radius, 12), style: .continuous))
-            .shadow(color: .black.opacity(0.35), radius: 14, y: 6)
+    /// Hover in is immediate; hover out eases for a tenth of a second.
+    func hoverState(_ hovering: Binding<Bool>) -> some View {
+        onHover { inside in
+            if inside { hovering.wrappedValue = true } else { withAnimation(.easeOut(duration: Motion.quick)) { hovering.wrappedValue = false } }
+        }
     }
-
-    func glassPill(interactive: Bool = false) -> some View { self.glass(in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous)) }
 }
 
-/// An icon that brightens and gives a small bounce under the pointer; the building block of every bar button.
+/// An icon that brightens under the pointer; the building block of every bar button.
 struct BarIcon: View {
     let symbol: String
     var active = false
-    var size: CGFloat = 30
+    var size: CGFloat = 28
     @State private var hovering = false
-    @State private var bump = 0
 
     var body: some View {
         Image(systemName: symbol)
-            .font(.system(size: 14, weight: .medium))
-            .symbolEffect(.bounce, options: .speed(1.4), value: bump)
-            .symbolEffect(.bounce, options: .speed(1.4), value: active)
+            .font(.system(size: 14, weight: .regular))
             .foregroundStyle(active || hovering ? Ink.text : Ink.secondary)
             .frame(width: size, height: size)
             .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(active ? Ink.fillHover : (hovering ? Ink.fill : .clear)))
             .contentShape(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
-            .onHover { h in hovering = h; if h { bump += 1 } }
-            .animation(.easeOut(duration: 0.14), value: hovering)
-            .animation(.easeOut(duration: 0.14), value: active)
+            .hoverState($hovering)
     }
 }
 
 /// A button in the bar.
-struct GlassIconButton: View {
+struct BarButton: View {
     let symbol: String
     var selected = false
     var help: String = ""
@@ -73,13 +114,25 @@ struct GlassIconButton: View {
     }
 }
 
+/// The one filled button: text on black in light, black on white in dark (Are.na's own call-to-action).
+struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(Ink.canvas)
+            .padding(.horizontal, 12).frame(height: 28)
+            .background(Ink.text.opacity(enabled ? (configuration.isPressed ? 0.8 : 1) : 0.3), in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
+    }
+}
+
 private struct OptionalIdentifier: ViewModifier {
     let id: String?
     func body(content: Content) -> some View { if let id { content.accessibilityIdentifier(id) } else { content } }
 }
 
 /// The search field: an NSSearchField underneath (so it behaves like one everywhere, including accessibility).
-struct GlassSearchField: NSViewRepresentable {
+struct SearchField: NSViewRepresentable {
     @Binding var text: String
     var focusTick: Int
     @Binding var isFocused: Bool
@@ -95,10 +148,10 @@ struct GlassSearchField: NSViewRepresentable {
         // The cell's own magnifier and clear button don't track the text when the field is focused: the icon stays put and the
         // cursor ends up underneath it. The bar draws its own icon and clear button instead.
         if let cell = f.cell as? NSSearchFieldCell { cell.searchButtonCell = nil; cell.cancelButtonCell = nil }
-        f.font = .systemFont(ofSize: 14)
-        f.textColor = NSColor.white.withAlphaComponent(0.92)
+        f.font = .systemFont(ofSize: 13)
+        f.textColor = .ink(.text)
         f.placeholderAttributedString = NSAttributedString(
-            string: "Search", attributes: [.foregroundColor: NSColor.white.withAlphaComponent(0.38), .font: NSFont.systemFont(ofSize: 14)])
+            string: "Search", attributes: [.foregroundColor: NSColor.ink(.secondary), .font: NSFont.systemFont(ofSize: 13)])
         f.sendsSearchStringImmediately = true
         f.delegate = context.coordinator
         f.setAccessibilityIdentifier("search-field")
@@ -116,16 +169,16 @@ struct GlassSearchField: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, NSSearchFieldDelegate {
-        var parent: GlassSearchField
+        var parent: SearchField
         var lastTick: Int
-        init(_ p: GlassSearchField) { parent = p; lastTick = p.focusTick }
+        init(_ p: SearchField) { parent = p; lastTick = p.focusTick }
 
         func controlTextDidChange(_ obj: Notification) {
             if let f = obj.object as? NSSearchField, parent.text != f.stringValue { parent.text = f.stringValue }
         }
         func controlTextDidBeginEditing(_ obj: Notification) {
             parent.isFocused = true
-            (obj.userInfo?["NSFieldEditor"] as? NSTextView)?.insertionPointColor = .white
+            (obj.userInfo?["NSFieldEditor"] as? NSTextView)?.insertionPointColor = .ink(.focus)
         }
         func controlTextDidEndEditing(_ obj: Notification) { parent.isFocused = false }
 
@@ -165,7 +218,7 @@ struct WindowChrome: NSViewRepresentable {
             w.titlebarAppearsTransparent = true
             w.styleMask.insert(.fullSizeContentView)
             w.isMovableByWindowBackground = true
-            w.backgroundColor = .black
+            w.backgroundColor = .ink(.canvas)
             w.toolbar = nil
             measure()
             for name in [NSWindow.didResizeNotification, NSWindow.didEnterFullScreenNotification, NSWindow.didExitFullScreenNotification, NSWindow.didBecomeKeyNotification] {
@@ -178,7 +231,7 @@ struct WindowChrome: NSViewRepresentable {
         private var observers: [NSObjectProtocol] = []
 
         /// The top bar's centre line (also where the traffic lights are moved to) and the left edge their group starts at.
-        static let barCenterY: CGFloat = 26
+        static let barCenterY: CGFloat = 22
         static let leftInset: CGFloat = 14
 
         private func measure() {

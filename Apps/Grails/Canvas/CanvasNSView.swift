@@ -1,4 +1,5 @@
 import AppKit
+import GrailsDesign
 import QuartzCore
 import GrailsKit
 
@@ -158,14 +159,15 @@ final class CanvasNSView: NSView {
 
     private func refreshColors() {
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            let accent = NSColor.white.withAlphaComponent(0.92).cgColor
-            overlay.strokeColor = accent
-            marqueeLayer.strokeColor = accent
-            marqueeLayer.fillColor = NSColor.white.withAlphaComponent(0.08).cgColor
-            dropOutline.strokeColor = NSColor.white.withAlphaComponent(0.55).cgColor
-            dust.color = NSColor.white.withAlphaComponent(0.18).cgColor
-            layer?.backgroundColor = NSColor.black.cgColor
+            overlay.strokeColor = NSColor.ink(.text).cgColor
+            marqueeLayer.strokeColor = NSColor.ink(.focus).cgColor
+            marqueeLayer.fillColor = NSColor.ink(.focus).withAlphaComponent(0.08).cgColor
+            dropOutline.strokeColor = NSColor.ink(.focus).cgColor
+            dust.color = NSColor.ink(.fill).cgColor
+            layer?.backgroundColor = NSColor.ink(.canvas).cgColor
+            for l in layers.values { l.restyle(scale: scale) }
         }
+        if !headers.isEmpty { syncHeaders() }
     }
 
     override func viewDidMoveToWindow() {
@@ -225,7 +227,7 @@ final class CanvasNSView: NSView {
     }
 
     /// Tiles that were already on screen slide from where they were drawn to where the new layout puts them.
-    private func glide(from before: [String: Drawn], duration: CFTimeInterval = 0.32) {
+    private func glide(from before: [String: Drawn], duration: CFTimeInterval = Motion.flight) {
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         for (id, was) in before {
@@ -372,7 +374,7 @@ final class CanvasNSView: NSView {
     private func refreshDust() {
         guard entries.count > 500 else { dust.isHidden = true; dust.rects = []; return }
         dust.isHidden = false
-        dust.color = NSColor.white.withAlphaComponent(0.18).cgColor
+        dust.color = NSColor.ink(.fill).cgColor
         dust.setWorldRects(entries.map(\.rect), contentsScale: backing)
     }
 
@@ -445,7 +447,7 @@ final class CanvasNSView: NSView {
         if animated { animate(to: (o, s)) } else { origin = o; scale = s; applyViewport() }
     }
 
-    func animate(to target: (CGPoint, CGFloat), duration: CFTimeInterval = 0.3) {
+    func animate(to target: (CGPoint, CGFloat), duration: CFTimeInterval = Motion.flight) {
         animationLink?.invalidate()
         animation = (from: (origin, scale), to: target, start: CACurrentMediaTime(), duration: duration)
         let link = displayLink(target: self, selector: #selector(animationTick(_:)))
@@ -1187,7 +1189,7 @@ final class CanvasItemLayer: CALayer {
         super.init()
         masksToBounds = true
         cornerRadius = 0
-        backgroundColor = NSColor.white.withAlphaComponent(0.08).cgColor
+        backgroundColor = NSColor.ink(.fill).cgColor
         contentsGravity = .resizeAspectFill
         magnificationFilter = .trilinear
         minificationFilter = .trilinear
@@ -1204,9 +1206,18 @@ final class CanvasItemLayer: CALayer {
         contents = nil
     }
 
+    private var selectedNow = false
+
     func setSelected(_ on: Bool, scale: CGFloat) {
-        borderWidth = on ? 2.5 / max(scale, 0.0001) : 0
-        borderColor = NSColor.white.withAlphaComponent(0.92).cgColor
+        selectedNow = on
+        borderWidth = on ? 2 / max(scale, 0.0001) : 0
+        borderColor = NSColor.ink(.text).cgColor
+    }
+
+    /// After a light/dark switch: layers keep the colours they were given, so give them again.
+    func restyle(scale: CGFloat) {
+        backgroundColor = NSColor.ink(.fill).cgColor
+        setSelected(selectedNow, scale: scale)
     }
 
     private func updateTitle() {
@@ -1217,7 +1228,7 @@ final class CanvasItemLayer: CALayer {
         t.alignmentMode = .center
         t.isWrapped = true
         t.truncationMode = .end
-        t.foregroundColor = NSColor.labelColor.cgColor
+        t.foregroundColor = NSColor.ink(.text).cgColor
         t.contentsScale = contentsScale
         t.frame = bounds.insetBy(dx: 10, dy: bounds.height * 0.3)
         t.actions = ["position": NSNull(), "bounds": NSNull(), "contents": NSNull()]
@@ -1286,7 +1297,7 @@ final class ClusterHeaderLayer: CALayer {
         text.truncationMode = .end
         text.alignmentMode = .left
         grip.fillColor = nil
-        grip.strokeColor = NSColor.white.withAlphaComponent(0.32).cgColor
+        grip.strokeColor = NSColor.ink(.secondary).cgColor
         grip.lineWidth = 1.4
         grip.lineCap = .round
         grip.lineJoin = .round
@@ -1301,10 +1312,10 @@ final class ClusterHeaderLayer: CALayer {
         let s = NSMutableAttributedString()
         s.append(NSAttributedString(string: title.isEmpty ? "Untitled" : title, attributes: [
             .font: NSFont.systemFont(ofSize: 14, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(title.isEmpty ? 0.34 : 0.92),
+            .foregroundColor: NSColor.ink(title.isEmpty ? .secondary : .text),
         ]))
         s.append(NSAttributedString(string: "  \(count)", attributes: [
-            .font: NSFont.systemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.white.withAlphaComponent(0.40),
+            .font: NSFont.systemFont(ofSize: 11, weight: .regular), .foregroundColor: NSColor.ink(.secondary),
         ]))
         text.string = s
         text.contentsScale = contentsScale

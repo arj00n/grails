@@ -102,7 +102,7 @@ struct SidebarView: View {
                     }
                 } header: {
                     HStack(spacing: 6) {
-                        Button { withAnimation(.smooth(duration: 0.2)) { expandTags.toggle() } } label: {
+                        Button { expandTags.toggle() } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                                     .rotationEffect(.degrees(expandTags ? 90 : 0)).frame(width: 10)
@@ -126,7 +126,7 @@ struct SidebarView: View {
         .scrollContentBackground(.hidden)
         .listRowSeparator(.hidden)
         .listSectionSeparator(.hidden)
-        .environment(\.defaultMinListRowHeight, 30)
+        .environment(\.defaultMinListRowHeight, 28)
         .accessibilityIdentifier("sidebar")
     }
 }
@@ -144,23 +144,20 @@ struct SidebarRow: View {
     var tint: Color?
     var count: Int?
     @State private var hovering = false
-    @State private var bump = 0
 
     var body: some View {
         Label {
             HStack {
                 Text(title).lineLimit(1).foregroundStyle(Ink.text)
                 Spacer()
-                if let count { Text(count.formatted()).foregroundStyle(hovering ? Ink.secondary : Ink.tertiary).font(.caption).monospacedDigit() }
+                if let count { Text(count.formatted()).foregroundStyle(Ink.secondary).font(.caption).monospacedDigit() }
             }
         } icon: {
             Image(systemName: symbol).foregroundStyle(tint ?? (hovering ? Ink.text : Ink.secondary))
-                .symbolEffect(.bounce, options: .speed(1.4), value: bump)
         }
         .padding(.vertical, 2)
         .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(hovering ? Ink.fill : .clear).padding(.horizontal, -6))
-        .onHover { h in hovering = h; if h { bump += 1 } }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .hoverState($hovering)
         .listRowSeparator(.hidden)
     }
 }

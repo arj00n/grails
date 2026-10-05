@@ -1,4 +1,5 @@
 import AppKit
+import GrailsDesign
 import GrailsKit
 import SwiftUI
 import UniformTypeIdentifiers
@@ -8,7 +9,6 @@ struct GridView: NSViewRepresentable {
     /// Clear space above the first row, for the floating top bar.
     var topInset: CGFloat = 0
     @AppStorage("tileSpacing") private var spacing: Double = 8
-    @AppStorage("cornerRadius") private var cornerRadius: Double = 12
     @AppStorage("showAddedBy") private var showAddedBy = false
 
     func makeCoordinator() -> Coordinator { Coordinator(model: model) }
@@ -72,7 +72,7 @@ struct GridView: NSViewRepresentable {
     }
 
     func updateNSView(_ view: NSView, context: Context) {
-        context.coordinator.update(model: model, spacing: spacing, cornerRadius: cornerRadius, showAddedBy: showAddedBy)
+        context.coordinator.update(model: model, spacing: spacing, cornerRadius: Ink.tileRadius, showAddedBy: showAddedBy)
     }
 
     @MainActor
@@ -115,14 +115,14 @@ struct GridView: NSViewRepresentable {
 
         // MARK: SwiftUI → AppKit
 
-        func update(model: AppModel, spacing: Double, cornerRadius: Double, showAddedBy: Bool) {
+        func update(model: AppModel, spacing: Double, cornerRadius: CGFloat, showAddedBy: Bool) {
             self.model = model
             guard let cv = collectionView else { return }
             let sections = model.gridSections
             useSections = sections != nil
             let needsData = version != model.itemsVersion || sectionsSeen != model.sectionsVersion || layout != model.layout
             let spacingChanged = squareLayout.spacing != CGFloat(spacing)
-            let radiusChanged = self.cornerRadius != CGFloat(cornerRadius)
+            let radiusChanged = self.cornerRadius != cornerRadius
             let modeChanged = mode != model.layoutMode
             let avatarsChanged = self.showAddedBy != showAddedBy
             self.showAddedBy = showAddedBy
@@ -130,7 +130,7 @@ struct GridView: NSViewRepresentable {
             scrollTick = model.scrollResetTick
             let keptOrigin = cv.enclosingScrollView?.contentView.bounds.origin
 
-            self.cornerRadius = CGFloat(cornerRadius)
+            self.cornerRadius = cornerRadius
             layout = model.layout
             mode = model.layoutMode
             for l in [squareLayout, masonryLayout, sectionedLayout] as [TileLayout] { l.spacing = CGFloat(spacing) }
@@ -297,7 +297,7 @@ struct GridView: NSViewRepresentable {
             let from = columnsNow, to = CGFloat(columns)
             if abs(to - from) < 0.001 { finishZoom(columns: columns); return }
             setColumns(from)
-            let duration = min(0.5, 0.28 + 0.09 * Double(abs(to - from)))
+            let duration = Motion.zoomGlide(columnsChanged: Double(abs(to - from)))
             zoomAnimation = ZoomAnimation(from: from, to: to, start: CACurrentMediaTime(), duration: duration, anchor: anchor)
             guard let cv = collectionView else { return }
             let link = cv.displayLink(target: self, selector: #selector(zoomTick(_:)))

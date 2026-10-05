@@ -6,6 +6,7 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "GrailsKit", targets: ["GrailsKit"]),
+        .library(name: "GrailsDesign", targets: ["GrailsDesign"]),
         .executable(name: "grails-fixture", targets: ["grails-fixture"]),
         .executable(name: "grails-tags", targets: ["grails-tags"]),
         .executable(name: "grails-import", targets: ["grails-import"]),
@@ -16,10 +17,12 @@ let package = Package(
     ],
     targets: [
         .target(name: "GrailsKit", dependencies: [.product(name: "GRDB", package: "GRDB.swift")]),
+        .target(name: "GrailsDesign"),
         .executableTarget(name: "grails-fixture", dependencies: ["GrailsKit"]),
         .executableTarget(name: "grails-tags", dependencies: ["GrailsKit"]),
         .executableTarget(name: "grails-import", dependencies: ["GrailsKit"]),
         .executableTarget(name: "grails-share", dependencies: ["GrailsKit"]),
         .testTarget(name: "GrailsKitTests", dependencies: ["GrailsKit"]),
+        .testTarget(name: "GrailsDesignTests", dependencies: ["GrailsDesign"]),
     ]
 )

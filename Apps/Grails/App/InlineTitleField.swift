@@ -10,18 +10,17 @@ final class InlineTitleField: NSTextField, NSTextFieldDelegate {
         super.init(frame: .zero)
         stringValue = text
         self.font = font
-        textColor = NSColor.white.withAlphaComponent(0.95)
+        textColor = .ink(.text)
         isBordered = false
         isBezeled = false
         drawsBackground = true
-        backgroundColor = NSColor.white.withAlphaComponent(0.12)
+        backgroundColor = .ink(.fill)
         focusRingType = .none
         usesSingleLineMode = true
         cell?.isScrollable = true
         lineBreakMode = .byClipping
-        appearance = NSAppearance(named: .darkAqua)
         wantsLayer = true
-        layer?.cornerRadius = 6
+        layer?.cornerRadius = Ink.radius
         delegate = self
     }
 
@@ -33,7 +32,7 @@ final class InlineTitleField: NSTextField, NSTextFieldDelegate {
         parent.addSubview(self)
         parent.window?.makeFirstResponder(self)
         if let editor = currentEditor() as? NSTextView {
-            editor.insertionPointColor = .white
+            editor.insertionPointColor = .ink(.focus)
             editor.selectAll(nil)
         }
     }

@@ -35,7 +35,7 @@ struct PreviewOverlay: View {
             }
             if downloading {
                 VStack { HStack(spacing: 8) { ProgressView().controlSize(.small); Text("Downloading original…").font(.callout) }
-                    .padding(.horizontal, 14).padding(.vertical, 8).glassPill(); Spacer() }
+                    .padding(.horizontal, 14).padding(.vertical, 8).chipSurface(); Spacer() }
                     .padding(.top, 24)
             }
             VStack(spacing: 10) {
@@ -43,7 +43,7 @@ struct PreviewOverlay: View {
                 if let s = summary {
                     Text(s.name).font(.callout).foregroundStyle(Ink.text)
                         .padding(.horizontal, 14).padding(.vertical, 7)
-                        .glassPill()
+                        .chipSurface()
                     if s.kind == .link {
                         Button { model.openLinkInBrowser(s.id) } label: { Label("Open page", systemImage: "safari") }
                             .buttonStyle(.borderedProminent)
@@ -91,7 +91,7 @@ struct PreviewOverlay: View {
                 }
                 .scrollIndicators(.never)
                 .frame(width: 340)
-                .glassCard()
+                .surfaceCard()
                 .padding(12)
                 .onHover { inside in if inside { hideTask?.cancel() } else { scheduleHide() } }
                 .transition(.move(edge: .trailing).combined(with: .opacity))

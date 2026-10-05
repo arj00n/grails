@@ -145,12 +145,11 @@ struct LinkChip<Content: View>: View {
                 .font(.caption)
                 .foregroundStyle(hovering ? Ink.text : Ink.secondary)
                 .padding(.horizontal, 9).padding(.vertical, 4)
-                .background(hovering ? Ink.fillHover : Ink.fill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .animation(.easeOut(duration: 0.12), value: hovering)
+                .background(hovering ? Ink.fillHover : Ink.fill, in: RoundedRectangle(cornerRadius: Ink.chipRadius, style: .continuous))
+                .contentShape(RoundedRectangle(cornerRadius: Ink.chipRadius, style: .continuous))
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
+        .hoverState($hovering)
         .accessibilityLabel(label)
     }
 }

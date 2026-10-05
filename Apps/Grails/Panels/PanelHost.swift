@@ -8,7 +8,7 @@ struct PanelHost: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            Color.black.opacity(0.45).ignoresSafeArea().onTapGesture { model.closePanel() }
+            Ink.canvas.opacity(0.55).ignoresSafeArea().onTapGesture { model.closePanel() }
             Group {
                 switch panel {
                 case .commandK:
@@ -55,13 +55,13 @@ struct NotePanel: View {
             HStack {
                 Spacer()
                 Button("Cancel") { model.closePanel() }.keyboardShortcut(.cancelAction)
-                Button("Save") { save() }.keyboardShortcut(.return, modifiers: .command).buttonStyle(.borderedProminent)
+                Button("Save") { save() }.keyboardShortcut(.return, modifiers: .command).buttonStyle(PrimaryButtonStyle())
                     .disabled(batch && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(16)
         .frame(maxWidth: 480)
-        .glassCard(radius: 22)
+        .surfaceCard()
         .task {
             if !batch, let id = ids.first, let item = try? await model.store?.item(id: id) { text = item.note; original = item.note }
             focused = true

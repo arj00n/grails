@@ -8,11 +8,11 @@ struct WorkspaceAvatar: View {
     var size: CGFloat = 22
 
     var body: some View {
-        RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
-            .fill(hex.map { Color(hex: $0) } ?? Color.white.opacity(0.16))
+        RoundedRectangle(cornerRadius: Ink.tileRadius, style: .continuous)
+            .fill(hex.map { Color(hex: $0) } ?? Ink.fillHover)
             .frame(width: size, height: size)
             .overlay(Text(String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased())
-                .font(.system(size: size * 0.5, weight: .bold)).foregroundStyle(.white.opacity(0.95)))
+                .font(.system(size: size * 0.5, weight: .semibold)).foregroundStyle(hex == nil ? Ink.text : Color.white))
     }
 }
 
@@ -37,8 +37,7 @@ struct WorkspaceSwitcher: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
+        .hoverState($hovering)
         .popover(isPresented: $open, arrowEdge: .bottom) { WorkspaceList(model: model) { open = false } }
         .accessibilityIdentifier("library-switcher")
     }
@@ -113,7 +112,7 @@ private struct HoverRowStyle: ButtonStyle {
     @State private var hovering = false
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(hovering || configuration.isPressed ? Ink.fillHover : .clear))
-            .onHover { hovering = $0 }
+            .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(configuration.isPressed ? Ink.fillHover : (hovering ? Ink.fill : .clear)))
+            .hoverState($hovering)
     }
 }

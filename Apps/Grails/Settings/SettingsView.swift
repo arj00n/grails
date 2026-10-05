@@ -4,9 +4,7 @@ import SwiftUI
 struct SettingsView: View {
     var model: AppModel
     @AppStorage("tileSpacing") private var spacing: Double = 8
-    @AppStorage("cornerRadius") private var cornerRadius: Double = 8
-    @AppStorage("appearance") private var appearance = "dark"
-    @AppStorage("gridBackground") private var background = "black"
+    @AppStorage("appearance") private var appearance = "system"
     @AppStorage("userHandle") private var handle = GrailsPathsShim.handle
     @AppStorage("linkPage") private var linkPage = ""
     @AppStorage("sidebar.showCollections") private var showCollections = true
@@ -25,15 +23,11 @@ struct SettingsView: View {
                 Picker("Appearance", selection: $appearance) {
                     Text("System").tag("system"); Text("Light").tag("light"); Text("Dark").tag("dark")
                 }
-                Picker("Grid background", selection: $background) {
-                    Text("Default").tag("default"); Text("Black").tag("black"); Text("White").tag("white"); Text("Grey").tag("grey")
-                }
                 Toggle("Show who added each item", isOn: $showAddedBy)
                 Picker("Grid tiles", selection: Binding(get: { model.layoutMode }, set: { model.layoutMode = $0 })) {
                     Text("Squares").tag(GridLayoutMode.square); Text("Original proportions").tag(GridLayoutMode.masonry)
                 }
                 Slider(value: $spacing, in: 0...32, step: 1) { Text("Tile spacing") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("32") }
-                Slider(value: $cornerRadius, in: 0...24, step: 1) { Text("Corner radius") } minimumValueLabel: { Text("0") } maximumValueLabel: { Text("24") }
                 Section("Capture") {
                     Toggle("Snapshot links without a preview", isOn: $autoSnapshotLinks)
                     Toggle("Hide Dock icon", isOn: $hideDockIcon)

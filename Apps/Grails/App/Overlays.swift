@@ -7,7 +7,7 @@ struct PromptCard: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea().onTapGesture { model.prompt = nil }
+            Ink.canvas.opacity(0.55).ignoresSafeArea().onTapGesture { model.prompt = nil }
             VStack(alignment: .leading, spacing: 12) {
                 Text(request.title).font(.headline)
                 if !request.message.isEmpty { Text(request.message).font(.callout).foregroundStyle(.secondary) }
@@ -21,14 +21,14 @@ struct PromptCard: View {
                 HStack {
                     Spacer()
                     Button("Cancel") { model.prompt = nil }.keyboardShortcut(.cancelAction)
-                    Button(request.confirmTitle, action: submit).keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                    Button(request.confirmTitle, action: submit).keyboardShortcut(.defaultAction).buttonStyle(PrimaryButtonStyle())
                         .disabled(text.trimmingCharacters(in: .whitespaces).isEmpty)
                         .accessibilityIdentifier("prompt-confirm")
                 }
             }
             .padding(18)
             .frame(maxWidth: 380)
-            .glassCard(radius: 22)
+            .surfaceCard()
         }
         .onAppear { text = request.initial }
     }
@@ -47,7 +47,7 @@ struct ConfirmCard: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.45).ignoresSafeArea().onTapGesture { model.confirm = nil }
+            Ink.canvas.opacity(0.55).ignoresSafeArea().onTapGesture { model.confirm = nil }
             VStack(alignment: .leading, spacing: 12) {
                 Text(request.title).font(.headline)
                 Text(request.message).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -58,13 +58,13 @@ struct ConfirmCard: View {
                         model.confirm = nil
                         request.onConfirm()
                     }
-                    .keyboardShortcut(.defaultAction).buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction).buttonStyle(PrimaryButtonStyle())
                     .accessibilityIdentifier("confirm-button")
                 }
             }
             .padding(18)
             .frame(maxWidth: 400)
-            .glassCard(radius: 22)
+            .surfaceCard()
         }
     }
 }
@@ -75,7 +75,7 @@ struct ToastView: View {
         Text(text)
             .font(.callout)
             .padding(.horizontal, 14).padding(.vertical, 8)
-            .glassPill()
+            .chipSurface()
             .accessibilityIdentifier("toast")
     }
 }

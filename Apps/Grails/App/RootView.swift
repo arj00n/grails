@@ -4,14 +4,13 @@ import UniformTypeIdentifiers
 
 struct RootView: View {
     @Bindable var model: AppModel
-    @AppStorage("appearance") private var appearance = "dark"
-    @AppStorage("gridBackground") private var background = "black"
+    @AppStorage("appearance") private var appearance = "system"
     @State private var dropTargeted = false
     @State private var searchFocused = false
 
-    static let sidebarWidth: CGFloat = 244
-    static let infoWidth: CGFloat = 308
-    static let barHeight: CGFloat = 52
+    static let sidebarWidth: CGFloat = 240
+    static let infoWidth: CGFloat = 300
+    static let barHeight: CGFloat = 44
     /// A little air above the first row, under the bar.
     static let topInset: CGFloat = 10
 
@@ -22,20 +21,23 @@ struct RootView: View {
             topBar
             overlays
         }
-        .background(gridBackground)
+        .background(Ink.canvas)
         .background(WindowChrome())
         .ignoresSafeArea()
-        .preferredColorScheme(appearance == "light" ? .light : .dark)
-        .tint(.white)
+        .preferredColorScheme(appearance == "light" ? .light : appearance == "dark" ? .dark : nil)
+        .tint(Ink.text)
         .sheet(item: $model.smartEditor) { SmartFolderEditor(model: model, state: $0) }
         .alert("Grails", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
         .task { await model.openInitialLibrary() }
-        .onAppear { Self.snapshotIfRequested() }
-        .animation(.smooth(duration: 0.25), value: model.sidebarVisible)
-        .animation(.smooth(duration: 0.25), value: model.showInfo)
-        .animation(.smooth(duration: 0.2), value: model.viewChip)
+        .onAppear { applyAppearance(); Self.snapshotIfRequested() }
+        .onChange(of: appearance) { applyAppearance() }
+    }
+
+    /// Layers and AppKit views read the app's appearance when they resolve a colour, so keep it in step with the setting.
+    private func applyAppearance() {
+        NSApp.appearance = appearance == "light" ? NSAppearance(named: .aqua) : appearance == "dark" ? NSAppearance(named: .darkAqua) : nil
     }
 
     // MARK: Content
@@ -61,7 +63,7 @@ struct RootView: View {
                     .allowsHitTesting(false)
             }
         }
-        .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(.white.opacity(0.7), lineWidth: 2).padding(6).allowsHitTesting(false) } }
+        .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }
         .onDrop(of: [.fileURL, .grailsItems], isTargeted: $dropTargeted) { providers in
             Task { @MainActor in
                 let d = await DropLoader.load(providers)
@@ -97,7 +99,7 @@ struct RootView: View {
                     .frame(maxHeight: .infinity)
                     .background(Ink.surface)
                     .overlay(alignment: .trailing) { Rectangle().fill(Ink.hairline).frame(width: 1) }
-                    .transition(.move(edge: .leading).combined(with: .opacity))
+                    
             }
             Spacer(minLength: 0).allowsHitTesting(false)
             if model.showInfo {
@@ -107,15 +109,18 @@ struct RootView: View {
                     .frame(maxHeight: .infinity)
                     .background(Ink.surface)
                     .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1) }
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    
             }
         }
     }
 
     private var topBar: some View {
         HStack(spacing: 6) {
-            GlassIconButton(symbol: "sidebar.left", selected: model.sidebarVisible, help: "Show or hide the sidebar (⌃⌘S)", identifier: "sidebar-toggle") {
+            BarButton(symbol: "sidebar.left", selected: model.sidebarVisible, help: "Show or hide the sidebar (⌃⌘S)", identifier: "sidebar-toggle") {
                 model.sidebarVisible.toggle()
+            }
+            if model.canGoBack {
+                BarButton(symbol: "chevron.left", help: "Back (⌘[)", identifier: "back") { model.goBack() }
             }
             titleBlock
             Spacer(minLength: 8)
@@ -123,7 +128,7 @@ struct RootView: View {
             ViewTabs(model: model).padding(.horizontal, 10)
             FilterMenu(model: model)
             ShareMenu(model: model)
-            GlassIconButton(symbol: "sidebar.right", selected: model.showInfo, help: "Show or hide the info panel (I)", identifier: "info-toggle") {
+            BarButton(symbol: "sidebar.right", selected: model.showInfo, help: "Show or hide the info panel (I)", identifier: "info-toggle") {
                 model.showInfo.toggle()
             }
         }
@@ -154,7 +159,6 @@ struct RootView: View {
                 }
                 .padding(.leading, 10).padding(.trailing, 5).frame(height: 28)
                 .background(Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
-                .transition(.opacity.combined(with: .scale(scale: 0.94, anchor: .leading)))
             } else {
                 Text(model.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Ink.text).lineLimit(1)
             }
@@ -167,7 +171,7 @@ struct RootView: View {
     private var searchField: some View {
         HStack(spacing: 7) {
             Image(systemName: "magnifyingglass").font(.system(size: 12, weight: .medium)).foregroundStyle(searchFocused ? Ink.text : Ink.secondary)
-            GlassSearchField(text: $model.searchText, focusTick: model.focusSearchTick, isFocused: $searchFocused, onSubmit: { model.rememberSearch() })
+            SearchField(text: $model.searchText, focusTick: model.focusSearchTick, isFocused: $searchFocused, onSubmit: { model.rememberSearch() })
                 .frame(height: 22)
             if !model.searchText.isEmpty {
                 Button { model.searchText = "" } label: { Image(systemName: "xmark.circle.fill").font(.system(size: 12)).foregroundStyle(Ink.tertiary) }
@@ -177,9 +181,8 @@ struct RootView: View {
         .padding(.horizontal, 10)
         .frame(minWidth: 130, idealWidth: 250, maxWidth: 250)
         .frame(height: 30)
-        .background(searchFocused ? Ink.fillHover : Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(searchFocused ? Color.white.opacity(0.28) : .clear, lineWidth: 1))
-        .animation(.easeOut(duration: 0.15), value: searchFocused)
+        .background(Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(searchFocused ? Ink.focus : .clear, lineWidth: 1))
         .overlay(alignment: .topLeading) { recentSearches.offset(y: 36) }
     }
 
@@ -200,7 +203,7 @@ struct RootView: View {
             }
             .padding(.vertical, 6)
             .frame(width: 250)
-            .glassCard(radius: 10)
+            .surfaceCard()
         }
     }
 
@@ -231,14 +234,6 @@ struct RootView: View {
         .padding(24)
         .animation(.default, value: model.toast)
         .allowsHitTesting(false)
-    }
-
-    @ViewBuilder private var gridBackground: some View {
-        switch background {
-        case "white": Color.white
-        case "grey": Color(white: 0.16)
-        default: Color.black
-        }
     }
 }
 
@@ -277,12 +272,12 @@ struct ProgressCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(label).font(.system(size: 12)).foregroundStyle(Ink.text).lineLimit(2)
-            if total > 0 { ProgressView(value: Double(done), total: Double(max(total, 1))).progressViewStyle(.linear).tint(.white) }
+            if total > 0 { ProgressView(value: Double(done), total: Double(max(total, 1))).progressViewStyle(.linear).tint(Ink.text) }
             else { ProgressView().controlSize(.small) }
         }
         .padding(.horizontal, 16).padding(.vertical, 12)
         .frame(maxWidth: 340, alignment: .leading)
-        .glassCard(radius: 18)
+        .surfaceCard()
     }
 }
 
@@ -330,51 +325,37 @@ struct FilterMenu: View {
     }
 }
 
-/// Grid and Canvas as two tabs; the underline slides between them.
+/// Grid and Canvas as two plain text tabs; the current one is full-strength.
 struct ViewTabs: View {
     @Bindable var model: AppModel
-    @Namespace private var underline
 
     var body: some View {
-        HStack(spacing: 16) {
+        HStack(spacing: 14) {
             ForEach(ViewMode.allCases) { mode in
-                ViewTab(mode: mode, selected: model.viewMode == mode, underline: underline) {
-                    withAnimation(.smooth(duration: 0.22)) { model.viewMode = mode }
-                }
-                .help("\(mode.label) (⌘\(mode == .grid ? 1 : 2))")
-                .accessibilityIdentifier("view-\(mode.rawValue)")
+                ViewTab(label: mode.label, selected: model.viewMode == mode) { model.viewMode = mode }
+                    .help("\(mode.label) (⌘\(mode == .grid ? 1 : 2))")
+                    .accessibilityIdentifier("view-\(mode.rawValue)")
             }
         }
     }
 }
 
 private struct ViewTab: View {
-    let mode: ViewMode
+    let label: String
     let selected: Bool
-    var underline: Namespace.ID
     let action: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: action) {
-            VStack(spacing: 5) {
-                HStack(spacing: 6) {
-                    Image(systemName: mode.symbol).font(.system(size: 12, weight: .medium)).symbolEffect(.bounce, options: .speed(1.4), value: selected)
-                    Text(mode.label).font(.system(size: 13, weight: .medium))
-                }
+            Text(label)
+                .font(.system(size: 13, weight: selected ? .medium : .regular))
                 .foregroundStyle(selected || hovering ? Ink.text : Ink.secondary)
-                ZStack {
-                    Color.clear
-                    if selected { Rectangle().fill(Color.white).matchedGeometryEffect(id: "underline", in: underline) }
-                }
-                .frame(height: 2)
-            }
-            .padding(.top, 6)
-            .contentShape(Rectangle())
+                .frame(height: 28)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.14), value: hovering)
+        .hoverState($hovering)
     }
 }
 

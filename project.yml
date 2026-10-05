@@ -25,6 +25,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: GrailsKit
+      - package: GrailsKit
+        product: GrailsDesign
     info:
       path: Config/Grails-Info.plist
       properties:

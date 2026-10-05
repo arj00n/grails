@@ -25,6 +25,9 @@ final class TileView: NSView {
     override var wantsUpdateLayer: Bool { true }
     override var isFlipped: Bool { true }
     override func updateLayer() {}
+    /// A light/dark switch: layer colours don't follow by themselves.
+    var onAppearanceChange: (() -> Void)?
+    override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); onAppearanceChange?() }
 
     /// A right-click lands on the tile first; let the grid build the context menu.
     override func menu(for event: NSEvent) -> NSMenu? {
@@ -58,12 +61,12 @@ final class ThumbCell: NSCollectionViewItem {
         let v = TileView()
         v.wantsLayer = true
         v.layer?.masksToBounds = true
-        v.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
+        v.layer?.backgroundColor = NSColor.ink(.surface).cgColor
         v.layer?.contentsGravity = .resizeAspect
         v.layer?.magnificationFilter = .trilinear
         v.layer?.minificationFilter = .trilinear
         placeholder.imageScaling = .scaleProportionallyDown
-        placeholder.contentTintColor = .tertiaryLabelColor
+        placeholder.contentTintColor = .ink(.tertiary)
         placeholder.translatesAutoresizingMaskIntoConstraints = false
         v.addSubview(placeholder)
         NSLayoutConstraint.activate([
@@ -73,7 +76,7 @@ final class ThumbCell: NSCollectionViewItem {
             placeholder.heightAnchor.constraint(equalToConstant: 28),
         ])
         heart.image = NSImage(systemSymbolName: "heart.fill", accessibilityDescription: "Liked")
-        heart.contentTintColor = .systemPink
+        heart.contentTintColor = .onImage
         heart.shadow = {
             let sh = NSShadow(); sh.shadowColor = NSColor.black.withAlphaComponent(0.55); sh.shadowBlurRadius = 3; sh.shadowOffset = .zero
             return sh
@@ -89,31 +92,31 @@ final class ThumbCell: NSCollectionViewItem {
         ])
         // Link cards: caption over the picture, or a big title when there's no picture
         captionBar.wantsLayer = true
-        captionBar.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.58).cgColor
+        captionBar.layer?.backgroundColor = NSColor.onImageScrim.cgColor
         captionBar.translatesAutoresizingMaskIntoConstraints = false
         captionBar.isHidden = true
         caption.font = .systemFont(ofSize: 11, weight: .medium)
-        caption.textColor = .white
+        caption.textColor = .onImage
         caption.lineBreakMode = .byTruncatingTail
         caption.translatesAutoresizingMaskIntoConstraints = false
         captionBar.addSubview(caption)
         v.addSubview(captionBar)
         titleLabel.font = .systemFont(ofSize: 13, weight: .semibold)
-        titleLabel.textColor = .labelColor
+        titleLabel.textColor = .ink(.text)
         titleLabel.alignment = .center
         titleLabel.maximumNumberOfLines = 4
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.isHidden = true
         siteLabel.font = .systemFont(ofSize: 10)
-        siteLabel.textColor = .secondaryLabelColor
+        siteLabel.textColor = .ink(.secondary)
         siteLabel.alignment = .center
         siteLabel.translatesAutoresizingMaskIntoConstraints = false
         siteLabel.isHidden = true
         v.addSubview(titleLabel)
         v.addSubview(siteLabel)
         badge.font = .systemFont(ofSize: 9, weight: .bold)
-        badge.textColor = .white
+        badge.textColor = .onImage
         badge.wantsLayer = true
         badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
         badge.layer?.cornerRadius = 4
@@ -121,7 +124,7 @@ final class ThumbCell: NSCollectionViewItem {
         badge.isHidden = true
         v.addSubview(badge)
         sectionLabel.font = .systemFont(ofSize: 24, weight: .semibold)
-        sectionLabel.textColor = NSColor.white.withAlphaComponent(0.92)
+        sectionLabel.textColor = .ink(.text)
         sectionLabel.lineBreakMode = .byTruncatingTail
         sectionLabel.translatesAutoresizingMaskIntoConstraints = false
         sectionLabel.isHidden = true
@@ -149,13 +152,13 @@ final class ThumbCell: NSCollectionViewItem {
             badge.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
         ])
         cloud.image = NSImage(systemSymbolName: "icloud.and.arrow.down", accessibilityDescription: "Not downloaded yet")
-        cloud.contentTintColor = .white
+        cloud.contentTintColor = .onImage
         cloud.shadow = heart.shadow
         cloud.translatesAutoresizingMaskIntoConstraints = false
         cloud.isHidden = true
         v.addSubview(cloud)
         avatar.font = .systemFont(ofSize: 9, weight: .bold)
-        avatar.textColor = .white
+        avatar.textColor = .onImage
         avatar.alignment = .center
         avatar.wantsLayer = true
         avatar.layer?.cornerRadius = 9
@@ -172,14 +175,20 @@ final class ThumbCell: NSCollectionViewItem {
             avatar.widthAnchor.constraint(equalToConstant: 20),
             avatar.heightAnchor.constraint(equalToConstant: 18),
         ])
+        v.onAppearanceChange = { [weak self] in self?.restyle() }
         view = v
+    }
+
+    private func restyle() {
+        if !isSection { view.layer?.backgroundColor = NSColor.ink(.surface).cgColor }
+        applySelection()
     }
 
     override var isSelected: Bool { didSet { applySelection() } }
 
     private func applySelection() {
-        view.layer?.borderWidth = isSelected && !isSection ? 2.5 : 0
-        view.layer?.borderColor = NSColor.white.withAlphaComponent(0.92).cgColor
+        view.layer?.borderWidth = isSelected && !isSection ? 2 : 0
+        view.layer?.borderColor = NSColor.ink(.text).cgColor
     }
 
     /// A section divider: just the cluster's title and how many items it holds.
@@ -210,10 +219,10 @@ final class ThumbCell: NSCollectionViewItem {
         let untitled = s.name.isEmpty
         let text = NSMutableAttributedString(string: untitled ? "Untitled" : s.name, attributes: [
             .font: NSFont.systemFont(ofSize: 24, weight: .semibold),
-            .foregroundColor: NSColor.white.withAlphaComponent(untitled ? 0.30 : 0.92),
+            .foregroundColor: NSColor.ink(untitled ? .secondary : .text),
         ])
         text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
-            .font: NSFont.systemFont(ofSize: 16, weight: .regular), .foregroundColor: NSColor.white.withAlphaComponent(0.38),
+            .font: NSFont.systemFont(ofSize: 16, weight: .regular), .foregroundColor: NSColor.ink(.secondary),
         ]))
         sectionLabel.attributedStringValue = text
         sectionLabel.isHidden = false
@@ -225,7 +234,7 @@ final class ThumbCell: NSCollectionViewItem {
         itemID = s.id
         isSection = false
         sectionLabel.isHidden = true
-        view.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
+        view.layer?.backgroundColor = NSColor.ink(.surface).cgColor
         cloud.isHidden = !cloudOnly
         avatar.isHidden = !showAddedBy || s.addedBy.isEmpty
         if showAddedBy {
@@ -248,7 +257,7 @@ final class ThumbCell: NSCollectionViewItem {
         if s.kind == .video, let d = s.durationSec, d > 0 {
             badge.isHidden = false
             badge.stringValue = String(format: " ▶ %d:%02d ", Int(d) / 60, Int(d) % 60)
-            badge.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.55).cgColor
+            badge.layer?.backgroundColor = NSColor.onImageScrim.cgColor
         } else {
             badge.isHidden = s.badge == nil
             badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
@@ -313,7 +322,7 @@ final class ThumbCell: NSCollectionViewItem {
         sectionLabel.isHidden = true
         placeholder.isHidden = false
         isSection = false
-        view.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
+        view.layer?.backgroundColor = NSColor.ink(.surface).cgColor
     }
 
     static func symbol(for kind: ItemKind) -> String {
