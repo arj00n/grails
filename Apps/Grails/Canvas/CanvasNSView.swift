@@ -367,7 +367,7 @@ final class CanvasNSView: NSView {
             h.setAffineTransform(CGAffineTransform(scaleX: inv, y: inv))
             h.showsGrip = f.width * scale >= 140
         }
-        if let r = renaming { r.field.frame = renameFrame(for: r.id) }
+        if let r = renaming { r.field.reposition(renameFrame(for: r.id)) }
     }
 
     /// On big boards, every item gets a flat placeholder rectangle in one world-space layer underneath the real tiles.
