@@ -14,6 +14,7 @@
   var host = canvas.parentElement;
   var plateEl = document.querySelector("[data-plate]");
   var captionEl = document.querySelector("[data-caption]");
+  var captionTimer = 0;
   var base = canvas.getAttribute("data-src") || "/assets/paintings/";
   var forcedTheme = canvas.getAttribute("data-theme");          // "dark" | "light" (tools only)
   var still = canvas.hasAttribute("data-still");                // one painting, no motion (tools only)
@@ -313,7 +314,15 @@
   function label(index) {
     var s = specs[index];
     canvas.setAttribute("aria-label", s.title + " by " + s.artist + ", " + s.year + ", drawn in dithered pixels");
-    if (captionEl) captionEl.textContent = s.caption;
+    if (captionEl) {
+      // fade out, change the words, fade in
+      clearTimeout(captionTimer);
+      if (!captionEl.textContent || !captionEl.dataset.shown) { captionEl.textContent = s.caption; captionEl.dataset.shown = "1"; }
+      else {
+        captionEl.classList.add("swap");
+        captionTimer = setTimeout(function () { captionEl.textContent = s.caption; captionEl.classList.remove("swap"); }, 360);
+      }
+    }
   }
 
   // ── Loop ────────────────────────────────────────────────────────────

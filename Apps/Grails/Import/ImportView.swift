@@ -9,11 +9,14 @@ struct ImportView: View {
     var model: ImportModel
     var app: AppModel
     var parts: Parts = .all
+    /// The rows take the height they need, up to `listHeight`, instead of the whole of it: the card around them hugs what is in it.
+    var hug = false
     /// Shown in the empty field.
     var placeholder = "Paste links"
     /// The rows scroll past this height; nil lets them take the room there is.
     var listHeight: CGFloat? = 320
     @State private var text = ""
+    @State private var rowsHeight: CGFloat = 0
     @FocusState private var focused: Bool
 
     var body: some View {
@@ -55,9 +58,20 @@ struct ImportView: View {
 
     @ViewBuilder private var list: some View {
         if Self.plain { rows.frame(maxHeight: listHeight ?? .infinity, alignment: .top).clipped() }
-        else {
+        else if hug {
+            if rowsHeight > 0 || !model.rows.isEmpty || !model.order.isEmpty {
+                ScrollView { measured }.scrollIndicators(.never)
+                    .frame(height: min(rowsHeight, listHeight ?? .infinity))
+                    .animation(.easeOut(duration: 0.2), value: rowsHeight)
+            } else { measured.frame(height: 0) }
+        } else {
             ScrollView { rows }.scrollIndicators(.never).frame(maxHeight: listHeight ?? .infinity)
         }
+    }
+
+    private var measured: some View {
+        rows.background(GeometryReader { g in Color.clear.preference(key: RowsHeightKey.self, value: g.size.height) })
+            .onPreferenceChange(RowsHeightKey.self) { rowsHeight = $0 }
     }
 
     private var rows: some View {
@@ -73,6 +87,11 @@ struct ImportView: View {
             }
         }
     }
+}
+
+private struct RowsHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// Up to three small pictures of the board.

@@ -69,15 +69,24 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
                     .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1)).allowsHitTesting(t >= 1.3 && !choosing)
                     .animation(.easeOut(duration: 0.1), value: choosing)
                     .accessibilityIdentifier("onboarding-start")
-                Text(caption).font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
-                    .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1))
-                    .animation(.easeOut(duration: 0.1), value: choosing)
-                    .id(caption).transition(.opacity)
-                    .accessibilityIdentifier("onboarding-caption")
             }
             .frame(width: plate.width, height: plate.height)
             .background(Ink.canvas)
             .offset(x: plate.minX, y: plate.minY)
+            // the painter, bottom right, on a small plate of canvas so it reads over the painting; the centre stays clean. It cross-fades to the next one.
+            ZStack(alignment: .bottomTrailing) {
+                Text(caption).font(.grailsDisplay(12)).foregroundStyle(Ink.secondary)
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(Ink.canvas)
+                    .padding(16)
+                    .id(caption).transition(.opacity)
+            }
+            .frame(width: size.width, height: size.height, alignment: .bottomTrailing)
+            .animation(.easeInOut(duration: reduceMotionOn ? 0.12 : 0.7), value: caption)
+            .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1))
+            .animation(.easeOut(duration: 0.1), value: choosing)
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("onboarding-caption")
             // laid out by offset, never padding: padding would make this child taller than the window and stretch the wall with it
             chooser
                 .frame(width: size.width, alignment: .top)
@@ -275,24 +284,34 @@ struct ImportScreen: View {
     var elapsed: Double
     var eta: Eta
 
+    @State private var natural: CGFloat = 0
     private var curve: Animation { .timingCurve(0.22, 1, 0.36, 1, duration: reduceMotionOn ? 0.12 : 0.24) }
 
     var body: some View {
         GeometryReader { geo in
+            // before the import runs the column is as tall as what is in it, centred, and grows with the boards; once it runs it is the full height
+            let room = max(geo.size.height - 120, 200)
+            let pasteHeight = natural > 0 ? min(natural, room) : min(240, room)
             ZStack(alignment: .topLeading) {
                 ArrivalGrid(model: grid, app: app)
                     .padding(.leading, 16).padding(.top, 52).padding(.trailing, ProgressColumn.width + 16)
                     .opacity(arriving ? 1 : 0).allowsHitTesting(arriving)
-                ProgressColumn(model: model, app: app, arriving: arriving, elapsed: elapsed, eta: eta)
-                    .frame(width: arriving ? ProgressColumn.width : 560, height: arriving ? geo.size.height - 44 : min(520, geo.size.height - 120))
+                ProgressColumn(model: model, app: app, arriving: arriving, elapsed: elapsed, eta: eta, listCap: max(room - 240, 120)) { natural = $0 }
+                    .frame(width: arriving ? ProgressColumn.width : 560, height: arriving ? geo.size.height - 44 : pasteHeight, alignment: .top)
                     .offset(x: arriving ? geo.size.width - ProgressColumn.width : (geo.size.width - 560) / 2,
-                            y: arriving ? 44 : max((geo.size.height - min(520, geo.size.height - 120)) / 2, 44))
+                            y: arriving ? 44 : max((geo.size.height - pasteHeight) / 2, 44))
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
         .animation(curve, value: arriving)
+        .animation(.easeOut(duration: 0.2), value: natural)
         .ignoresSafeArea()
     }
+}
+
+private struct ColumnHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 /// The boards column: Import boards (the field, the rows, Import) that becomes Importing (the counter, the rows, Stop and Open library).
@@ -302,6 +321,10 @@ struct ProgressColumn: View {
     var arriving = true
     var elapsed: Double
     var eta: Eta
+    /// The tallest the rows grow before they scroll, while the column is still hugging them.
+    var listCap: CGFloat = 300
+    /// The height the content wants before the import runs.
+    var onNaturalHeight: ((CGFloat) -> Void)?
 
     static let width: CGFloat = 340
 
@@ -336,7 +359,7 @@ struct ProgressColumn: View {
             } else {
                 Text("IMPORT BOARDS").font(.grailsDisplay(16)).foregroundStyle(Ink.text).transition(.opacity)
             }
-            ImportView(model: importer, app: app, listHeight: nil)
+            ImportView(model: importer, app: app, hug: !arriving, listHeight: arriving ? nil : listCap)
             ZStack(alignment: .trailing) {
                 HStack {
                     Button("Stop") { importer.stopAll() }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary).opacity(importer.isRunning ? 1 : 0)
@@ -351,6 +374,9 @@ struct ProgressColumn: View {
             }
         }
         .padding(arriving ? 16 : 0)
+        .fixedSize(horizontal: false, vertical: !arriving)
+        .background(GeometryReader { g in Color.clear.preference(key: ColumnHeightKey.self, value: g.size.height) })
+        .onPreferenceChange(ColumnHeightKey.self) { h in if !arriving, h > 0 { onNaturalHeight?(h) } }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Ink.surface.opacity(arriving ? 1 : 0))
         .overlay(alignment: .leading) { Rectangle().fill(Ink.hairline).frame(width: 1).opacity(arriving ? 1 : 0) }

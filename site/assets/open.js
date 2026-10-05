@@ -28,7 +28,7 @@
 
   if (!lib) {
     what.textContent = "This link is incomplete";
-    fallback.hidden = true;
+    fallback.classList.add("shown");
     document.title = "Incomplete link · Grails";
     return;
   }

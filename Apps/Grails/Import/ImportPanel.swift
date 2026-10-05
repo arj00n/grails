@@ -15,13 +15,14 @@ struct ImportPanel: View {
                     Spacer()
                     BarButton(symbol: "xmark", help: "Close (Esc)", identifier: "import-close") { model.importPanelOpen = false }
                 }
-                ImportView(model: importer, app: model)
+                ImportView(model: importer, app: model, hug: true)
                 footer
                 Button("") { model.importPanelOpen = false }.keyboardShortcut(.cancelAction).frame(width: 0, height: 0).opacity(0)
             }
             .padding(16)
             .frame(width: 560)
             .surfaceCard()
+            .animation(.easeOut(duration: 0.2), value: importer.rows.count)
         }
         .accessibilityIdentifier("import-panel")
     }
