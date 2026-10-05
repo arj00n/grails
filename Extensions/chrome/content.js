@@ -45,8 +45,8 @@
     @media (prefers-color-scheme: dark) { .ui { --canvas:#000; --surface:#1a1a1a; --hairline:#333; --text:#fff; --secondary:#b2b2b2; --positive:#98dc89; --destructive:#eb6864; --shadow:rgba(0,0,0,.5); } }
     .ui { position: fixed; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 6px;
           background: var(--surface); color: var(--text); border: 1px solid var(--hairline); box-shadow: 0 8px 12px var(--shadow);
-          font: 13px/1.3 "Grails Grotesk", -apple-system, system-ui, sans-serif; opacity: 1; transition: opacity .15s ease-out; }
-    .tag { font: 12px "Grails VCR", ui-monospace, Menlo, monospace; color: var(--secondary); }
+          font: 13px/1.3 "Grails Sans", -apple-system, system-ui, sans-serif; opacity: 1; transition: opacity .15s ease-out; }
+    .tag { font: 12px "Grails Mono", ui-monospace, Menlo, monospace; color: var(--secondary); }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--positive); flex: none; }
     .dot.bad { background: var(--destructive); }
     button { font: inherit; font-size: 12px; height: 24px; padding: 0 10px; border: 0; border-radius: 4px; background: var(--text); color: var(--canvas); cursor: pointer; }
@@ -64,7 +64,7 @@
           for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
           return new FontFace(name, bytes.buffer).load().then((f) => document.fonts.add(f));
         };
-        if (r?.vcr && r?.grotesk) await Promise.all([face("Grails VCR", r.vcr), face("Grails Grotesk", r.grotesk)]);
+        if (r?.mono && r?.sans) await Promise.all([face("Grails Mono", r.mono), face("Grails Sans", r.sans)]);
       } catch { /* the system fonts will do */ }
     })();
     return fontsReady;

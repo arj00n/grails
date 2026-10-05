@@ -196,7 +196,7 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
         return btoa(bin);
       };
-      try { respond({ vcr: await b64("fonts/VCR_OSD_MONO_1.001.ttf"), grotesk: await b64("fonts/AlteHaasGroteskRegular.ttf") }); } catch { respond({}); }
+      try { respond({ mono: await b64("fonts/GeistMono-Regular.ttf"), sans: await b64("fonts/Geist-Regular.ttf") }); } catch { respond({}); }
     } else if (msg.type === "ping") {
       try { respond({ ok: true, ...(await client.ping()) }); } catch (e) { respond({ ok: false, kind: e.kind, error: e.message }); }
     } else if (msg.type === "collections") {

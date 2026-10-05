@@ -2,27 +2,28 @@
    flat surfaces, hairline borders, 4–6 px corners, no gradients, no shadows, ease-out ≤ 240 ms, nothing bounces. */
 
 @font-face {
-  font-family: "VCR OSD Mono";
-  src: url("/assets/fonts/VCROSDMono.woff2") format("woff2"), url("/assets/fonts/VCR_OSD_MONO_1.001.ttf") format("truetype");
+  font-family: "Geist Mono";
+  src: url("/assets/fonts/GeistMono-Regular.woff2") format("woff2");
+  font-weight: 400;
   font-display: block;
 }
 @font-face {
-  font-family: "Alte Haas Grotesk";
-  src: url("/assets/fonts/AlteHaasGrotesk-Regular.woff2") format("woff2"), url("/assets/fonts/AlteHaasGroteskRegular.ttf") format("truetype");
+  font-family: "Geist";
+  src: url("/assets/fonts/Geist-Regular.woff2") format("woff2");
   font-weight: 400;
   font-display: swap;
 }
 @font-face {
-  font-family: "Alte Haas Grotesk";
-  src: url("/assets/fonts/AlteHaasGrotesk-Bold.woff2") format("woff2"), url("/assets/fonts/AlteHaasGroteskBold.ttf") format("truetype");
+  font-family: "Geist";
+  src: url("/assets/fonts/Geist-Bold.woff2") format("woff2");
   font-weight: 700;
   font-display: swap;
 }
-/* A fallback sized like Alte Haas, so the swap barely moves anything. */
+/* A fallback sized like Geist, so the swap barely moves anything. */
 @font-face {
-  font-family: "Grotesk Fallback";
+  font-family: "Geist Fallback";
   src: local("Helvetica Neue"), local("HelveticaNeue"), local("Helvetica"), local("Arial");
-  size-adjust: 97%;
+  size-adjust: 100%;
 }
 
 :root {
@@ -38,9 +39,9 @@
   --focus: #3d46c2;
   --positive: #238020;
 
-  --display: "VCR OSD Mono", ui-monospace, Menlo, monospace;
+  --display: "Geist Mono", ui-monospace, Menlo, monospace;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
-  --body: "Alte Haas Grotesk", "Grotesk Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --body: "Geist", "Geist Fallback", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --radius: 4px;
   --card-radius: 6px;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);

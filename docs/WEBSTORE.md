@@ -1,11 +1,11 @@
-# Chrome Web Store submission: Save to Grails 0.2.3
+# Chrome Web Store submission: Save to Grails 0.2.4
 
 Everything is prepared; the submission itself is yours (it needs your developer account). About 10 minutes.
 
 ## Files
 | What | Where |
 |---|---|
-| Upload | `dist/save-to-grails-0.2.3.zip` (rebuild: `cd Extensions/chrome && zip -qr ../../dist/save-to-grails-<version>.zip . -x README.md`) |
+| Upload | `dist/save-to-grails-0.2.4.zip` (rebuild: `cd Extensions/chrome && zip -qr ../../dist/save-to-grails-<version>.zip . -x README.md`) |
 | Screenshots (1280×800) | `Extensions/store/screenshot-shot1.png`, `-shot2.png`, `-shot3.png` |
 | Small promo tile (440×280) | `Extensions/store/promo-small-440x280.png` |
 | Icon (128) | inside the zip (`icons/128.png`) |

@@ -10,7 +10,7 @@ Plain static files: no framework, no build step, no npm. Deployed with the Verce
 | `assets/wall.js` | The app's painting wall (port of `GrailsDesign/PaintingWall.swift`, `Dither.swift`, `PaintingWallEngine.swift`) |
 | `assets/site.css`, `site.js`, `open.js`, `nojs.css` | Styles (app tokens), copy buttons, the link page, the no-JavaScript still |
 | `assets/paintings/` | 14 JPEGs + `manifest.json` from `Scripts/gen-paintings.py`; `NOTICE.md` credits them |
-| `assets/fonts/` | VCR OSD Mono, Alte Haas Grotesk (TTF as received + lossless WOFF2), `NOTICE.md`, licence text |
+| `assets/fonts/` | Geist and Geist Mono (WOFF2, unmodified), `Geist-OFL.txt` |
 | `download/` | The DMG and the extension zip (deployed) |
 | `tools/` | Pages that render `og.png` and `assets/still-*.png` (not deployed) |
 
@@ -38,7 +38,5 @@ To re-render `og.png` or the no-JS stills, serve this folder and screenshot `too
 
 ## Licence caveats
 
-- **VCR OSD Mono** came without a licence text. It is served here as a webfont. Confirm its terms with the author (MrManet) or swap it before relying on this publicly.
-- **Alte Haas Grotesk** is freeware only when its licence text travels with it: `assets/fonts/AlteHaasGrotesk-licence.txt` is deployed beside the fonts and quoted on `/credits`. The WOFF2 files are lossless conversions (all glyphs kept).
 - The paintings are public-domain works from Wikimedia Commons (`assets/paintings/NOTICE.md`); each museum's own reuse terms were not checked.
 - The DMG is signed ad-hoc and not notarised; the page says so.

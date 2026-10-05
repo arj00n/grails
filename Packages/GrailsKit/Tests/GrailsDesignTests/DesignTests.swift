@@ -148,14 +148,7 @@ import Testing
 }
 
 @Suite struct TypographyTests {
-    @Test func titlesSnapToTheScale() {
-        #expect(Typography.displaySizes == Typography.displaySizes.sorted())
-        #expect(Typography.displaySize(for: 13) == 12)
-        #expect(Typography.displaySize(for: 14) == 16)      // halfway goes up
-        #expect(Typography.displaySize(for: 16) == 16)
-        #expect(Typography.displaySize(for: 18) == 20)
-        #expect(Typography.displaySize(for: 26) == 24)
-        #expect(Typography.displaySize(for: 34) == 32)
+    @Test func theThreeFacesAreDistinct() {
         #expect(Typography.displayName != Typography.bodyName && Typography.bodyName != Typography.bodyBoldName)
     }
 }

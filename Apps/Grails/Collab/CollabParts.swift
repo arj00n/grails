@@ -91,7 +91,7 @@ struct OutlineButtonStyle: ButtonStyle {
     }
 }
 
-/// The screen's title (VCR, 16) with a close button at the right.
+/// The screen's title (Geist Mono, 16) with a close button at the right.
 struct CollabHeader: View {
     let title: String
     var close: (() -> Void)?

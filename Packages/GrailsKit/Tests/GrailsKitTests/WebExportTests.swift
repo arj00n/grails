@@ -78,7 +78,7 @@ import Testing
         defer { ExportFonts.display = nil; ExportFonts.body = nil }
         let report = try await store.exportSingleFile(title: "Fonts", ids: [item.id], to: TestSupport.tempDir())
         let text = try String(contentsOf: try #require(report.file), encoding: .utf8)
-        #expect(text.contains("font-family:\"VCR OSD Mono\"") && text.contains("font-family:\"Alte Haas Grotesk\""))
+        #expect(text.contains("font-family:\"Geist Mono\"") && text.contains("font-family:\"Geist\""))
         #expect(text.contains(Data([0, 1, 2, 3]).base64EncodedString()))
         // without them the page still names the families and falls back to the system font
         ExportFonts.display = nil; ExportFonts.body = nil
