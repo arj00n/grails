@@ -132,15 +132,17 @@
   async function feedPins(ui, text) {
     const pathname = location.pathname;
     const [user, slug] = pathname.split("/").filter(Boolean).map(decodeURIComponent);
-    let boardId = null;
-    // the board's id: from the API by name (works whatever the page embeds), else from the page's own markup
+    let boardId = null, expected = 0;
+    // the board's id: from the page's own markup, else from the API by name; the API also says how many pins the board holds
+    const html = document.documentElement.innerHTML;
+    for (const re of [/board_id\\?",\\?"(\d+)/, /"board_id"\s*:\s*"(\d+)"/, /board_id\\?":\\?"(\d+)/]) { const m = re.exec(html); if (m) { boardId = m[1]; break; } }
     const info = await resource("BoardResource", { username: user, slug, field_set_key: "detail" }, pathname);
-    if (info?.data?.id) boardId = String(info.data.id);
-    if (!boardId) {
-      const html = document.documentElement.innerHTML;
-      for (const re of [/board_id\\?",\\?"(\d+)/, /"board_id"\s*:\s*"(\d+)"/, /board_id\\?":\\?"(\d+)/]) { const m = re.exec(html); if (m) { boardId = m[1]; break; } }
+    if (info?.data) {
+      expected = Number(info.data.pin_count) || 0;
+      if (!boardId && info.data.id) boardId = String(info.data.id);
     }
     if (!boardId) { console.log("[Grails] no board id; scrolling instead"); return null; }
+    console.log("[Grails] board", boardId, "expects", expected, "pins");
 
     const pins = new Map();
     const say = (extra) => {
@@ -163,8 +165,7 @@
       if (!bookmark || bookmark === "-end-" || !(rr.data || []).length) break;
       await wait(1200);
     }
-    if (pages === 0) { console.log("[Grails] the board feed gave nothing; scrolling instead"); return null; }
-    console.log("[Grails] board feed:", pins.size, "pins");
+    console.log("[Grails] board feed:", pins.size, "pins in", pages, "pages");
 
     // sections: each one's own pins
     const sec = await resource("BoardSectionsResource", { board_id: boardId, redux_normalize_feed: true }, pathname);
@@ -187,7 +188,22 @@
       }
     }
     console.log("[Grails] with", sections.length, "sections:", pins.size, "pins");
-    return [...pins.values()];
+    return { pins: [...pins.values()], expected };
+  }
+
+  /** The board's pins by every route that works: its feed and sections first, then scrolling to fill in what they didn't give (a board of 82
+   *  pins that hands over 10 is not done). */
+  async function boardPins(ui, text) {
+    const got = await feedPins(ui, text).catch((e) => { console.log("[Grails] feed failed:", e); return null; });
+    const map = new Map((got?.pins || []).map((p) => [p.id, p]));
+    const expected = got?.expected || 0;
+    const enough = map.size > 0 && (!expected || map.size >= expected * 0.95);
+    if (!enough && !ui.stopped) {
+      console.log("[Grails] feed gave", map.size, "of", expected || "?", "; scrolling for the rest");
+      for (const p of await scrollPins(ui, (n) => text(Math.max(n, map.size)))) if (!map.has(p.id)) map.set(p.id, p);
+    }
+    console.log("[Grails] total", map.size, "pins");
+    return [...map.values()];
   }
 
   /** Scrolls the page to its end collecting pins ({id, image}); `limit` guards runaway boards. */
@@ -253,7 +269,7 @@
     if (collecting || window !== window.top) return;
     collecting = true;
     const ui = makePanel();
-    const pins = (await feedPins(ui, (n) => `${n} pins`)) || (await scrollPins(ui, (n) => `${n} pins`));
+    const pins = await boardPins(ui, (n) => `${n} pins`);
     ui.label.textContent = `Sending ${pins.length}…`;
     ui.stop.remove();
     const result = await chrome.runtime.sendMessage({ type: "board-collected", url: location.href, title: boardTitle(), pins });
@@ -267,7 +283,7 @@
     if (collecting) return { pins: [] };
     collecting = true;
     const ui = makePanel();
-    const pins = (await feedPins(ui, (n) => `Board ${index} of ${of} · ${n}`)) || (await scrollPins(ui, (n) => `Board ${index} of ${of} · ${n}`));
+    const pins = await boardPins(ui, (n) => `Board ${index} of ${of} · ${n}`);
     const stopped = ui.stopped;
     ui.panel.remove();
     collecting = false;

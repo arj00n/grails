@@ -108,3 +108,22 @@ import Testing
         }
     }
 }
+
+
+@Suite struct BrowserSuppliedPinsTests {
+    final class Count: @unchecked Sendable { private let l = NSLock(); private var n = 0; func hit() { l.lock(); n += 1; l.unlock() }; var value: Int { l.lock(); defer { l.unlock() }; return n } }
+
+    @Test func pinsTheBrowserGavePicturesForNeverCostAWidgetLookupSoABigBoardCantBeSlowedDownOut() async throws {
+        let count = Count()
+        let loader: LinkFetcher.Loader = { req in
+            count.hit()
+            return (Data(), HTTPURLResponse(url: req.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!)     // the widget would say "slow down"
+        }
+        var images: [String: String] = [:]
+        let ids = (0..<95).map { String(7000 + $0) }
+        for id in ids { images[id] = "https://i.pinimg.com/originals/aa/bb/\(id).jpg" }
+        let r = try await PinterestPins.resolve(ids: ids, authorFallback: "ana", images: images, loader: loader)
+        #expect(count.value == 0 && r.entries.count == 95 && r.skipped.isEmpty)
+        #expect(r.entries[0].mediaUrls.first == "https://i.pinimg.com/originals/aa/bb/7000.jpg")
+    }
+}

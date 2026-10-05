@@ -370,7 +370,11 @@ final class ImportModel {
                 var t = BoardTask(candidate: BoardCandidate(ref: ref, name: remote.name, count: remote.entries.count, via: .browser))
                 t.entries = remote.entries; t.skipped = remote.skipped; t.total = remote.entries.count
                 tasks.append(t)
-            } catch { collecting[BoardCandidate.id(for: ref)] = nil; lastReceiveError = "\(b.url): \(error)" }
+            } catch {
+                collecting[BoardCandidate.id(for: ref)] = nil
+                lastReceiveError = "\(b.url): \(error)"
+                app.showToast("Couldn't import that board", seconds: 6)
+            }
         }
         guard !tasks.isEmpty else { return }
         if let runner, phase == .running { for t in tasks { await runner.append(t) } }

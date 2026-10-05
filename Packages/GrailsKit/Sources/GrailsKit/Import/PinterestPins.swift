@@ -27,8 +27,11 @@ enum PinterestPins {
         for id in ids where !isNumeric(id) { if let e = fromPage(id) { out.entries.append(e) } else { unresolvable += 1 } }
         if unresolvable > 0 { out.skipped["pins Pinterest wouldn't describe"] = unresolvable }
         var byID: [String: [String: Any]] = [:]
-        for start in stride(from: 0, to: numeric.count, by: batchSize) {
-            let batch = numeric[start..<min(start + batchSize, numeric.count)]
+        // pins the browser already gave exact pictures for need no lookup: asking the widget about a whole board is a request per 20 pins, and
+        // Pinterest answers a long run of them with "slow down", which would sink the board
+        let lookup = numeric.filter { images[$0] == nil }
+        for start in stride(from: 0, to: lookup.count, by: batchSize) {
+            let batch = lookup[start..<min(start + batchSize, lookup.count)]
             guard let url = URL(string: "https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=\(batch.joined(separator: ","))") else { continue }
             let (data, response) = try await loader(LinkFetcher.request(url, accept: "application/json"))
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {

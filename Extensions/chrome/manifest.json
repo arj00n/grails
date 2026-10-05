@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Save to Grails",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Send images, videos, links and pages to your Grails library on this Mac.",
   "minimum_chrome_version": "110",
   "permissions": [
