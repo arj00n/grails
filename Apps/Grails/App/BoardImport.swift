@@ -27,9 +27,21 @@ extension AppModel {
 
     func cancelBoardImport() { importModel.stopAll() }
 
+    /// Items arriving from an import: the library shows them in steps (at most one reload every 2 s, none behind onboarding), so the grid
+    /// never reflows on every picture.
+    func reloadWhileImporting() {
+        guard onboarding == nil else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastImportReload) >= 2 else { return }
+        lastImportReload = now
+        reloadSoon()
+    }
+
     func importFinished(_ job: ImportJob, openFirst: Bool) async {
         await reload()
         kickAutoTag()
+        // on the canvas, one calm fit once everything has arrived (the camera stayed put while items streamed in)
+        if viewMode == .canvas { await syncCanvas(); canvasRequest = CanvasRequest(kind: .fit) }
         let added = job.boards.reduce(0) { $0 + $1.added + $1.alreadyHad }
         let skipped = job.boards.reduce(0) { $0 + $1.skippedCount + $1.failed }
         if openFirst, let first = job.boards.first(where: { $0.collectionId != nil && $0.added + $0.alreadyHad > 0 })?.collectionId { source = .collection(first) }

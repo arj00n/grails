@@ -190,6 +190,8 @@ final class OnboardingModel {
         state.step = .arriving
         state.save(defaults)
         app?.importModel.opensFirstCollection = false
+        // the first thing the library shows is a calm grid, never a canvas that has to fit itself around items still arriving
+        if app?.viewMode == .canvas { app?.viewMode = .grid }
         withAnimation(.easeOut(duration: Motion.standard)) { app?.onboarding = nil }
     }
 }

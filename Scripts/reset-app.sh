@@ -16,7 +16,7 @@ if pgrep -x Grails >/dev/null; then
   pgrep -x Grails >/dev/null && { echo "Grails is still running (a dialog may be open); close it and run this again."; exit 1; }
 fi
 
-for k in libraryPath onboarding.v1 extensionPaired workspaces; do defaults delete xyz.arjoon.grails "$k" 2>/dev/null; done
+for k in libraryPath onboarding.v1 extensionPaired workspaces viewMode; do defaults delete xyz.arjoon.grails "$k" 2>/dev/null; done
 rm -f "$SUPPORT/api-token"
 rm -rf "$SUPPORT/Imports"
 # to the Trash with plain mv (asking Finder would raise a macOS "wants to control Finder" prompt)

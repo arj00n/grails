@@ -338,7 +338,7 @@ final class ImportModel {
                     self.arrivedCount += 1
                     self.arrivals.append(item)
                     if self.arrivals.count > 400 { self.arrivals.removeFirst(100) }
-                    if self.arrivedCount % 6 == 0 { self.app?.reloadSoon() }
+                    self.app?.reloadWhileImporting()
                 case .finished(let done):
                     self.finishedJob = done
                     self.phase = .finished

@@ -75,7 +75,8 @@ extension AppModel {
         _ = try? await store.setClusters(boardKey: key, adopted)       // housekeeping: not an undo step
         if announce {
             bumpCanvasVersion()
-            if !known.isEmpty, !fresh.isEmpty { canvasRequest = CanvasRequest(kind: .reveal(fresh)) }
+            // while an import streams items in, the camera stays put: revealing each batch would swoop and zoom on every one
+            if !known.isEmpty, !fresh.isEmpty, !importModel.isRunning { canvasRequest = CanvasRequest(kind: .reveal(fresh)) }
         }
     }
 
