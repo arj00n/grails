@@ -175,17 +175,7 @@ private func spec(mode: PaintingWall.Placement.Mode = .cover, anchor: [Double] =
     }
 }
 
-@Suite struct LoupeTests {
-    @Test func theLensIsZeroBeyondItsRadiusAndFadesWithAge() {
-        let t = PaintingWall.Touch(x: 100, y: 100, age: 0)
-        #expect(PaintingWall.influence(x: 100, y: 100, touches: [t]) == 1)
-        #expect(PaintingWall.influence(x: 100 + PaintingWall.loupeRadius, y: 100, touches: [t]) == 0 && PaintingWall.influence(x: 400, y: 400, touches: [t]) == 0)
-        let old = PaintingWall.Touch(x: 100, y: 100, age: 0.4)
-        #expect(PaintingWall.influence(x: 100, y: 100, touches: [old]) < 0.5)
-        #expect(PaintingWall.influence(x: 100, y: 100, touches: [PaintingWall.Touch(x: 100, y: 100, age: 0.8)]) == 0)
-        for d in stride(from: 0.0, to: 90, by: 6) { let q = PaintingWall.influence(x: 100 + d, y: 100, touches: [t]); #expect(q >= 0 && q <= 1) }
-    }
-
+@Suite struct FalloffAndShimmerTests {
     @Test func thePaintingThinsOutSoftlyAroundThePlate() {
         let plate = PaintingWall.plate(window: CGSize(width: 1280, height: 800))
         #expect(PaintingWall.falloff(x: plate.midX, y: plate.midY, plate: plate) == 0)
@@ -196,6 +186,24 @@ private func spec(mode: PaintingWall.Placement.Mode = .cover, anchor: [Double] =
         }
         let corner = PaintingWall.falloff(x: plate.maxX + 30, y: plate.maxY + 30, plate: plate), edge = PaintingWall.falloff(x: plate.maxX + 30, y: plate.midY, plate: plate)
         #expect(corner > edge)                                                          // distance is round, not boxy
+    }
+
+    @Test func theFastShimmerMatchesTheDirectFormula() {
+        let t = 12.7, s = PaintingWall.Shimmer(t: t, cols: 100, rows: 60)
+        for (x, y) in [(0, 0), (17, 3), (50, 30), (99, 59)] { #expect(abs(Double(s.value(x: x, y: y)) - PaintingWall.Shimmer.direct(x: x, y: y, t: t)) < 1e-4) }
+    }
+
+    @Test func theShimmerStaysInRangeAndMovesSlowly() {
+        var biggest: Float = 0
+        for t in stride(from: 0.0, to: 60, by: 7.3) {
+            let s = PaintingWall.Shimmer(t: t, cols: 80, rows: 50)
+            for y in stride(from: 0, to: 50, by: 7) { for x in stride(from: 0, to: 80, by: 9) { biggest = max(biggest, abs(s.value(x: x, y: y))); #expect(abs(s.value(x: x, y: y)) <= 1.0001) } }
+        }
+        #expect(biggest > 0.5)
+        // slow: a tenth of a second changes a pixel's value by only a few hundredths
+        let a = PaintingWall.Shimmer(t: 5, cols: 80, rows: 50), b = PaintingWall.Shimmer(t: 5.1, cols: 80, rows: 50)
+        for (x, y) in [(3, 4), (40, 25), (77, 48)] { #expect(abs(a.value(x: x, y: y) - b.value(x: x, y: y)) < 0.05) }
+        #expect(PaintingWall.shimmerAmplitude <= 0.12)
     }
 }
 

@@ -2,7 +2,7 @@ import AppKit
 import GrailsDesign
 
 /// Turns the paintings into pictures of the wall: builds each painting's pixel grid for a window size (off the main thread, cached),
-/// composes one frame (the painting, or the dither turning into the next, with the title plate left blank) and the pointer's reveal on top.
+/// composes one frame (the painting, or the dither turning into the next, with the title plate left blank and a slow shimmer over it).
 /// The maths is in `PaintingWall`; this is the plumbing. Used by `PaintingWallView` and by the headless demo.
 @MainActor
 final class PaintingWallEngine {
@@ -10,9 +10,6 @@ final class PaintingWallEngine {
         var base: CGImage
         /// Size of `base` in points (a little larger than the window: whole pixels).
         var baseSize: CGSize
-        var loupe: (image: CGImage, rect: CGRect)?
-        /// More frames will differ soon: an intro, a transition, or a pointer trail still fading.
-        var animating: Bool
     }
 
     static let shared = PaintingWallEngine()
@@ -27,7 +24,6 @@ final class PaintingWallEngine {
     private var pending = Set<Key>()
     private var tints: [Int: [UInt32]] = [:]
     private var falloffs: [Int: [Float]] = [:]
-    private var sources: [Int: Source] = [:]
     private static let bayer: [Float] = (0..<64).map { Float(Dither.bayer($0 % 8, $0 / 8)) }
 
     init?() {
@@ -94,46 +90,6 @@ final class PaintingWallEngine {
         return PaintingWall.Grid.build(rgba: bytes, cols: cols, rows: rows, pixel: pixel, spec: spec, frame: frame)
     }
 
-    // MARK: The painting itself (for the reveal under the pointer)
-
-    /// A painting's own pixels, 8-bit RGBA, for sampling with true colour.
-    private struct Source {
-        var width: Int, height: Int
-        var bytes: [UInt8]
-
-        /// Bilinear sample at (u, v) in source pixels, as 0...255 red, green, blue.
-        func rgb(u: Double, v: Double) -> (r: Double, g: Double, b: Double) {
-            let x = min(max(u - 0.5, 0), Double(width - 1) - 0.001), y = min(max(v - 0.5, 0), Double(height - 1) - 0.001)
-            let x0 = Int(x), y0 = Int(y), fx = x - Double(x0), fy = y - Double(y0)
-            let i00 = (y0 * width + x0) * 4, i10 = i00 + 4, i01 = i00 + width * 4, i11 = i01 + 4
-            func ch(_ o: Int) -> Double {
-                let top = Double(bytes[i00 + o]) * (1 - fx) + Double(bytes[i10 + o]) * fx
-                let bottom = Double(bytes[i01 + o]) * (1 - fx) + Double(bytes[i11 + o]) * fx
-                return top * (1 - fy) + bottom * fy
-            }
-            return (ch(0), ch(1), ch(2))
-        }
-    }
-
-    private func source(_ index: Int) -> Source? {
-        if let s = sources[index] { return s }
-        guard specs.indices.contains(index), let src = CGImageSourceCreateWithURL(dir.appendingPathComponent(specs[index].file) as CFURL, nil),
-              let image = CGImageSourceCreateImageAtIndex(src, 0, nil) else { return nil }
-        let w = image.width, h = image.height
-        var bytes = [UInt8](repeating: 0, count: w * h * 4)
-        let ok = bytes.withUnsafeMutableBytes { raw -> Bool in
-            guard let ctx = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-                                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
-            ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
-            return true
-        }
-        guard ok else { return nil }
-        if sources.count >= 3 { sources.removeAll() }
-        let s = Source(width: w, height: h, bytes: bytes)
-        sources[index] = s
-        return s
-    }
-
     /// How much of the painting shows at each pixel: 0 on the plate, easing to 1 around it.
     private func falloff(cols: Int, rows: Int, plate: CGRect) -> [Float] {
         let k = cols << 16 | rows
@@ -165,7 +121,7 @@ final class PaintingWallEngine {
     }
 
     /// One frame at `t` seconds. Nil while the first painting's grid is still being built (it asks for it, and `onReady` fires).
-    func frame(size: CGSize, t: Double, dark: Bool, reduceMotion: Bool, touches: [PaintingWall.Touch]) -> Frame? {
+    func frame(size: CGSize, t: Double, dark: Bool, reduceMotion: Bool) -> Frame? {
         guard size.width > 8, size.height > 8 else { return nil }
         let px = PaintingWall.pixel
         let cols = Int((size.width / CGFloat(px)).rounded(.up)), rows = Int((size.height / CGFloat(px)).rounded(.up))
@@ -191,6 +147,9 @@ final class PaintingWallEngine {
         let toInk = dark ? gTo.inkDark : gTo.inkLight, fromInk = gFrom.map { dark ? $0.inkDark : $0.inkLight }
         let toColour = gTo.colour, fromColour = gFrom?.colour
         let e = progress.map(PaintingWall.ease)
+        // a slow drift added to every threshold, so pixels near one slowly come and go; none with Reduce Motion
+        let shimmer = PaintingWall.Shimmer(t: reduceMotion ? 0 : t, cols: cols, rows: rows)
+        let amplitude = reduceMotion ? 0 : Float(PaintingWall.shimmerAmplitude)
 
         var buffer = [UInt32](repeating: 0, count: cols * rows)
         let table = Self.bayer
@@ -199,7 +158,7 @@ final class PaintingWallEngine {
                 for x in 0..<cols {
                     if x >= pc0 && x < pc1 && y >= pr0 && y < pr1 { continue }
                     let i = y * cols + x
-                    let threshold = table[(y & 7) << 3 | (x & 7)] * 0.92 + 0.04
+                    let threshold = table[(y & 7) << 3 | (x & 7)] * 0.92 + 0.04 + amplitude * shimmer.value(x: x, y: y)
                     if let e {
                         // the old and new inks blend (so the dither pattern itself changes), and each pixel takes the new colour
                         // once the blend passes its own noise value
@@ -216,56 +175,12 @@ final class PaintingWallEngine {
             }
         }
         guard let base = Self.image(&buffer, width: cols, height: rows) else { return nil }
-        var result = Frame(base: base, baseSize: CGSize(width: cols * px, height: rows * px), loupe: nil, animating: progress != nil || !touches.isEmpty)
-
-        if !touches.isEmpty {
-            result.loupe = loupe(touches: touches, size: size, plate: plate, to: toIdx, from: fromIdx, blend: e)
-        }
-        return result
-    }
-
-    /// The painting itself, in true colour, under the pointer and its trail: a soft-edged window onto the picture the dither stands for.
-    /// During a transition it shows the two paintings blended, like the dither does.
-    private func loupe(touches: [PaintingWall.Touch], size: CGSize, plate: CGRect, to: Int, from: Int?, blend e: Double?) -> (image: CGImage, rect: CGRect)? {
-        guard let srcTo = source(to) else { return nil }
-        let srcFrom = from.flatMap { source($0) }
-        let frameTo = PaintingWall.frame(specs[to], window: size), frameFrom = from.map { PaintingWall.frame(specs[$0], window: size) } ?? frameTo
-        let r = PaintingWall.loupeRadius
-        let live = touches.filter { $0.age <= PaintingWall.loupeLife }
-        guard !live.isEmpty else { return nil }
-        let minX = max(Int((live.map(\.x).min()! - r).rounded(.down)), 0), maxX = min(Int((live.map(\.x).max()! + r).rounded(.up)), Int(size.width))
-        let minY = max(Int((live.map(\.y).min()! - r).rounded(.down)), 0), maxY = min(Int((live.map(\.y).max()! + r).rounded(.up)), Int(size.height))
-        let w = maxX - minX, h = maxY - minY
-        guard w > 0, h > 0, w * h <= 400_000 else { return nil }
-        let mix = srcFrom == nil ? 1 : (e ?? 1)
-        var buffer = [UInt32](repeating: 0, count: w * h)
-        buffer.withUnsafeMutableBufferPointer { out in
-            for fy in 0..<h {
-                let Y = minY + fy
-                for fx in 0..<w {
-                    let X = minX + fx
-                    let q = PaintingWall.influence(x: Double(X) + 0.5, y: Double(Y) + 0.5, touches: live)
-                    if q <= 0 { continue }
-                    if Double(X) >= plate.minX && Double(X) < plate.maxX && Double(Y) >= plate.minY && Double(Y) < plate.maxY { continue }
-                    var c = srcTo.rgb(u: (Double(X) + 0.5 - Double(frameTo.minX)) / Double(frameTo.width) * Double(srcTo.width),
-                                      v: (Double(Y) + 0.5 - Double(frameTo.minY)) / Double(frameTo.height) * Double(srcTo.height))
-                    if mix < 1, let srcFrom {
-                        let o = srcFrom.rgb(u: (Double(X) + 0.5 - Double(frameFrom.minX)) / Double(frameFrom.width) * Double(srcFrom.width),
-                                            v: (Double(Y) + 0.5 - Double(frameFrom.minY)) / Double(frameFrom.height) * Double(srcFrom.height))
-                        c = (o.r + (c.r - o.r) * mix, o.g + (c.g - o.g) * mix, o.b + (c.b - o.b) * mix)
-                    }
-                    let a = min(q * 1.6, 1), alpha = a * a * (3 - 2 * a)
-                    out[fy * w + fx] = UInt32(alpha * 255 + 0.5) << 24 | UInt32(c.b * alpha + 0.5) << 16 | UInt32(c.g * alpha + 0.5) << 8 | UInt32(c.r * alpha + 0.5)
-                }
-            }
-        }
-        guard let image = Self.image(&buffer, width: w, height: h) else { return nil }
-        return (image, CGRect(x: minX, y: minY, width: w, height: h))
+        return Frame(base: base, baseSize: CGSize(width: cols * px, height: rows * px))
     }
 
     /// For the demo: the frame as one image of the window, canvas behind it.
-    func render(size: CGSize, t: Double, dark: Bool, touches: [PaintingWall.Touch] = [], reduceMotion: Bool = false) -> CGImage? {
-        guard let f = frame(size: size, t: t, dark: dark, reduceMotion: reduceMotion, touches: touches),
+    func render(size: CGSize, t: Double, dark: Bool, reduceMotion: Bool = false) -> CGImage? {
+        guard let f = frame(size: size, t: t, dark: dark, reduceMotion: reduceMotion),
               let ctx = CGContext(data: nil, width: Int(size.width), height: Int(size.height), bitsPerComponent: 8, bytesPerRow: 0,
                                   space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         ctx.setFillColor(dark ? CGColor(gray: 0, alpha: 1) : CGColor(gray: 1, alpha: 1))
@@ -273,7 +188,6 @@ final class PaintingWallEngine {
         ctx.interpolationQuality = .none
         // the context's y runs up: the image hangs from the top left
         ctx.draw(f.base, in: CGRect(x: 0, y: size.height - f.baseSize.height, width: f.baseSize.width, height: f.baseSize.height))
-        if let l = f.loupe { ctx.draw(l.image, in: CGRect(x: l.rect.minX, y: size.height - l.rect.maxY, width: l.rect.width, height: l.rect.height)) }
         return ctx.makeImage()
     }
 }

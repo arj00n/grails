@@ -53,7 +53,8 @@ public enum PaintingWall {
     public static let period = 14.0
     public static let transition = 5.0
     public static let introStart = 0.1, introDuration = 1.0
-    public static let loupeRadius = 100.0, loupeDecay = 0.45, loupeLife = 0.75
+    /// How far (in ink) the ambient shimmer moves each pixel's threshold: small, so only pixels near a threshold flicker.
+    public static let shimmerAmplitude = 0.10
     /// Around the plate the painting thins out over this distance, so the blank middle has soft edges.
     public static let plateFalloff = 90.0
 
@@ -224,21 +225,34 @@ public enum PaintingWall {
         return ease(p) >= 0.5 ? s.next : s.index
     }
 
-    // MARK: Loupe
+    // MARK: Shimmer
 
-    public struct Touch: Equatable, Sendable {
-        public var x: Double, y: Double, age: Double
-        public init(x: Double, y: Double, age: Double) { self.x = x; self.y = y; self.age = age }
-    }
+    /// A slow drift over the dither: three plane waves a few hundred points long that take 14 to 22 seconds to cross. Added to each pixel's
+    /// threshold, it makes pixels near a threshold slowly appear and vanish in broad patches, so the picture breathes without moving.
+    /// Separable (each wave is a sum of products of a column term and a row term), so a frame costs two small tables, not a sine a pixel.
+    public struct Shimmer: Sendable {
+        private var colSin: [[Float]] = [], colCos: [[Float]] = [], rowSin: [[Float]] = [], rowCos: [[Float]] = []
+        public static let waves: [(kx: Double, ky: Double, omega: Double)] = [(0.045, 0.030, 0.45), (0.070, -0.050, -0.35), (0.020, 0.060, 0.28)]
 
-    /// 0...1: how much the pointer (and its trail) has revealed the point (x, y).
-    public static func influence(x: Double, y: Double, touches: [Touch]) -> Double {
-        var q = 0.0
-        for t in touches where t.age <= loupeLife {
-            let d = ((x - t.x) * (x - t.x) + (y - t.y) * (y - t.y)).squareRoot()
-            let f = min(max(1 - d / loupeRadius, 0), 1)
-            if f > 0 { q = max(q, f * f * (3 - 2 * f) * exp(-t.age / loupeDecay)) }
+        public init(t: Double, cols: Int, rows: Int) {
+            for w in Self.waves {
+                colSin.append((0..<cols).map { Float(sin(w.kx * Double($0) + w.omega * t)) })
+                colCos.append((0..<cols).map { Float(cos(w.kx * Double($0) + w.omega * t)) })
+                rowSin.append((0..<rows).map { Float(sin(w.ky * Double($0))) })
+                rowCos.append((0..<rows).map { Float(cos(w.ky * Double($0))) })
+            }
         }
-        return q
+
+        /// -1...1 at pixel (x, y).
+        @inline(__always) public func value(x: Int, y: Int) -> Float {
+            var v: Float = 0
+            for k in 0..<colSin.count { v += colSin[k][x] * rowCos[k][y] + colCos[k][x] * rowSin[k][y] }       // sin(a + b) = sin a cos b + cos a sin b
+            return v / Float(colSin.count)
+        }
+
+        /// The same value worked out directly, for checking.
+        public static func direct(x: Int, y: Int, t: Double) -> Double {
+            waves.reduce(0) { $0 + sin($1.kx * Double(x) + $1.ky * Double(y) + $1.omega * t) } / Double(waves.count)
+        }
     }
 }

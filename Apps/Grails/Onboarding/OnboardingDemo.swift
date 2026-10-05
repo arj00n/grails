@@ -44,27 +44,25 @@ struct OnboardingDemo {
         func wait(_ ms: Int) async { try? await Task.sleep(for: .milliseconds(ms)) }
         func until(_ seconds: Double, _ cond: () -> Bool) async { for _ in 0..<Int(seconds * 10) where !cond() { await wait(100) } }
 
-        // Hello: the paintings, the cross-construct between them, the reveal, the plate with its caption
+        // Hello: the paintings, the cross-construct between them, the shimmer, the plate with its caption
         let engine = PaintingWallEngine.shared
         check(engine != nil && engine!.specs.count == 14, "painting manifest loads: \(engine?.specs.count ?? 0) works")
         if let engine {
             for i in engine.specs.indices { engine.prepare(i, size: size) }
-            func hello(_ name: String, t: Double, touches: [PaintingWall.Touch] = [], reduceMotion: Bool = false, size: CGSize = size, indices: Bool = true) {
+            func hello(_ name: String, t: Double, reduceMotion: Bool = false, size: CGSize = size, indices: Bool = true) {
                 let sched = PaintingWall.schedule(t: t, count: engine.specs.count, reduceMotion: reduceMotion)
                 let caption = engine.specs[PaintingWall.captionIndex(sched)].caption
                 snap({ dark in
                     HelloFrame(t: t, size: size, caption: caption, wall: {
-                        if let img = engine.render(size: size, t: t, dark: dark, touches: touches, reduceMotion: reduceMotion) { Image(decorative: img, scale: 1).resizable() }
+                        if let img = engine.render(size: size, t: t, dark: dark, reduceMotion: reduceMotion) { Image(decorative: img, scale: 1).resizable() }
                     })
                 }, name, size: size)
             }
             for (name, t) in [("0000", 0.05), ("0450", 0.45), ("0900", 0.9), ("1300", 1.3)] { hello("hello-\(name)", t: t) }
             for i in engine.specs.indices { hello("hello-rest-\(engine.specs[i].id)", t: PaintingWall.period * Double(i) + 7) }
             for (n, p) in [(10, 0.1), (25, 0.25), (50, 0.5), (75, 0.75), (90, 0.9)] { hello("hello-transition-\(n)", t: PaintingWall.period + PaintingWall.transition * p) }
-            hello("hello-transition-loupe", t: PaintingWall.period + PaintingWall.transition * 0.5, touches: (0..<8).map { PaintingWall.Touch(x: 330 + Double($0) * 18, y: 560 - Double($0) * 10, age: Double($0) * 0.05) })
-            hello("hello-loupe", t: 3, touches: (0..<8).map { PaintingWall.Touch(x: 450 - Double($0) * 9, y: 290 + Double($0) * 4, age: Double($0) * 0.06) })
-            hello("hello-loupe-vermeer", t: PaintingWall.period * 2 + 7, touches: (0..<10).map { PaintingWall.Touch(x: 330 + Double($0) * 22, y: 560 - Double($0) * 14, age: Double($0) * 0.05) })
             hello("hello-reduce-motion", t: 10, reduceMotion: true)
+            say(shimmerReport(engine))
             say(bench(engine))
         }
         check(model.step == .hello, "starts on Hello")
@@ -161,23 +159,31 @@ extension OnboardingDemo {
             for k in 0..<60 {
                 let t = PaintingWall.period + PaintingWall.transition * (0.2 + 0.6 * Double(k) / 60)
                 let start = CFAbsoluteTimeGetCurrent()
-                _ = engine.frame(size: size, t: t, dark: true, reduceMotion: false, touches: [])
+                _ = engine.frame(size: size, t: t, dark: true, reduceMotion: false)
                 times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
             }
             times.sort()
-            // the pointer moving fast: head plus a full trail, on the first painting held (no transition)
-            let trail = (0..<19).map { PaintingWall.Touch(x: 600 + Double($0) * 14, y: 300 + Double($0) * 9, age: Double($0) * 0.04) }
-            var loupe: [Double] = []
-            for _ in 0..<30 {
-                let start = CFAbsoluteTimeGetCurrent()
-                _ = engine.frame(size: size, t: 9, dark: true, reduceMotion: false, touches: trail)
-                loupe.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
-            }
-            loupe.sort()
-            lines.append("bench \(label) with a full pointer trail: median \(String(format: "%.2f", loupe[15])) ms, p95 \(String(format: "%.2f", loupe[28])) ms")
             lines.append("bench \(label): transition frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms")
         }
         return lines.joined(separator: "\n")
     }
 }
 
+
+extension OnboardingDemo {
+    /// How much of the picture changes while a painting holds: the share of pixels that differ after 1 s and after 3 s (should be a few percent).
+    func shimmerReport(_ engine: PaintingWallEngine) -> String {
+        func bytes(_ t: Double) -> [UInt8]? {
+            guard let f = engine.frame(size: size, t: t, dark: true, reduceMotion: false), let data = f.base.dataProvider?.data else { return nil }
+            return Array(UnsafeBufferPointer(start: CFDataGetBytePtr(data), count: CFDataGetLength(data)))
+        }
+        guard let a = bytes(8), let b = bytes(9), let c = bytes(11), a.count == b.count, a.count == c.count else { return "shimmer: no frames" }
+        func share(_ x: [UInt8], _ y: [UInt8]) -> Double {
+            var d = 0, n = 0
+            var i = 0
+            while i + 3 < x.count { if x[i] != y[i] || x[i + 1] != y[i + 1] || x[i + 2] != y[i + 2] || x[i + 3] != y[i + 3] { d += 1 }; n += 1; i += 4 }
+            return Double(d) / Double(max(n, 1))
+        }
+        return "shimmer: \(String(format: "%.1f", share(a, b) * 100)) % of pixels differ after 1 s, \(String(format: "%.1f", share(a, c) * 100)) % after 3 s"
+    }
+}
