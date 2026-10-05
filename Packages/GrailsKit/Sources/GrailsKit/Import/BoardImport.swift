@@ -1,27 +1,29 @@
 import Foundation
 
 /// A public Are.na channel or Pinterest board, recognised from the link someone pastes.
-public enum BoardRef: Equatable, Sendable {
+public enum BoardRef: Hashable, Codable, Sendable {
     case arena(slug: String)
     case pinterest(user: String, board: String)
+    case pinterestPin(id: String)
     case tweet(id: String, user: String?)
 
     public var service: String {
-        switch self { case .arena: "Are.na"; case .pinterest: "Pinterest"; case .tweet: "X" }
+        switch self { case .arena: "Are.na"; case .pinterest, .pinterestPin: "Pinterest"; case .tweet: "X" }
     }
 
     public var kindName: String {
-        switch self { case .arena: "channel"; case .pinterest: "board"; case .tweet: "post" }
+        switch self { case .arena: "channel"; case .pinterest: "board"; case .pinterestPin: "pin"; case .tweet: "post" }
     }
 
     /// A single post: its media goes straight into the library rather than into a new collection.
-    public var isPost: Bool { if case .tweet = self { true } else { false } }
+    public var isPost: Bool { switch self { case .tweet, .pinterestPin: true; default: false } }
 
     /// Where the board lives on the web (stored as the items' page link when nothing better exists).
     public var webURL: URL {
         switch self {
         case .arena(let slug): URL(string: "https://www.are.na/channels/\(slug)")!
         case .pinterest(let user, let board): URL(string: "https://www.pinterest.com/\(user)/\(board)/")!
+        case .pinterestPin(let id): URL(string: "https://www.pinterest.com/pin/\(id)/")!
         case .tweet(let id, let user): URL(string: "https://x.com/\(user ?? "i")/status/\(id)")!
         }
     }
@@ -48,6 +50,7 @@ public enum BoardRef: Equatable, Sendable {
         }
         if let tweet = tweetRef(host: host, parts: parts) { return tweet }
         if host.split(separator: ".").contains("pinterest") {   // pinterest.com, in.pinterest.com, pinterest.co.uk …
+            if parts.count >= 2, parts[0] == "pin", !parts[1].isEmpty { return .pinterestPin(id: parts[1]) }
             guard parts.count >= 2, !pinterestReserved.contains(parts[0].lowercased()), !parts[1].hasPrefix("_") else { return nil }
             return .pinterest(user: parts[0], board: parts[1])
         }
@@ -131,6 +134,7 @@ public struct BoardImporter: Sendable {
         case .arena(let slug): try await fetchArena(slug: slug, progress: progress)
         case .pinterest(let user, let board): try await fetchPinterest(user: user, board: board, progress: progress)
         case .tweet(let id, let user): try await fetchTweet(id: id, user: user)
+        case .pinterestPin(let id): try await fetchPinterestPins(ids: [id], ref: ref, name: "Pin", author: nil)
         }
     }
 
@@ -238,6 +242,11 @@ public struct BoardImporter: Sendable {
 
     func fetchPinterest(user: String, board: String, progress: @Sendable (Int, Int?) -> Void) async throws -> RemoteBoard {
         let enc = { (s: String) in s.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? s }
+        // The board widget gives the latest 50 pins and the board's total; the RSS feed (25) is the fallback.
+        if let board = try? await PinterestBoardWidget.read(user: user, board: board, loader: loader) {
+            progress(board.entries.count, board.expectedTotal)
+            return board
+        }
         guard let url = URL(string: "https://www.pinterest.com/\(enc(user))/\(enc(board)).rss") else { throw BoardImportError.notABoardLink }
         let (data, response): (Data, URLResponse)
         do { (data, response) = try await loader(LinkFetcher.request(url, accept: "application/rss+xml,text/xml,*/*")) } catch { throw BoardImportError.network(error.localizedDescription) }

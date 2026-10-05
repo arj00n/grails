@@ -17,7 +17,7 @@ import Testing
         #expect(BoardRef.parse("https://www.pinterest.com/pinterest/pinterest-presents/") == .pinterest(user: "pinterest", board: "pinterest-presents"))
         #expect(BoardRef.parse("https://in.pinterest.com/some.one/dark-interiors/section-x/") == .pinterest(user: "some.one", board: "dark-interiors"))
         #expect(BoardRef.parse("pinterest.co.uk/ana/shoes") == .pinterest(user: "ana", board: "shoes"))
-        #expect(BoardRef.parse("https://www.pinterest.com/pin/12345/") == nil)           // a single pin
+        #expect(BoardRef.parse("https://www.pinterest.com/pin/12345/") == .pinterestPin(id: "12345"))   // a single pin
         #expect(BoardRef.parse("https://www.pinterest.com/ana/") == nil)                 // a profile
         #expect(BoardRef.parse("https://www.pinterest.com/ana/_saved/") == nil)
         #expect(BoardRef.parse("https://example.com/ana/shoes") == nil)
