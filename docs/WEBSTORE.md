@@ -1,7 +1,26 @@
-# Chrome Web Store submission: Save to Grails
+# Chrome Web Store submission: Save to Grails 0.2.0
 
-Upload `dist/save-to-grails-0.1.0.zip` (rebuild: `cd Extensions/chrome && zip -qr ../../dist/save-to-grails-<version>.zip . -x README.md`).
-Visibility: **Unlisted** (anyone with the link). Category: **Productivity**. Language: English.
+Everything is prepared; the submission itself is yours (it needs your developer account). About 10 minutes.
+
+## Files
+| What | Where |
+|---|---|
+| Upload | `dist/save-to-grails-0.2.0.zip` (rebuild: `cd Extensions/chrome && zip -qr ../../dist/save-to-grails-<version>.zip . -x README.md`) |
+| Screenshots (1280×800) | `Extensions/store/screenshot-shot1.png`, `-shot2.png`, `-shot3.png` |
+| Small promo tile (440×280) | `Extensions/store/promo-small-440x280.png` |
+| Icon (128) | inside the zip (`icons/128.png`) |
+| Privacy policy page | `docs/router/privacy.html`: put it on your site (for example `arjoon.xyz/grails/privacy`) and paste that URL in the form |
+
+## Steps in the dashboard
+1. **Items ▸ New item** (or your existing draft): upload the zip.
+2. **Store listing:** paste the text below, upload the three screenshots and the promo tile, category **Productivity**, language English, **Support URL / email:** `arjun@justswish.in`.
+3. **Privacy:** paste the single purpose and the permission reasons below; data collected: none; tick the three certifications; **Privacy policy URL:** where you put `privacy.html`.
+4. **Distribution:** visibility **Unlisted** (anyone with the link), all regions.
+5. **Test instructions** (reviewers can't run the Mac app): paste the text at the bottom.
+6. **Submit for review.** Reviews of extensions with all-site content scripts can take several days.
+7. When it is approved, copy the listing URL and run:
+   `defaults write xyz.arjoon.grails extensionStoreURL "<the listing url>"`
+   Install in Grails then opens the store page instead of the unpacked-folder steps.
 
 ## Store listing
 **Name:** Save to Grails
@@ -12,30 +31,23 @@ Save to Grails sends what you find on the web to Grails, a visual reference libr
 - Right-click an image, video, link or page, then Save to Grails.
 - Hold ⌥ and click any image.
 - ⌥⇧S saves the current page.
-- On Pinterest, import whole boards and every board on a profile, in full. Grails scrolls the page for you.
+- Open a Pinterest board you are signed in to and import all of it, including secret boards. Grails reads the board you are on.
 
-Everything goes straight to the Grails app on your Mac, over localhost. Nothing is sent to any server of ours, and there is no account.
-Requires the Grails app for macOS.
+Everything goes straight to the Grails app on your Mac, over localhost. Nothing is sent to any server, there is no account, and no analytics. Requires the Grails app for macOS.
 
-## Privacy practices tab
-- **Single purpose:** Save images, videos, links and pages from the web into the user's local Grails library app.
-- **Data collected:** none sent to the developer. Page URLs, titles and image addresses go only to the Grails app on the user's own computer (127.0.0.1).
-- Certify: no sale of data, no use unrelated to the single purpose, no creditworthiness or lending use.
-- **Privacy policy URL:** needs one (a short page on arjoon.xyz: "this extension sends data only to the Grails app on your own Mac; the developer receives nothing").
+## Privacy practices
+- **Single purpose:** Save images, videos, links, pages and Pinterest boards from the web into the user's local Grails library app.
+- **Data:** none sent to the developer; items go only to the Grails app on the user's own computer (127.0.0.1).
+- **Remote code:** none.
 
-## Permission justifications
-| Permission | Why |
+| Permission | Reason |
 |---|---|
 | `contextMenus` | The right-click "Save to Grails" menu. |
-| `storage` | Remembers the pairing with the app and the last collection picked. |
-| `activeTab` | Saves the page the user is on when they press the button or ⌥⇧S. |
-| `scripting` | Reads the picked image or the page's own metadata when saving. |
+| `storage` | Remembers the connection to the app and the last collection picked and recent items. |
+| `activeTab`, `scripting` | Reads the page or picture the user chose to save. |
+| `alarms` | Tries to connect to the Grails app again every 30 seconds until it answers, so nothing has to be typed. |
 | Host `http://127.0.0.1/*` | Talks to the Grails app running on the user's own Mac. |
-| Content script on `http://*/*`, `https://*/*` | Lets ⌥-click save an image on any page, and lets the Pinterest import scroll and read board pages the user opens. It sends nothing anywhere except the local Grails app. |
+| Content script on `http://*/*`, `https://*/*` | ⌥-click saves an image on any page; a Pinterest board the user opens for import is read from the page. Sends nothing anywhere except the local Grails app. |
 
-Remote code: none. The broad content-script match is the likeliest review question; the answer above is the honest one.
-
-## Needed from the dashboard
-- 1280×800 (or 640×400) screenshots, at least one: the right-click menu on an image, the popup, and a Pinterest import.
-- Small promo tile 440×280 (optional for unlisted).
-- Support email.
+## Test instructions for reviewers
+The extension is a companion to the free macOS app Grails, which cannot run on the review machines. It makes no network requests except to `http://127.0.0.1` (the app), so with the app absent it does nothing. To check behaviour: open the popup (it shows "Grails isn't running" with the app absent, and "Connect" if the app is running but not paired), right-click an image (a "Save to Grails" menu appears), and hold ⌥ and click an image (an on-page card says it could not reach Grails). Source for the extension is in the Grails repository under `Extensions/chrome`.

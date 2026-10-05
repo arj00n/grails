@@ -76,6 +76,18 @@ extension AppModel {
         extensionPaired = true
         UserDefaults.standard.set(true, forKey: "extensionPaired")
         if extensionSetup.isOpen { extensionSetup.connected = true }
+        // the guide ticks its last step, then leaves, and Grails comes back to the front
+        if guide.isShowing {
+            guide.finishAll()
+            guidePanel.refit()
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(1200))
+                guidePanel.hide()
+                NSApp.activate(ignoringOtherApps: true)
+            }
+        }
+        // a secret board that was waiting for this can now be read in the browser
+        importModel.useExtensionForSecretBoards()
         // an import was waiting for this: the sheet gets out of the way and the import starts
         if extensionSetup.continueImport {
             extensionSetup.continueImport = false
@@ -98,6 +110,11 @@ extension AppModel {
 
     /// Opens a page in the default browser (the one the extension lives in).
     func openInBrowser(_ link: String) {
+        // the browser the extension went into, when there is one; otherwise the default
+        if let b = ExtensionSetup.preferredBrowser, let url = URL(string: link), ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_DEMO"] == nil {
+            NSWorkspace.shared.open([url], withApplicationAt: b, configuration: NSWorkspace.OpenConfiguration())
+            return
+        }
         browserOpener(link)
     }
 

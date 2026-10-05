@@ -105,6 +105,23 @@ struct OnboardingDemo {
         // the extension is no longer in the way: the sheet is reached only on request
         check(!app.extensionSetup.isOpen && model.step == .paste, "no extension sheet and no browser on the default path")
 
+        // A secret board: flagged, then (extension connected) read in the browser like any other; and the floating guide that lists the steps
+        app.importModel.ingest("https://www.pinterest.com/ana/secret-one/")
+        await until(10) { !app.importModel.stillChecking }
+        check(app.importModel.secretRows == 1 && app.importModel.banner == .secret, "a secret board is flagged and the banner points at the extension")
+        snap(ZStack { ImportStep(model: model) }, "paste-secret")
+        app.extensionPaired = true
+        app.importModel.useExtensionForSecretBoards()
+        check(app.importModel.secretRows == 0 && app.importModel.selectedBoards.contains { $0.via == .browser && $0.id == "pinterest:ana/secret-one" }, "once the extension is connected the secret board becomes an importable board")
+        app.extensionPaired = false
+        if let row = app.importModel.rows.first(where: { $0.id == "pinterest:ana/secret-one" }) { app.importModel.remove(row.id) }
+        app.guide.set(title: "Adding the extension", steps: [("Turn on Developer mode, top right of the page", .done), ("Drag the folder below onto the page", .current), ("Grails connects by itself", .pending)],
+                      folder: URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support/Grails/Extension"))
+        snap(ZStack { Color.clear; GuideView(model: app.guide, close: {}).frame(width: 320).position(x: 640, y: 300) }, "guide-extension")
+        app.guide.set(title: "Reading your board", steps: [("Sign in to Pinterest in the tab that opened, if it asks", .done), ("Leave the tab open while Grails reads the board", .current), ("Grails comes back by itself when it's done", .pending)])
+        app.guide.status = "Reading 640 pins"
+        snap(ZStack { Color.clear; GuideView(model: app.guide, close: {}).frame(width: 320).position(x: 640, y: 300) }, "guide-reading")
+
         // Arriving: pictures join the grid a few at a time and never move once shown
         var opened: [String] = []
         app.browserOpener = { opened.append($0) }

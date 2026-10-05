@@ -64,7 +64,7 @@ extension AppModel {
                     Task { @MainActor in
                         guard let self else { return }
                         // the person just clicked Install in the sheet and is waiting for exactly this: no second question
-                        if self.extensionSetup.isOpen, self.extensionSetup.opened { self.allowPairing(r) } else { self.pairRequest = r }
+                        if (self.extensionSetup.isOpen && self.extensionSetup.opened) || self.importModel.secretRows > 0 { self.allowPairing(r) } else { self.pairRequest = r }
                     }
                 }
                 server.jobs.onBoards = { [weak self] nonce, boards in Task { @MainActor in self?.importModel.listed(nonce: nonce, boards: boards) } }

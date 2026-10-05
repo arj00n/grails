@@ -142,6 +142,23 @@ final class ImportModel {
 
     var secretRows: Int { rows.filter { $0.status == .secret }.count }
 
+    /// "interiors-2" → "Interiors 2"
+    static func boardName(_ ref: BoardRef) -> String {
+        guard case .pinterest(_, let board) = ref else { return ref.webURL.lastPathComponent }
+        return board.replacingOccurrences(of: "-", with: " ").capitalized
+    }
+
+    /// With the extension connected, a board only a signed-in browser can read becomes a board like any other: read in the browser, in full.
+    func useExtensionForSecretBoards() {
+        guard app?.extensionPaired == true else { return }
+        for i in rows.indices where rows[i].status == .secret {
+            guard case .board(let ref) = rows[i].candidate else { continue }
+            rows[i].board = BoardCandidate(ref: ref, name: Self.boardName(ref), count: nil, via: .browser)
+            rows[i].title = Self.boardName(ref)
+            rows[i].status = .ready
+        }
+    }
+
     /// Which explanation to show under the rows.
     var banner: ImportBannerRule.Variant? {
         ImportBannerRule.variant(boards: rows.flatMap { r in (r.status == .ready ? [r.board].compactMap { $0 } : []) + r.children.filter(\.selected) },
@@ -170,8 +187,10 @@ final class ImportModel {
             do { update(id) { $0.board = nil }; let b = try await BoardPreflight.check(ref, loader: loader); update(id) { $0.board = b; $0.title = b.name; $0.status = .ready } }
             catch {
                 // the widget doesn't know a secret board: say so (and offer the Pinterest sign-in) instead of calling it missing
-                if case .pinterest = ref, case BoardImportError.notFoundOrPrivate = error { update(id) { $0.status = .secret } }
-                else { update(id) { $0.status = Self.status(for: error) } }
+                if case .pinterest = ref, case BoardImportError.notFoundOrPrivate = error {
+                    update(id) { $0.title = Self.boardName(ref); $0.status = .secret }
+                    if app?.extensionPaired == true { useExtensionForSecretBoards() }
+                } else { update(id) { $0.status = Self.status(for: error) } }
             }
         case .arenaUser(let slug):
             do {
@@ -299,6 +318,9 @@ final class ImportModel {
         collectNonce = nonce
         for b in boards { collecting[b.id] = 0 }
         browserStalled = false
+        app.guide.set(title: "Reading your board",
+                      steps: [("Sign in to Pinterest in the tab that opened, if it asks", .current), ("Leave the tab open while Grails reads the board", .pending), ("Grails comes back by itself when it's done", .pending)])
+        app.guidePanel.show()
         app.openInBrowser(urls[0] + "#grails=\(nonce)")
         stallWatch?.cancel()
         stallWatch = Task { [weak self] in
@@ -311,6 +333,10 @@ final class ImportModel {
     func collectProgress(nonce: String, board: String, scrolled: Int) {
         guard nonce == collectNonce else { return }
         if let ref = LinkHarvester.harvest(board).first, case .board(let r) = ref { collecting[BoardCandidate.id(for: r)] = scrolled; browserStalled = false }
+        if let app, app.guide.isShowing, scrolled > 0 {
+            app.guide.advance(to: 1)
+            app.guide.status = "Reading \(scrolled.formatted()) pins"
+        }
     }
 
     func collectDone(nonce: String) {
@@ -318,6 +344,16 @@ final class ImportModel {
         collectNonce = nil
         pendingBrowser = []
         stallWatch?.cancel()
+        if let app, app.guide.isShowing {
+            app.guide.finishAll()
+            app.guide.status = nil
+            app.guidePanel.refit()
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(900))
+                app.guidePanel.hide()
+                NSApp.activate(ignoringOtherApps: true)        // back to Grails, where the grid is filling
+            }
+        }
         Task { await runner?.closeInput() }
     }
 

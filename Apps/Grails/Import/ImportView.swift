@@ -139,6 +139,7 @@ private struct ComposeRow: View {
             case .checking, .expanding: Text(row.status == .expanding ? "Finding channels…" : "Checking…").font(.grailsBody(12)).foregroundStyle(Ink.secondary)
             case .ready:
                 if row.board?.via == .latest { Text("Latest 50").font(.grailsBody(12)).foregroundStyle(Ink.secondary) }
+                if row.board?.via == .browser { Text("Read in Chrome").font(.grailsBody(12)).foregroundStyle(Ink.secondary) }
                 if let n = row.board?.count { Text(n.formatted()).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary) }
             case .needsBrowser:
                 SmallButton(label: "Find boards") { model.openProfileInBrowser(row.id) }

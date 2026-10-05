@@ -168,8 +168,10 @@ final class AppModel {
     var importLandingReady = true
     /// How a page is opened in the browser; the demo swaps it for a recorder.
     @ObservationIgnored var browserOpener: (String) -> Void = { if let u = URL(string: $0) { NSWorkspace.shared.open(u) } }
-    /// The "Add the extension" sheet.
+    /// The "Add the extension" sheet, and the floating guide that lists the exact steps while the person is in the browser.
     let extensionSetup = ExtensionSetup()
+    let guide = GuideModel()
+    @ObservationIgnored lazy var guidePanel = GuidePanelController(model: guide)
     var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")
     let importModel = ImportModel()
     @ObservationIgnored var hiddenPanels: (Bool, Bool)?

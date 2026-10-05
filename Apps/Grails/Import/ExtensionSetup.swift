@@ -77,17 +77,33 @@ final class ExtensionSetup {
 
     /// Opens the extension's page in each chosen browser: the store listing, or (until there is one) the extensions page, with the
     /// extension's folder copied somewhere stable and shown in Finder to drag in.
+    /// The browser the extension went into (the first ticked): the one imports that need it are opened in.
+    static var preferredBrowser: URL? {
+        guard let id = UserDefaults.standard.string(forKey: "extensionBrowser") else { return nil }
+        return NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
+    }
+
     func install(app: AppModel) {
         let targets = chosen
         guard !targets.isEmpty else { return }
+        UserDefaults.standard.set(targets[0].id, forKey: "extensionBrowser")
+        var folder: URL?
         if let store = ExtensionInstall.storeURL {
             for b in targets { NSWorkspace.shared.open([store], withApplicationAt: b.url, configuration: NSWorkspace.OpenConfiguration()) }
         } else {
-            guard let folder = app.copyExtensionFolder() else { return }
-            NSWorkspace.shared.activateFileViewerSelecting([folder])
+            guard let copied = app.copyExtensionFolder() else { return }
+            folder = copied
+            // no Finder window: the folder is dragged from the guide itself
             for b in targets { NSWorkspace.shared.open([URL(string: "chrome://extensions")!], withApplicationAt: b.url, configuration: NSWorkspace.OpenConfiguration()) }
         }
         opened = true
+        let name = targets[0].name
+        app.guide.set(title: "Adding the extension",
+                      steps: folder == nil ? [("Click Add to \(name) on the page that opened", .current), ("Confirm Add extension", .pending), ("Grails connects by itself", .pending)]
+                                           : [("Turn on Developer mode, top right of the page", .current), ("Drag the folder below onto the page", .pending), ("Grails connects by itself", .pending)],
+                      folder: folder)
+        app.guidePanel.show()
+        app.guidePanel.onClose = { [weak self] in self?.opened = false }
     }
 }
 
