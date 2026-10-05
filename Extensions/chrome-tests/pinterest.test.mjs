@@ -27,3 +27,47 @@ test("builds the import body, or nothing when there is nothing to import", () =>
   assert.equal(buildBoardImport({ url: "https://www.pinterest.com/ana/dark-interiors/", title: "x", pinIds: [] }), null);
   assert.equal(buildBoardImport({ url: "https://example.com/a/b", title: "x", pinIds: ["1"] }), null);
 });
+
+import { boardsFromAnchors, buildBoardBody, jobFromHash, parsePinCount } from "../chrome/lib/pinterest.js";
+
+test("job nonce comes from the hash", () => {
+  assert.equal(jobFromHash("#grails=0123456789abcdef0123456789abcdef"), "0123456789abcdef0123456789abcdef");
+  assert.equal(jobFromHash("#grails=ABCDEF0123456789"), "abcdef0123456789");
+  assert.equal(jobFromHash("#other"), null);
+  assert.equal(jobFromHash(""), null);
+});
+
+test("pin counts read in every style", () => {
+  assert.equal(parsePinCount("1,204 Pins"), 1204);
+  assert.equal(parsePinCount("1.204 pins"), 1204);
+  assert.equal(parsePinCount("12 Pins"), 12);
+  assert.equal(parsePinCount("1.2k Pins"), 1200);
+  assert.equal(parsePinCount("Interiors\n340 Pins\n2y"), 340);
+  assert.equal(parsePinCount("Interiors"), null);
+});
+
+test("boards come out of a profile page's links, once each, in order", () => {
+  const anchors = [
+    { href: "/ana/interiors/", text: "Interiors\n340 Pins", cover: "https://i.pinimg.com/a.jpg" },
+    { href: "/ana/interiors/?x=1", text: "again" },
+    { href: "/ana/_saved/", text: "Saved" },
+    { href: "/ana/", text: "Profile" },
+    { href: "/other/board/", text: "Not hers" },
+    { href: "/ana/dark-rooms/", text: "12 Pins" },
+    { href: "/ana/pins/", text: "Pins" },
+  ];
+  const boards = boardsFromAnchors(anchors, "ana");
+  assert.deepEqual(boards.map((b) => b.url), ["https://www.pinterest.com/ana/interiors/", "https://www.pinterest.com/ana/dark-rooms/"]);
+  assert.deepEqual([boards[0].name, boards[0].count, boards[0].cover], ["Interiors", 340, "https://i.pinimg.com/a.jpg"]);
+  assert.equal(boards[1].name, "dark rooms");                      // no title line: named from the link
+  assert.equal(boards[1].count, 12);
+});
+
+test("a scrolled board becomes one import body, carrying the job", () => {
+  const pins = [{ id: "1", image: "https://i.pinimg.com/236x/a.jpg" }, { id: "AbC" }];
+  const body = buildBoardBody({ url: "https://www.pinterest.com/ana/interiors/?x=1", title: "Interiors | Pinterest", pins, jobId: "j1" });
+  assert.deepEqual(body, { source: "pinterest", jobId: "j1", boards: [{ url: "https://www.pinterest.com/ana/interiors/", name: "Interiors", pins }] });
+  assert.equal(buildBoardBody({ url: "https://www.pinterest.com/ana/interiors/", title: "x", pins: [] }), null);
+  assert.equal(buildBoardBody({ url: "https://example.com/a/b", title: "x", pins }), null);
+  assert.equal(buildBoardBody({ url: "https://www.pinterest.com/ana/b/", title: "x", pins }).jobId, undefined);
+});

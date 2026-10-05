@@ -15,10 +15,16 @@ enum PinterestPins {
     /// Numeric pin ids only: the widget doesn't know Pinterest's newer alphanumeric ids.
     static func isNumeric(_ id: String) -> Bool { !id.isEmpty && id.allSatisfy(\.isNumber) }
 
-    static func resolve(ids: [String], authorFallback: String?, loader: LinkFetcher.Loader) async throws -> Resolved {
+    static func resolve(ids: [String], authorFallback: String?, images: [String: String] = [:], loader: LinkFetcher.Loader) async throws -> Resolved {
         var out = Resolved()
         let numeric = ids.filter(isNumeric)
-        let unresolvable = ids.count - numeric.count
+        // pins Pinterest's widget doesn't know (newer ids, secret boards) still come in as the picture the page showed
+        func fromPage(_ id: String) -> RemoteBoard.Entry? {
+            guard let image = images[id] else { return nil }
+            return .init(mediaUrls: upgrade(image), pageUrl: "https://www.pinterest.com/pin/\(id)/", title: "Pin \(id.suffix(6))", author: authorFallback)
+        }
+        var unresolvable = 0
+        for id in ids where !isNumeric(id) { if let e = fromPage(id) { out.entries.append(e) } else { unresolvable += 1 } }
         if unresolvable > 0 { out.skipped["pins Pinterest wouldn't describe"] = unresolvable }
         var byID: [String: [String: Any]] = [:]
         for start in stride(from: 0, to: numeric.count, by: batchSize) {
@@ -36,7 +42,7 @@ enum PinterestPins {
         }
         var missing = 0
         for id in numeric {
-            guard let pin = byID[id] else { missing += 1; continue }
+            guard let pin = byID[id] else { if let e = fromPage(id) { out.entries.append(e) } else { missing += 1 }; continue }
             if out.boardName == nil, let b = pin["board"] as? [String: Any] {
                 out.boardName = b["name"] as? String
                 out.boardPinCount = b["pin_count"] as? Int

@@ -3,6 +3,17 @@ import GrailsKit
 
 /// Import boards from Are.na, Pinterest and X: links go to the import panel, which runs them as one job.
 extension AppModel {
+    static var supportURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Grails", isDirectory: true)
+    }
+
+    /// An import that was cut off (the app quit) carries on where it was, quietly: its footer shows in the sidebar.
+    func resumeInterruptedImport() {
+        guard ProcessInfo.processInfo.environment["GRAILS_IMPORT_DEMO"] == nil, !importModel.isRunning,
+              let job = ImportJournal.unfinished(libraryId: libraryID, in: Self.supportURL).first else { return }
+        importModel.resume(job)
+    }
+
     func promptImportBoard() {
         if importModel.phase == .finished { importModel.reset() }
         importPanelOpen = true
@@ -37,49 +48,46 @@ extension AppModel {
         showToast("Import undone")
     }
 
-    /// The browser extension scrolled a whole board and sent its pin ids; Grails looks them up and imports.
+    /// The browser extension scrolled some boards, or an X post link arrived through the API.
     func startPinterestImport(_ request: BoardImportRequest) {
-        guard boardImportTask == nil else { showToast("An import is already running"); return }
         if request.source == "x" { if let link = request.url { startBoardImport(link) }; return }
-        boardImportTask = Task { [weak self] in
-            await self?.importBoard(request: request)
-            self?.boardImportTask = nil
-        }
+        Task { await importModel.receive(request) }
     }
 
-    private func importBoard(request: BoardImportRequest) async {
-        let importer = BoardImporter()
-        let ref = request.url.flatMap(BoardRef.parse) ?? .pinterest(user: "pinterest", board: request.name)
-        await importBoard { [weak self] in
-            self?.boardImport = ("Looking up \(request.pinIds.count) pins on Pinterest…", 0, 0)
-            return try await importer.fetchPinterestPins(ids: request.pinIds, ref: ref, name: request.name, author: nil)
-        }
+    // MARK: Pairing and the extension
+
+    func allowPairing(_ request: PairingBroker.Request) {
+        apiServer?.pairing.approve(request.id)
+        pairRequest = nil
+        extensionPaired = true
+        UserDefaults.standard.set(true, forKey: "extensionPaired")
     }
 
-    private func importBoard(_ readBoard: () async throws -> RemoteBoard) async {
-        guard let store else { return }
-        let service = captureService ?? LibraryCaptureService(store: { [weak self] in await self?.store })
-        let importer = BoardImporter()
-        defer { boardImport = nil }
-        do {
-            let board = try await readBoard()
-            let label = "Importing “\(board.name)”"
-            boardImport = (label, 0, board.entries.count)
-            let (summary, undo) = try await recorded("Import “\(board.name)”", in: store) {
-                try await importer.run(board, into: store, service: service) { [weak self] done, total in
-                    Task { @MainActor in self?.boardImport = (label, done, total) }
-                }
-            }
-            if !undo.isEmpty { pushUndo(undo) }
-            await reload()
-            if let id = summary.collectionId, !summary.cancelled, summary.added + summary.alreadyHad > 0 { source = .collection(id) }
-            var text = summary.cancelled ? "Import stopped. " + summary.headline : summary.headline
-            if let note = board.note { text += "\n" + note }
-            showToast(text, seconds: board.note == nil ? 4.5 : 8)
-        } catch is CancellationError {
-            await reload()
-        } catch {
-            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+    func denyPairing(_ request: PairingBroker.Request) {
+        apiServer?.pairing.deny(request.id)
+        pairRequest = nil
+    }
+
+    /// Opens a page in the default browser (the one the extension lives in).
+    func openInBrowser(_ link: String) {
+        guard let url = URL(string: link) else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    /// Puts the extension where it will stay (it survives app updates), shows it, and opens the browser's extensions page.
+    func installExtension() {
+        guard let source = Bundle.main.url(forResource: "chrome", withExtension: nil) else { errorMessage = "The extension isn't in this build."; return }
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Grails", isDirectory: true)
+        let dest = support.appendingPathComponent("Extension", isDirectory: true)
+        try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: dest)
+        do { try FileManager.default.copyItem(at: source, to: dest) } catch { errorMessage = "Couldn't copy the extension: \(error.localizedDescription)"; return }
+        NSWorkspace.shared.activateFileViewerSelecting([dest])
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString("chrome://extensions", forType: .string)
+        if let browser = NSWorkspace.shared.urlForApplication(toOpen: URL(string: "https://example.com")!), let page = URL(string: "chrome://extensions") {
+            NSWorkspace.shared.open([page], withApplicationAt: browser, configuration: NSWorkspace.OpenConfiguration())
         }
+        showToast("Drag the folder in", seconds: 6)
     }
 }

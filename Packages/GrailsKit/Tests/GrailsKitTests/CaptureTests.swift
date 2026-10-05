@@ -315,6 +315,61 @@ actor FakeService: CaptureService {
         #expect(try await call(base, "DELETE", "/api/v1/items").0 == 405)
     }
 
+    @Test func pairingNeedsAClickInTheApp() async throws {
+        let (server, _, base) = try await start()
+        defer { server.stop() }
+        // no browser extension, no request; a web page's origin is refused too
+        #expect(try await call(base, "POST", "/api/v1/pair", token: nil).0 == 403)
+        #expect(try await call(base, "POST", "/api/v1/pair", token: nil, origin: "https://evil.example").0 == 403)
+        let ext = "chrome-extension://abcdefgh"
+        let opened = try await call(base, "POST", "/api/v1/pair", token: nil, origin: ext)
+        #expect(opened.0 == 202)
+        let id = try #require(try JSONSerialization.jsonObject(with: opened.2) as? [String: String])["requestId"]!
+        #expect(try await call(base, "POST", "/api/v1/pair", token: nil, origin: ext).0 == 429)         // one at a time
+        #expect(try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: ext).0 == 202)     // waiting for Allow
+        server.pairing.approve(id)
+        let got = try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: ext)
+        #expect(got.0 == 200 && String(decoding: got.2, as: UTF8.self).contains(token))
+        #expect(try await call(base, "GET", "/api/v1/pair/nope", token: nil, origin: ext).0 == 403)
+        // a refused request stays refused
+        let again = try await call(base, "POST", "/api/v1/pair", token: nil, origin: ext)
+        let id2 = try #require(try JSONSerialization.jsonObject(with: again.2) as? [String: String])["requestId"]!
+        server.pairing.deny(id2)
+        #expect(try await call(base, "GET", "/api/v1/pair/\(id2)", token: nil, origin: ext).0 == 403)
+    }
+
+    @Test func jobsGoToTheExtensionAndResultsComeBack() async throws {
+        let (server, _, base) = try await start()
+        defer { server.stop() }
+        final class Got: @unchecked Sendable { var boards: [ListedBoard] = []; var progress: [String] = []; var done = false }
+        let got = Got()
+        server.jobs.onBoards = { _, b in got.boards = b }
+        server.jobs.onProgress = { _, board, n in got.progress.append("\(board)=\(n)") }
+        server.jobs.onDone = { _ in got.done = true }
+        let nonce = server.jobs.create(.collect(boards: ["https://www.pinterest.com/a/x/", "https://www.pinterest.com/a/y/"]))
+        #expect(try await call(base, "GET", "/api/v1/jobs/nope").0 == 404)
+        #expect(try await call(base, "GET", "/api/v1/jobs/\(nonce)", token: nil).0 == 401)
+        let spec = try await call(base, "GET", "/api/v1/jobs/\(nonce)")
+        #expect(spec.0 == 200)
+        #expect(try JSONDecoder().decode(ExtensionJobs.Spec.self, from: spec.2).boards?.count == 2)
+        let listed = try JSONEncoder().encode(["boards": [ListedBoard(url: "https://www.pinterest.com/a/x/", name: "X", count: 12)]])
+        #expect(try await call(base, "POST", "/api/v1/jobs/\(nonce)/boards", body: listed).0 == 200)
+        #expect(got.boards.first?.name == "X" && got.boards.first?.count == 12)
+        #expect(try await call(base, "POST", "/api/v1/jobs/\(nonce)/progress", body: Data(#"{"board":"x","scrolled":640}"#.utf8)).0 == 200)
+        #expect(got.progress == ["x=640"])
+        #expect(try await call(base, "POST", "/api/v1/jobs/\(nonce)/boards", body: Data("{}".utf8)).0 == 400)
+        #expect(try await call(base, "POST", "/api/v1/jobs/\(nonce)/done").0 == 200 && got.done)
+        #expect(try await call(base, "GET", "/api/v1/jobs/\(nonce)").0 == 404)                            // finished jobs are gone
+    }
+
+    @Test func severalBoardsAndTheOldBodyBothDecode() throws {
+        let many = try JSONDecoder().decode(BoardImportRequest.self, from: Data(#"{"source":"pinterest","jobId":"j1","boards":[{"url":"https://www.pinterest.com/a/x/","name":"X","pins":[{"id":"1","image":"https://i.pinimg.com/236x/a/b/c/p.jpg"},{"id":"abc"}]},{"url":"https://www.pinterest.com/a/y/","pins":[]}]}"#.utf8))
+        #expect(many.isActionable && many.jobId == "j1" && many.allBoards.count == 2 && many.allBoards[0].pins[1].image == nil)
+        let old = try JSONDecoder().decode(BoardImportRequest.self, from: Data(#"{"source":"pinterest","name":"refs","url":"https://www.pinterest.com/a/refs/","pinIds":["1","2"]}"#.utf8))
+        #expect(old.isActionable && old.allBoards.count == 1 && old.allBoards[0].pins.map(\.id) == ["1", "2"])
+        #expect(!(try JSONDecoder().decode(BoardImportRequest.self, from: Data(#"{"source":"pinterest","boards":[{"url":"u","pins":[]}]}"#.utf8))).isActionable)
+    }
+
     @Test func acceptsABoardImportFromTheExtension() async throws {
         let (server, svc, base) = try await start()
         defer { server.stop() }

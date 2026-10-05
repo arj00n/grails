@@ -17,6 +17,8 @@ public actor ImportRunner {
     private let politeness: Politeness
     private let journal: URL?
     private let concurrency: Int
+    private var inputOpen: Bool
+    private let rateLimitWait: Duration
 
     private var job: ImportJob
     private var stopped: Set<String> = []
@@ -28,7 +30,9 @@ public actor ImportRunner {
     private var sinceJournal = 0
 
     public init(job: ImportJob, store: LibraryStore, service: LibraryCaptureService, politeness: Politeness = .standard,
-                loader: @escaping LinkFetcher.Loader = { try await URLSession.shared.data(for: $0) }, journal: URL? = nil, concurrency: Int = 4) {
+                loader: @escaping LinkFetcher.Loader = { try await URLSession.shared.data(for: $0) }, journal: URL? = nil, concurrency: Int = 4, keepOpen: Bool = false, rateLimitWait: Duration = .seconds(60)) {
+        self.rateLimitWait = rateLimitWait
+        self.inputOpen = keepOpen
         self.job = job; self.store = store; self.service = service; self.politeness = politeness; self.loader = loader; self.journal = journal
         self.concurrency = max(1, concurrency)
     }
@@ -36,6 +40,15 @@ public actor ImportRunner {
     public var current: ImportJob { job }
 
     public func stop(board id: String) { stopped.insert(id) }
+
+    /// A board that turned up while the job was running (the browser extension finished scrolling one).
+    public func append(_ task: BoardTask) {
+        job.boards.append(task)
+        emit(job.boards.count - 1)
+    }
+
+    /// No more boards are coming: the job ends when the ones it has are done.
+    public func closeInput() { inputOpen = false }
     public func stopEverything() { stopAll = true }
 
     /// Runs the job. The stream ends when every board is done, failed, blocked or stopped.
@@ -64,7 +77,15 @@ public actor ImportRunner {
             reads[i] = t
             return t
         }
-        for i in job.boards.indices {
+        var i = -1
+        while true {
+            i += 1
+            if i >= job.boards.count {
+                guard inputOpen, !stopAll else { break }
+                i -= 1
+                try? await Task.sleep(for: .milliseconds(100))
+                continue
+            }
             let oneStopped = stopped.contains(job.boards[i].id)
             let skipThis = stopAll || oneStopped
             if skipThis { job.boards[i].state = .stopped; emit(i); continue }
@@ -77,7 +98,16 @@ public actor ImportRunner {
                 var ref = job.boards[i].candidate.ref
                 if let kept = job.boards[i].entries { entries = kept } else {
                     set(i, .reading(found: 0, total: job.boards[i].candidate.count))
-                    let board = try await read(i).value
+                    let board: RemoteBoard
+                    do { board = try await read(i).value }
+                    catch let e as BoardImportError {
+                        // told to slow down: wait the minute out and try that board once more (a block is not retried)
+                        guard case .blocked(let why) = e, why.localizedCaseInsensitiveContains("slow down") else { throw e }
+                        set(i, .waiting(until: Date().addingTimeInterval(Double(rateLimitWait.components.seconds))))
+                        try await Task.sleep(for: rateLimitWait)
+                        reads[i] = nil
+                        board = try await read(i).value
+                    }
                     entries = board.entries
                     name = board.name
                     ref = board.ref

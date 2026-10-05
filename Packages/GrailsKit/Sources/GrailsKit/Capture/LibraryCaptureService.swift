@@ -31,7 +31,7 @@ public final class LibraryCaptureService: CaptureService, @unchecked Sendable {
         guard await storeProvider() != nil else { throw CaptureError.noLibrary }
         guard ["pinterest", "x"].contains(request.source), request.isActionable, let handler = onBoardImport else { throw CaptureError.unsupported("nothing to import") }
         handler(request)
-        return BoardImportAccepted(count: max(request.pinIds.count, 1))
+        return BoardImportAccepted(count: max(request.allBoards.reduce(0) { $0 + $1.pins.count }, 1))
     }
 
     public func save(_ r: SaveRequest) async throws -> SaveResult {

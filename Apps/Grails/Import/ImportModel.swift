@@ -42,6 +42,14 @@ final class ImportModel {
 
     var isRunning: Bool { phase == .running }
 
+    /// Pinterest is in the list and would do better with the extension: show it.
+    var wantsExtension: Bool {
+        phase == .composing && rows.contains { r in
+            if case .pinterestUser = r.candidate { return true }
+            return r.board?.via == .latest || r.board?.via == .browser || r.children.contains { $0.via == .browser }
+        }
+    }
+
     // MARK: Composing
 
     /// Adds every link found in `text` as a row (links already there are left alone).
@@ -192,8 +200,91 @@ final class ImportModel {
         guard phase == .composing, let app, let store = app.store, let service = serviceFor(app, store) else { return }
         let boards = selectedBoards
         guard !boards.isEmpty else { return }
-        let job = ImportJob(libraryId: app.libraryID, boards: boards)
-        run(job, store: store, service: service)
+        let direct = boards.filter { $0.via != .browser }
+        let browser = boards.filter { $0.via == .browser }
+        let job = ImportJob(libraryId: app.libraryID, boards: direct)
+        run(job, store: store, service: service, keepOpen: !browser.isEmpty)
+        if !browser.isEmpty { collect(browser) }
+    }
+
+    // MARK: The browser extension
+
+    var extensionPaired: Bool { app?.extensionPaired ?? false }
+    @ObservationIgnored private var listNonce: String?
+    @ObservationIgnored private var collectNonce: String?
+    private(set) var collecting: [String: Int] = [:]          // board url → pins scrolled so far
+    /// The last board the extension sent that could not be read (dev demos print it).
+    private(set) var lastReceiveError: String?
+
+    /// A profile's boards, found by the extension scrolling the profile page.
+    func openProfileInBrowser(_ rowID: String) {
+        guard let app, let server = app.apiServer, let row = rows.first(where: { $0.id == rowID }), case .pinterestUser(let user) = row.candidate else { return }
+        let nonce = server.jobs.create(.list(profile: user))
+        listNonce = nonce
+        update(rowID) { $0.status = .expanding }
+        app.openInBrowser("https://www.pinterest.com/\(user)/#grails=\(nonce)")
+    }
+
+    func listed(nonce: String, boards: [ListedBoard]) {
+        guard nonce == listNonce, let id = rows.first(where: { if case .pinterestUser = $0.candidate { $0.status == .expanding } else { false } })?.id,
+              case .pinterestUser(let user)? = rows.first(where: { $0.id == id })?.candidate else { return }
+        let children: [BoardCandidate] = boards.compactMap { b in
+            guard case .board(let ref)? = LinkHarvester.harvest(b.url).first, case .pinterest = ref else { return nil }
+            return BoardCandidate(ref: ref, name: b.name, count: b.count, covers: b.cover.flatMap(URL.init(string:)).map { [$0] } ?? [], parent: id, selected: true, via: .browser)
+        }
+        update(id) { $0.children = children; $0.status = children.isEmpty ? .rejected("No boards") : .ready; $0.title = user }
+    }
+
+    /// A Pinterest board read in full (the browser scrolls it) instead of just its latest 50.
+    func useBrowser(_ boardID: String) {
+        for i in rows.indices {
+            if rows[i].board?.id == boardID { rows[i].board?.via = .browser }
+            for j in rows[i].children.indices where rows[i].children[j].id == boardID { rows[i].children[j].via = .browser }
+        }
+    }
+
+    private func collect(_ boards: [BoardCandidate]) {
+        guard let app, let server = app.apiServer else { return }
+        let urls = boards.map { $0.ref.webURL.absoluteString }
+        let nonce = server.jobs.create(.collect(boards: urls))
+        collectNonce = nonce
+        for b in boards { collecting[b.id] = 0 }
+        app.openInBrowser(urls[0] + "#grails=\(nonce)")
+    }
+
+    func collectProgress(nonce: String, board: String, scrolled: Int) {
+        guard nonce == collectNonce else { return }
+        if let ref = LinkHarvester.harvest(board).first, case .board(let r) = ref { collecting[BoardCandidate.id(for: r)] = scrolled }
+    }
+
+    func collectDone(nonce: String) {
+        guard nonce == collectNonce else { return }
+        collectNonce = nil
+        Task { await runner?.closeInput() }
+    }
+
+    /// Boards the extension scrolled: looked up, then added to the running job (or a job of their own).
+    func receive(_ request: BoardImportRequest) async {
+        guard let app, let store = app.store, let service = serviceFor(app, store) else { return }
+        var tasks: [BoardTask] = []
+        for b in request.allBoards where !b.pins.isEmpty {
+            guard case .board(let ref)? = LinkHarvester.harvest(b.url).first, case .pinterest(let user, _) = ref else { continue }
+            let images = Dictionary(b.pins.compactMap { p in p.image.map { (p.id, $0) } }, uniquingKeysWith: { a, _ in a })
+            do {
+                let remote = try await BoardImporter(loader: loader).fetchPinterestPins(ids: b.pins.map(\.id), ref: ref, name: b.name ?? ref.webURL.lastPathComponent, author: user, images: images)
+                var t = BoardTask(candidate: BoardCandidate(ref: ref, name: remote.name, count: remote.entries.count, via: .browser))
+                t.entries = remote.entries; t.skipped = remote.skipped; t.total = remote.entries.count
+                tasks.append(t)
+            } catch { collecting[BoardCandidate.id(for: ref)] = nil; lastReceiveError = "\(b.url): \(error)" }
+        }
+        guard !tasks.isEmpty else { return }
+        if let runner, phase == .running { for t in tasks { await runner.append(t) } }
+        else {
+            // nobody asked (the extension's own button): a job of its own
+            var job = ImportJob(libraryId: app.libraryID, boards: [])
+            job.boards = tasks
+            run(job, store: store, service: service)
+        }
     }
 
     private func serviceFor(_ app: AppModel, _ store: LibraryStore) -> LibraryCaptureService? {
@@ -209,19 +300,21 @@ final class ImportModel {
         run(job, store: store, service: service)
     }
 
-    private func run(_ job: ImportJob, store: LibraryStore, service: LibraryCaptureService) {
+    private func run(_ job: ImportJob, store: LibraryStore, service: LibraryCaptureService, keepOpen: Bool = false) {
         phase = .running
         order = job.boards.map(\.id)
         tasks = Dictionary(job.boards.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         arrivals = []; arrivedCount = 0; finishedJob = nil
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("Grails", isDirectory: true)
-        let runner = ImportRunner(job: job, store: store, service: service, politeness: .standard, loader: loader, journal: ImportJournal.fileURL(for: job, in: support))
+        let support = AppModel.supportURL
+        let runner = ImportRunner(job: job, store: store, service: service, politeness: .standard, loader: loader, journal: ImportJournal.fileURL(for: job, in: support), keepOpen: keepOpen)
         self.runner = runner
         consumer = Task { [weak self] in
             for await event in runner.events() {
                 guard let self else { return }
                 switch event {
-                case .updated(let t): self.tasks[t.id] = t
+                case .updated(let t):
+                    if self.tasks[t.id] == nil { self.order.append(t.id) }
+                    self.tasks[t.id] = t
                 case .itemAdded(_, let item):
                     self.arrivedCount += 1
                     self.arrivals.append(item)

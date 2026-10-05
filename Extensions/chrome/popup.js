@@ -22,7 +22,9 @@ async function refresh() {
 }
 
 $("connect").addEventListener("click", async () => {
-  await chrome.storage.local.set({ token: $("token").value.trim() });
+  const typed = $("token").value.trim();
+  if (typed) await chrome.storage.local.set({ token: typed });
+  else await send({ type: "pair" });            // no code: Grails asks you to Allow
   await refresh();
 });
 $("importBoard").addEventListener("click", async () => {

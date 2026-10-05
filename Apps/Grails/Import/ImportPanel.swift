@@ -81,3 +81,24 @@ struct ImportFooter: View {
         .accessibilityIdentifier("import-footer")
     }
 }
+
+/// "Chrome wants in": a small card at the top of the window until it is answered.
+struct PairPrompt: View {
+    var model: AppModel
+    let request: PairingBroker.Request
+
+    var body: some View {
+        VStack {
+            HStack(spacing: 10) {
+                Text("Chrome wants in").font(.grailsBody(13)).foregroundStyle(Ink.text)
+                Button("Not now") { model.denyPairing(request) }.buttonStyle(.plain).font(.grailsBody(13)).foregroundStyle(Ink.secondary)
+                Button("Allow") { model.allowPairing(request) }.buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("pair-allow")
+            }
+            .padding(.horizontal, 14).padding(.vertical, 8)
+            .surfaceCard()
+            Spacer()
+        }
+        .padding(.top, 14)
+        .accessibilityIdentifier("pair-prompt")
+    }
+}

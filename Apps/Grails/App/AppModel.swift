@@ -161,6 +161,9 @@ final class AppModel {
     var previewSetVersion = 0
     var workspaceMenuOpen = false
     var importPanelOpen = false
+    /// A browser extension asking to be paired (answered with Allow).
+    var pairRequest: PairingBroker.Request?
+    var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")
     let importModel = ImportModel()
     @ObservationIgnored var hiddenPanels: (Bool, Bool)?
     /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
@@ -319,6 +322,7 @@ final class AppModel {
             redoStack = []
             await reload()
             kickAutoTag()
+            resumeInterruptedImport()
             Self.logLaunchTime()
             await startCapture()
             if let delay = ProcessInfo.processInfo.environment["GRAILS_SIMULATE_REMOTE"].flatMap(Double.init), let layout {

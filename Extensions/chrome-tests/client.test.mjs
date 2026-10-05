@@ -61,3 +61,33 @@ test("importBoard posts the pin ids to /api/v1/imports", async () => {
   assert.equal(calls[0].opts.method, "POST");
   assert.deepEqual(JSON.parse(calls[0].opts.body).pinIds, ["1", "2", "3"]);
 });
+
+test("pairing asks, waits for Allow, and stores the token it is given", async () => {
+  let polls = 0;
+  const { client, calls, state } = make((url, opts) => {
+    if (url.endsWith("/api/v1/pair") && opts.method === "POST") return res(202, { requestId: "r1" });
+    if (url.endsWith("/api/v1/pair/r1")) { polls += 1; return polls < 3 ? res(202, { ok: "pending" }) : res(200, { token: "fresh-token" }); }
+    return res(404, {});
+  }, { token: "", port: 0 });
+  const token = await client.requestPairing({ sleep: async () => {}, pollMs: 0 });
+  assert.equal(token, "fresh-token");
+  assert.equal(state.token, "fresh-token");
+  assert.equal(polls, 3);
+  assert.equal(calls[0].opts.headers, undefined);                    // no token is sent while asking
+});
+
+test("pairing says so when it is refused or the app is not there", async () => {
+  const refused = make((url, opts) => (opts.method === "POST" ? res(202, { requestId: "r2" }) : res(403, { error: "no" })), { token: "", port: 0 });
+  await assert.rejects(() => refused.client.requestPairing({ sleep: async () => {}, pollMs: 0 }), (e) => e.kind === "forbidden");
+  const away = make(() => { throw new TypeError("Failed to fetch"); }, { token: "", port: 0 });
+  await assert.rejects(() => away.client.requestPairing({ sleep: async () => {} }), (e) => e.kind === "offline");
+  const busy = make(() => res(429, {}), { token: "", port: 0 });
+  await assert.rejects(() => busy.client.requestPairing({ sleep: async () => {} }), (e) => e.status === 429);
+});
+
+test("job calls go to the job's own routes", async () => {
+  const { client, calls } = make(() => res(200, { ok: true }));
+  await client.job("n1"); await client.jobBoards("n1", [{ url: "u", name: "x" }]); await client.jobProgress("n1", "b", 5); await client.jobDone("n1");
+  assert.deepEqual(calls.map((c) => c.url.replace(/^http:\/\/127\.0\.0\.1:\d+/, "")), ["/api/v1/jobs/n1", "/api/v1/jobs/n1/boards", "/api/v1/jobs/n1/progress", "/api/v1/jobs/n1/done"]);
+  assert.deepEqual(JSON.parse(calls[2].opts.body), { board: "b", scrolled: 5 });
+});

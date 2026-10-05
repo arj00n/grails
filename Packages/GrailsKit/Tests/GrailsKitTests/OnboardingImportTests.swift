@@ -91,3 +91,20 @@ import Testing
         await #expect(throws: BoardImportError.self) { _ = try await BoardPreflight.check(.pinterest(user: "a", board: "b"), loader: gone) }
     }
 }
+
+@Suite struct PinterestFallbackTests {
+    @Test func pinsThePageShowedButTheWidgetDoesntKnowStillImportThroughTheirPicture() async throws {
+        let loader: LinkFetcher.Loader = { req in (Data(#"{"data":[]}"#.utf8), HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!) }
+        let board = try await BoardImporter(loader: loader).fetchPinterestPins(
+            ids: ["AbC123", "999"], ref: .pinterest(user: "ana", board: "x"), name: "X", author: "ana",
+            images: ["AbC123": "https://i.pinimg.com/236x/aa/bb/cc/one.jpg", "999": "https://i.pinimg.com/236x/dd/ee/ff/two.jpg"])
+        #expect(board.entries.count == 2)                                                              // neither is skipped
+        #expect(board.entries[0].mediaUrls.first == "https://i.pinimg.com/originals/aa/bb/cc/one.jpg")
+        #expect(board.entries[0].pageUrl == "https://www.pinterest.com/pin/AbC123/")
+        #expect(board.skipped.isEmpty)
+        // without a picture they are skipped, and said so
+        await #expect(throws: BoardImportError.self) {
+            _ = try await BoardImporter(loader: loader).fetchPinterestPins(ids: ["zzz"], ref: .pinterest(user: "a", board: "b"), name: "x", author: nil)
+        }
+    }
+}

@@ -54,14 +54,18 @@ public enum CaptureError: Error, Equatable, LocalizedError {
     }
 }
 
-/// A whole board handed over by the browser extension (it scrolled the page and collected the pin ids).
+/// Boards handed over by the browser extension (it scrolled the page and collected the pins), or a post link for Grails to read.
 public struct BoardImportRequest: Codable, Sendable, Equatable {
     public var source: String            // "pinterest", or "x" (a post link; Grails reads its media itself)
     public var name: String
     public var url: String?
     public var pinIds: [String]
-    public init(source: String = "pinterest", name: String = "", url: String? = nil, pinIds: [String] = []) {
-        self.source = source; self.name = name; self.url = url; self.pinIds = pinIds
+    /// Several boards at once, each with its pins (and the picture each showed).
+    public var boards: [ExtensionBoard]
+    /// The extension job these boards belong to, when the app asked for them.
+    public var jobId: String?
+    public init(source: String = "pinterest", name: String = "", url: String? = nil, pinIds: [String] = [], boards: [ExtensionBoard] = [], jobId: String? = nil) {
+        self.source = source; self.name = name; self.url = url; self.pinIds = pinIds; self.boards = boards; self.jobId = jobId
     }
 
     public init(from decoder: Decoder) throws {
@@ -70,10 +74,19 @@ public struct BoardImportRequest: Codable, Sendable, Equatable {
         name = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
         url = try c.decodeIfPresent(String.self, forKey: .url)
         pinIds = try c.decodeIfPresent([String].self, forKey: .pinIds) ?? []
+        boards = try c.decodeIfPresent([ExtensionBoard].self, forKey: .boards) ?? []
+        jobId = try c.decodeIfPresent(String.self, forKey: .jobId)
+    }
+
+    /// Everything as boards: a single legacy request (name, url, pinIds) is one board.
+    public var allBoards: [ExtensionBoard] {
+        var out = boards
+        if !pinIds.isEmpty { out.insert(ExtensionBoard(url: url ?? "", name: name, pins: pinIds.map { ExtensionPin(id: $0) }), at: 0) }
+        return out
     }
 
     /// Something the app can act on: pins to look up, or a post link to read.
-    public var isActionable: Bool { source == "x" ? url.flatMap(BoardRef.parse)?.isPost == true : !pinIds.isEmpty }
+    public var isActionable: Bool { source == "x" ? url.flatMap(BoardRef.parse)?.isPost == true : allBoards.contains { !$0.pins.isEmpty } }
 }
 
 public struct BoardImportAccepted: Codable, Sendable, Equatable {

@@ -1,5 +1,5 @@
 import { GrailsClient, GrailsError } from "./lib/client.js";
-import { buildBoardImport } from "./lib/pinterest.js";
+import { buildBoardBody, buildBoardImport } from "./lib/pinterest.js";
 import { buildPayload, dataUrlToBase64, isDirectVideoUrl, isXPage, menuTitleFor, statusUrl, updateRecents } from "./lib/payload.js";
 
 const store = {
@@ -25,8 +25,15 @@ async function rebuildMenus() {
   }
 }
 
-chrome.runtime.onInstalled.addListener(rebuildMenus);
-chrome.runtime.onStartup.addListener(rebuildMenus);
+chrome.runtime.onInstalled.addListener(() => { rebuildMenus(); pairIfNeeded(); });
+chrome.runtime.onStartup.addListener(() => { rebuildMenus(); pairIfNeeded(); });
+
+/** No token yet: ask Grails to pair (the person clicks Allow in the app). Quietly gives up if the app isn't running. */
+async function pairIfNeeded() {
+  const { token } = await store.get();
+  if (token) return { ok: true };
+  try { await client.requestPairing(); return { ok: true }; } catch (e) { return { ok: false, error: String(e.message || e) }; }
+}
 chrome.storage.onChanged.addListener((changes, area) => { if (area === "local" && changes.recents) rebuildMenus(); });
 
 function kindFor(info) {
@@ -162,8 +169,16 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
     } else if (msg.type === "save-page") {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       respond(tab ? await saveFromTab({ kind: "page", info: { pageUrl: tab.url }, tab, collectionId: msg.collectionId }) : null);
+    } else if (msg.type === "pair") {
+      respond(await pairIfNeeded());
+    } else if (msg.type === "job-found") {
+      runJob(msg.nonce, sender.tab);
+      respond({ started: true });
+    } else if (msg.type === "collect-progress") {
+      if (activeJob) client.jobProgress(activeJob.nonce, msg.board || activeJob.board, msg.scrolled).catch(() => {});
+      respond(true);
     } else if (msg.type === "board-collected") {
-      const body = buildBoardImport({ url: msg.url, title: msg.title, pinIds: msg.pinIds });
+      const body = msg.pins?.length ? buildBoardBody({ url: msg.url, title: msg.title, pins: msg.pins }) : buildBoardImport({ url: msg.url, title: msg.title, pinIds: msg.pinIds });
       if (!body) { notify(sender.tab, false, "That doesn't look like a Pinterest board."); respond(null); return; }
       try {
         const r = await client.importBoard(body);
@@ -181,6 +196,48 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
   })();
   return true;
 });
+
+// ---- Jobs from the app: list a profile's boards, or scroll boards one after another ---------------------------------------
+
+let activeJob = null;
+
+function whenLoaded(tabId, timeout = 30000) {
+  return new Promise((resolve) => {
+    const done = () => { chrome.tabs.onUpdated.removeListener(listener); clearTimeout(timer); resolve(); };
+    const listener = (id, change) => { if (id === tabId && change.status === "complete") setTimeout(done, 800); };
+    const timer = setTimeout(done, timeout);
+    chrome.tabs.onUpdated.addListener(listener);
+  });
+}
+
+async function runJob(nonce, tab) {
+  if (!tab || activeJob) return;
+  let spec;
+  try { spec = await client.job(nonce); } catch { return; }
+  activeJob = { nonce, board: "" };
+  // a hidden or covered window throttles timers and lazy loading, so the page has to be in front while it is read
+  try { await chrome.windows.update(tab.windowId, { focused: true }); await chrome.tabs.update(tab.id, { active: true }); } catch { /* the window may be gone */ }
+  try {
+    if (spec.kind === "list") {
+      const boards = await chrome.tabs.sendMessage(tab.id, { type: "list-boards", user: spec.profile });
+      await client.jobBoards(nonce, boards || []);
+    } else if (spec.kind === "collect") {
+      const urls = spec.boards || [];
+      for (let i = 0; i < urls.length; i++) {
+        activeJob.board = urls[i];
+        if (i > 0) { await chrome.tabs.update(tab.id, { url: urls[i] }); await whenLoaded(tab.id); }
+        const board = await chrome.tabs.sendMessage(tab.id, { type: "collect-board-job", index: i + 1, of: urls.length });
+        const body = board?.pins?.length ? buildBoardBody({ url: urls[i], title: board.title, pins: board.pins, jobId: nonce }) : null;
+        // each board goes to Grails as soon as it is scrolled, so its downloads overlap the next scroll
+        if (body) await client.importBoard(body).catch(() => {});
+        if (board?.stopped) break;
+      }
+    }
+  } catch { /* the page closed or the app went away: report what we have */ }
+  await client.jobDone(nonce).catch(() => {});
+  activeJob = null;
+  if (spec.kind === "collect") chrome.tabs.remove(tab.id).catch(() => {});
+}
 
 // Exposed for tests that drive the service worker over the DevTools protocol.
 globalThis.__grails = { handleMenuClick, saveFromTab, client, menuTitleFor };

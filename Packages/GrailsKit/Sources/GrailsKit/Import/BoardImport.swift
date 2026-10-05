@@ -273,10 +273,10 @@ public struct BoardImporter: Sendable {
 
     /// Resolves pins by id (from the feed, or sent by the browser extension that scrolled the whole board).
     /// `fallback`: the feed's own thumbnails, used if Pinterest's pin lookup is unavailable.
-    public func fetchPinterestPins(ids: [String], ref: BoardRef, name: String, author: String?, fallback: [(id: String, link: String, title: String?, image: String)] = []) async throws -> RemoteBoard {
+    public func fetchPinterestPins(ids: [String], ref: BoardRef, name: String, author: String?, images: [String: String] = [:], fallback: [(id: String, link: String, title: String?, image: String)] = []) async throws -> RemoteBoard {
         var board = RemoteBoard(ref: ref, name: name, entries: [])
         do {
-            let r = try await PinterestPins.resolve(ids: ids, authorFallback: author, loader: loader)
+            let r = try await PinterestPins.resolve(ids: ids, authorFallback: author, images: images, loader: loader)
             board.entries = r.entries
             board.skipped = r.skipped
             board.expectedTotal = r.boardPinCount

@@ -59,6 +59,10 @@ extension AppModel {
             do {
                 let port = try await server.start(port: env["GRAILS_API_PORT"].flatMap(UInt16.init) ?? LocalAPIServer.defaultPort)
                 apiServer = server
+                server.pairing.onRequest = { [weak self] r in Task { @MainActor in self?.pairRequest = r } }
+                server.jobs.onBoards = { [weak self] nonce, boards in Task { @MainActor in self?.importModel.listed(nonce: nonce, boards: boards) } }
+                server.jobs.onProgress = { [weak self] nonce, board, n in Task { @MainActor in self?.importModel.collectProgress(nonce: nonce, board: board, scrolled: n) } }
+                server.jobs.onDone = { [weak self] nonce in Task { @MainActor in self?.importModel.collectDone(nonce: nonce) } }
                 apiPort = port
                 apiStatus = "Listening on 127.0.0.1:\(port)"
             } catch {

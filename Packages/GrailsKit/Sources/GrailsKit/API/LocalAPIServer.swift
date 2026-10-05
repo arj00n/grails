@@ -75,6 +75,10 @@ public final class LocalAPIServer: @unchecked Sendable {
 
     private let service: CaptureService
     private let tokens: TokenStorage
+    /// "Chrome wants in": pairing needs a click in the app.
+    public let pairing = PairingBroker()
+    /// Work for the extension (list a profile's boards, scroll boards).
+    public let jobs = ExtensionJobs()
     private let queue = DispatchQueue(label: "xyz.arjoon.grails.api")
     private var listener: NWListener?
     public private(set) var port: UInt16 = 0
@@ -205,6 +209,21 @@ public final class LocalAPIServer: @unchecked Sendable {
 
     private func handle(_ req: HTTPRequest) async -> HTTPResponse {
         if req.method == "OPTIONS" { return HTTPResponse(status: 204) }
+        // pairing is the one thing that needs no token: an extension asks, the person answers in the app
+        if req.path == "/api/v1/pair", req.method == "POST" {
+            guard let origin = req.header("origin"), Self.originAllowed(origin) else { return .error(403, "Only a browser extension can ask") }
+            guard let id = pairing.open(origin: origin) else { return .error(429, "Another request is waiting") }
+            struct Opened: Encodable { let requestId: String }
+            return .json(202, Opened(requestId: id))
+        }
+        if req.path.hasPrefix("/api/v1/pair/"), req.method == "GET" {
+            let id = String(req.path.dropFirst("/api/v1/pair/".count))
+            switch pairing.state(of: id) {
+            case .pending?: return .json(202, ["ok": "pending"])
+            case .approved?: return .json(200, ["token": tokens.token()])
+            case .denied?, nil: return .error(403, "Not allowed")
+            }
+        }
         guard let auth = req.header("authorization"), auth.hasPrefix("Bearer "),
               Self.constantTimeEquals(String(auth.dropFirst(7)), tokens.token()) else { return .error(401, "Missing or invalid token") }
 
@@ -236,8 +255,34 @@ public final class LocalAPIServer: @unchecked Sendable {
             } catch { return .error(500, error.localizedDescription) }
         case (_, "/api/v1/ping"), (_, "/api/v1/collections"), (_, "/api/v1/items"), (_, "/api/v1/imports"):
             return .error(405, "Method not allowed")
+        case _ where req.path.hasPrefix("/api/v1/jobs/"):
+            return handleJob(req)
         default:
             return .error(404, "Not found")
+        }
+    }
+
+    /// /api/v1/jobs/<nonce>[/boards|/progress|/done]
+    private func handleJob(_ req: HTTPRequest) -> HTTPResponse {
+        let parts = req.path.dropFirst("/api/v1/jobs/".count).split(separator: "/").map(String.init)
+        guard let nonce = parts.first, let spec = jobs.spec(nonce) else { return .error(404, "No such job") }
+        switch (req.method, parts.dropFirst().first) {
+        case ("GET", nil): return .json(200, spec)
+        case ("POST", "boards"?):
+            struct Body: Decodable { var boards: [ListedBoard] }
+            guard let b = try? JSONDecoder().decode(Body.self, from: req.body) else { return .error(400, "Body must be { boards: [{ url, name, count?, cover? }] }") }
+            jobs.onBoards?(nonce, b.boards)
+            return .json(200, ["ok": "true"])
+        case ("POST", "progress"?):
+            struct Body: Decodable { var board: String; var scrolled: Int }
+            guard let b = try? JSONDecoder().decode(Body.self, from: req.body) else { return .error(400, "Body must be { board, scrolled }") }
+            jobs.onProgress?(nonce, b.board, b.scrolled)
+            return .json(200, ["ok": "true"])
+        case ("POST", "done"?):
+            jobs.onDone?(nonce)
+            jobs.finish(nonce)
+            return .json(200, ["ok": "true"])
+        default: return .error(405, "Method not allowed")
         }
     }
 

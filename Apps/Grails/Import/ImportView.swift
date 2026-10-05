@@ -14,6 +14,7 @@ struct ImportView: View {
         VStack(alignment: .leading, spacing: 12) {
             if model.phase == .composing { field }
             list
+            if model.wantsExtension { ExtensionStrip(model: model, app: app) }
         }
     }
 
@@ -125,9 +126,13 @@ private struct ComposeRow: View {
             switch row.status {
             case .checking, .expanding: Text(row.status == .expanding ? "Finding channels…" : "Checking…").font(.grailsBody(12)).foregroundStyle(Ink.secondary)
             case .ready:
+                if row.board?.via == .latest, model.extensionPaired { SmallButton(label: "Full") { model.useBrowser(row.board?.id ?? "") } }
                 if row.board?.via == .latest { Text("Latest 50").font(.grailsBody(12)).foregroundStyle(Ink.secondary) }
+                if row.board?.via == .browser { Text("Full in Chrome").font(.grailsBody(12)).foregroundStyle(Ink.secondary) }
                 if let n = row.board?.count { Text(n.formatted()).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary) }
-            case .needsBrowser: Text("Needs Chrome").font(.grailsBody(12)).foregroundStyle(Ink.secondary)
+            case .needsBrowser:
+                if model.extensionPaired { SmallButton(label: "Find boards") { model.openProfileInBrowser(row.id) } }
+                else { Text("Needs Chrome").font(.grailsBody(12)).foregroundStyle(Ink.secondary) }
             case .rejected(let why): Text(why).font(.grailsBody(12)).foregroundStyle(Ink.destructive)
             case .blocked: Text("Blocked").font(.grailsBody(12)).foregroundStyle(Ink.destructive); SmallButton(label: "Retry") { model.retry(row.id) }
             case .offline: Text("Offline").font(.grailsBody(12)).foregroundStyle(Ink.secondary); SmallButton(label: "Retry") { model.retry(row.id) }
@@ -209,5 +214,27 @@ extension ImportJob {
         job.boards[0] = t
         job.boards[0].state = .queued
         return job
+    }
+}
+
+/// The Chrome extension, in one line: install it, say yes to "wants in", and Pinterest boards import in full.
+struct ExtensionStrip: View {
+    var model: ImportModel
+    var app: AppModel
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Circle().fill(model.extensionPaired ? Ink.positive : Ink.tertiary).frame(width: 6, height: 6)
+            Text(model.extensionPaired ? "Chrome connected" : "Chrome extension").font(.grailsBody(12)).foregroundStyle(Ink.secondary)
+            Spacer()
+            if let req = app.pairRequest {
+                Text("Chrome wants in").font(.grailsBody(12)).foregroundStyle(Ink.text)
+                Button("Allow") { app.allowPairing(req) }.buttonStyle(PrimaryButtonStyle())
+            } else if !model.extensionPaired {
+                SmallButton(label: "Install") { app.installExtension() }
+            }
+        }
+        .padding(.horizontal, 8).frame(height: 32)
+        .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
     }
 }

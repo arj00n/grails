@@ -156,3 +156,50 @@ final class FakeNet: @unchecked Sendable {
         for state: BoardState in [.queued, .stopped, .done] { #expect(RowPresenter.row({ var x = t; x.state = state; return x }()).label.split(separator: " ").count <= 4) }
     }
 }
+
+@Suite struct ImportRunnerAppendTests {
+    @Test func aBoardThatArrivesWhileTheJobRunsIsImportedBeforeItEnds() async throws {
+        let net = FakeNet()
+        net.channels = ["first": [1, 2]]
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let service = LibraryCaptureService(fetcher: LinkFetcher(load: net.loader), download: net.loader, store: { store })
+        let job = ImportJob(libraryId: "L", boards: [BoardCandidate(ref: .arena(slug: "first"), name: "First")])
+        let runner = ImportRunner(job: job, store: store, service: service, politeness: .none, loader: net.loader, keepOpen: true)
+        // a board the browser scrolled: its entries come with it, nothing is read from the network
+        var late = BoardTask(candidate: BoardCandidate(ref: .pinterest(user: "ana", board: "full"), name: "Full"))
+        late.entries = (10...13).map { .init(mediaUrls: ["https://cdn.test/img\($0).png"], pageUrl: "https://www.pinterest.com/pin/\($0)/", title: "Pin \($0)", author: nil) }
+        Task { try? await Task.sleep(for: .milliseconds(150)); await runner.append(late); await runner.closeInput() }
+        var finished: ImportJob?
+        for await e in runner.events() { if case .finished(let j) = e { finished = j } }
+        let done = try #require(finished)
+        #expect(done.boards.count == 2 && done.boards.allSatisfy { $0.state == .done })
+        #expect(done.boards[0].added == 2 && done.boards[1].added == 4)
+        #expect(try await store.index.count(ItemQuery()) == 6)
+    }
+}
+
+@Suite struct ImportRunnerPolitenessTests {
+    @Test func aBoardTheServiceTellsUsToSlowDownForIsWaitedOutAndRetriedOnce() async throws {
+        final class Hits: @unchecked Sendable { var n = 0; let lock = NSLock(); func hit() -> Int { lock.lock(); defer { lock.unlock() }; n += 1; return n } }
+        let hits = Hits()
+        let net = FakeNet()
+        net.channels = ["calm": [1, 2]]
+        let inner = net.loader
+        let loader: LinkFetcher.Loader = { req in
+            if req.url?.host == "api.are.na", hits.hit() == 1 { return (Data(), HTTPURLResponse(url: req.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!) }
+            return try await inner(req)
+        }
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let service = LibraryCaptureService(fetcher: LinkFetcher(load: loader), download: loader, store: { store })
+        let job = ImportJob(libraryId: "L", boards: [BoardCandidate(ref: .arena(slug: "calm"), name: "Calm")])
+        let runner = ImportRunner(job: job, store: store, service: service, politeness: .none, loader: loader, rateLimitWait: .milliseconds(50))
+        var sawWaiting = false
+        var finished: ImportJob?
+        for await e in runner.events() {
+            if case .updated(let t) = e, case .waiting = t.state { sawWaiting = true }
+            if case .finished(let j) = e { finished = j }
+        }
+        #expect(sawWaiting)
+        #expect(finished?.boards[0].state == .done && finished?.boards[0].added == 2)
+    }
+}
