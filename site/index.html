@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Grails: a visual reference library for Mac</title>
-<meta name="description" content="Every reference you love, in one place you own. Grails is a native, local visual library for Mac: collect pictures, videos and links, bring in your Are.na, Pinterest and X boards, and look at them as a grid, on a canvas or full screen. Free, no account.">
+<title>Grails: a shared visual library for Mac</title>
+<meta name="description" content="Every reference you love, in one place you own. A native Mac library your team shares through Drive or Dropbox. Free, no account.">
 <link rel="canonical" href="https://grails.arjoon.xyz/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
@@ -16,21 +16,21 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Grails">
 <meta property="og:url" content="https://grails.arjoon.xyz/">
-<meta property="og:title" content="Grails: a visual reference library for Mac">
-<meta property="og:description" content="Every reference you love, in one place you own. A native, local visual library for Mac. Free.">
+<meta property="og:title" content="Grails: a shared visual library for Mac">
+<meta property="og:description" content="Every reference you love, in one place you own. A native Mac library your team shares through Drive or Dropbox. Free, no account.">
 <meta property="og:image" content="https://grails.arjoon.xyz/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta property="og:image:alt" content="GRAILS on a title plate over Hokusai's Great Wave drawn in dithered pixels">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Grails: a visual reference library for Mac">
-<meta name="twitter:description" content="Every reference you love, in one place you own. A native, local visual library for Mac. Free.">
+<meta name="twitter:title" content="Grails: a shared visual library for Mac">
+<meta name="twitter:description" content="Every reference you love, in one place you own. A native Mac library your team shares through Drive or Dropbox. Free, no account.">
 <meta name="twitter:image" content="https://grails.arjoon.xyz/og.png">
 <link rel="preload" href="/assets/fonts/GeistMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/fonts/Geist-Regular.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="/assets/paintings/manifest.json" as="fetch" crossorigin>
 <link rel="preload" href="/assets/paintings/cabanel.jpg" as="image">
-<link rel="stylesheet" href="/assets/site.css?v=5">
+<link rel="stylesheet" href="/assets/site.css?v=6">
 <noscript><link rel="stylesheet" href="/assets/nojs.css?v=5"></noscript>
 <script src="/assets/smoke.js?v=2" defer></script>
 <script src="/assets/wall.js?v=5" defer></script>
@@ -47,6 +47,8 @@
   <div class="plate" data-plate>
     <h1>Grails</h1>
     <p class="lede">Every reference you love,<br>in one place you own.</p>
+    <p class="usp">A shared visual library for your team. One folder on Drive or Dropbox. No server.</p>
+    <p class="start">Already on Are.na, Pinterest or X? Paste a board link and you’re in.</p>
     <a class="button primary" href="/download/Grails-0.3.3.dmg" download>Download for Mac</a>
     <p class="facts">Free · macOS 14 or later · 15.7 MB</p>
   </div>
@@ -58,12 +60,30 @@
     <div class="wrap section-grid">
       <h2 id="features-title">What it does</h2>
       <ul class="cards">
-        <li class="card"><h3>Grid</h3><p>Twenty thousand pictures, still smooth.</p></li>
-        <li class="card"><h3>Canvas</h3><p>Drag pictures into piles. Leave gaps where you haven’t decided.</p></li>
-        <li class="card"><h3>Preview</h3><p>Press space to give one picture the whole screen.</p></li>
-        <li class="card"><h3>Boards</h3><p>Paste an Are.na, Pinterest or X link. Each board becomes a collection.</p></li>
-        <li class="card"><h3>Search</h3><p>Find by name, tag or the words inside a picture. Tags come on their own.</p></li>
-        <li class="card"><h3>Teams</h3><p>Share a library with your team. Send one link.</p></li>
+        <li class="card">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="7" y="7" width="13" height="13" rx="1.5"/><path d="M4 16.5V5.5A1.5 1.5 0 0 1 5.5 4H16"/></svg>
+          <h3>Boards</h3><p>Paste an Are.na, Pinterest or X link. Each board becomes a collection.</p>
+        </li>
+        <li class="card">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5V18a1.5 1.5 0 0 0 1.5 1.5h15A1.5 1.5 0 0 0 21 18V10a1.5 1.5 0 0 0-1.5-1.5H12L9.5 6H4.5A1.5 1.5 0 0 0 3 7.5v1z"/><circle cx="9" cy="13.5" r="1.15"/><circle cx="14.5" cy="13.5" r="1.15"/><path d="M7.2 17.2c.4-1.15 1.35-1.7 2.8-1.7s2.4.55 2.8 1.7M12.6 17.2c.35-.9 1.1-1.35 2.15-1.35 1.05 0 1.75.45 2.1 1.35"/></svg>
+          <h3>Teams</h3><p>Put the library on Drive or Dropbox. Everyone opens the same folder.</p>
+        </li>
+        <li class="card">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1"/><rect x="13.5" y="3.5" width="7" height="7" rx="1"/><rect x="3.5" y="13.5" width="7" height="7" rx="1"/><rect x="13.5" y="13.5" width="7" height="7" rx="1"/></svg>
+          <h3>Grid</h3><p>Twenty thousand pictures, still smooth.</p>
+        </li>
+        <li class="card">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="1.5"/><rect x="6.5" y="7" width="5.5" height="4.5"/><rect x="12" y="12.5" width="5.5" height="4.5"/></svg>
+          <h3>Canvas</h3><p>Drag pictures into piles. Leave gaps where you haven’t decided.</p>
+        </li>
+        <li class="card">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H5.5A1.5 1.5 0 0 0 4 5.5V9M15 4h3.5A1.5 1.5 0 0 1 20 5.5V9M20 15v3.5a1.5 1.5 0 0 1-1.5 1.5H15M4 15v3.5A1.5 1.5 0 0 0 5.5 20H9"/></svg>
+          <h3>Preview</h3><p>Press space to give one picture the whole screen.</p>
+        </li>
+        <li class="card">
+          <svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M15 15l4.5 4.5"/></svg>
+          <h3>Search</h3><p>Find by name, tag or the words inside a picture. Tags come on their own.</p>
+        </li>
       </ul>
     </div>
   </section>
@@ -72,10 +92,38 @@
     <div class="wrap section-grid">
       <h2 id="private-title">Your library</h2>
       <dl class="facts-list">
-        <div><dt>Yours to set up</dt><dd>Keep your library on your Mac, a drive or Dropbox. Share it with a team or keep it to yourself.</dd></div>
+        <div><dt>Yours to set up</dt><dd>Keep it on your Mac, or on Drive or Dropbox so the whole team works from one library.</dd></div>
         <div><dt>Yours to keep</dt><dd>It’s a plain folder you can move, back up or take anywhere. We never see it.</dd></div>
-        <div><dt>No account</dt><dd>No sign-up, no server, no tracking.</dd></div>
+        <div><dt>No account</dt><dd>No sign-up, no server, no tracking. Sharing is just a shared folder.</dd></div>
       </dl>
+    </div>
+  </section>
+
+  <section class="section" id="questions" aria-labelledby="questions-title">
+    <div class="wrap section-grid">
+      <h2 id="questions-title">Questions</h2>
+      <div class="faq">
+        <div>
+          <h3>How is Grails different from Are.na or Pinterest?</h3>
+          <p>Those keep boards in the cloud. Grails brings them onto your Mac as a fast local library you own, then lets the team share that library through a normal synced folder.</p>
+        </div>
+        <div>
+          <h3>How is it different from Eagle or Atlas?</h3>
+          <p>Same idea of a native Mac reference library. Grails is free and open source, built for a shared team folder, and imports Are.na, Pinterest and X boards so you don’t start empty.</p>
+        </div>
+        <div>
+          <h3>How does team sharing work with no server?</h3>
+          <p>The library is a plain folder. Put it on Drive, Dropbox or iCloud, invite the team there, and each person opens the same folder in Grails.</p>
+        </div>
+        <div>
+          <h3>Can I bring what I already have?</h3>
+          <p>Yes. Paste a board link to import it as a collection. Files stay yours on disk.</p>
+        </div>
+        <div>
+          <h3>Is it free?</h3>
+          <p>Yes. No account, no trial wall.</p>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -103,11 +151,12 @@
       <p class="mark">GRAILS</p>
       <nav aria-label="Footer">
         <ul>
-                <li><a href="#download">Download</a></li>
-                        <li><a href="/privacy">Privacy</a></li>
-                <li><a href="/credits">Credits</a></li>
-                <li><a href="mailto:hi@arjoon.xyz">hi@arjoon.xyz</a></li>
-              </ul>
+          <li><a href="#download">Download</a></li>
+          <li><a href="/privacy">Privacy</a></li>
+          <li><a href="/credits">Credits</a></li>
+          <li><a href="https://github.com/arj00n/grails">GitHub</a></li>
+          <li><a href="mailto:hi@arjoon.xyz">hi@arjoon.xyz</a></li>
+        </ul>
       </nav>
     </div>
     <p class="meta">0.3.3 · 6 Oct 2026</p>
