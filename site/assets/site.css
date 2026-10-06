@@ -145,10 +145,8 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
   text-align: center;
 }
 .plate h1 { font: 400 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0; }
-.plate .lede { margin: 14px auto 0; max-width: 300px; font-size: 15px; line-height: 1.4; color: var(--secondary); text-wrap: balance; }
-.plate .usp,
-.plate .start { margin: 10px auto 0; max-width: 340px; font-size: 15px; line-height: 1.4; color: var(--secondary); text-wrap: balance; }
-.plate .start { margin-top: 8px; font-size: 14px; }
+.plate .lede { margin: 14px auto 0; max-width: 340px; font-size: 17px; line-height: 1.35; color: var(--text); text-wrap: balance; }
+.plate .usp { margin: 8px auto 0; max-width: 340px; font-size: 14px; line-height: 1.4; color: var(--secondary); text-wrap: balance; }
 .plate .button { margin-top: 20px; }
 .plate .facts { margin-top: 14px; font-size: 13px; line-height: 1.45; color: var(--secondary); }
 /* the painter, bottom right, on a small plate of canvas so it reads over the painting */
