@@ -13,7 +13,7 @@ Everything is prepared; the submission itself is yours (it needs your developer 
 
 ## Steps in the dashboard
 1. **Items ▸ New item** (or your existing draft): upload the zip.
-2. **Store listing:** paste the text below, upload the three screenshots and the promo tile, category **Productivity**, language English, **Support URL / email:** `arjun@justswish.in`.
+2. **Store listing:** paste the text below, upload the three screenshots and the promo tile, category **Productivity**, language English, **Support URL / email:** `hi@arjoon.xyz`.
 3. **Privacy:** paste the single purpose and the permission reasons below; data usage: tick **Website content** only (the images, videos, links and Pinterest boards the user chooses go to the Grails app on their own Mac; nothing else); tick the three certifications; **Privacy policy URL:** `https://grails.arjoon.xyz/privacy`.
 4. **Distribution:** visibility **Unlisted** (anyone with the link), all regions.
 5. **Test instructions** (reviewers can't run the Mac app): paste the text at the bottom.

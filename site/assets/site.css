@@ -234,7 +234,9 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 .link-sample code { color: var(--text); }
 
 /* Footer. */
-.footer { border-top: 1px solid var(--hairline); padding: 40px 0 48px; font-size: 14px; line-height: 1.6; color: var(--secondary); }
+.footer { border-top: 1px solid var(--hairline); padding: 0 0 48px; font-size: 14px; line-height: 1.6; color: var(--secondary); }
+/* ink rising through pixels, stirred by the pointer (assets/fluid.js); a still dither when it can't move */
+.fluid { display: block; width: 100%; height: clamp(200px, 26vw, 320px); margin-bottom: 40px; background: var(--canvas); image-rendering: pixelated; image-rendering: crisp-edges; touch-action: pan-y; border-bottom: 1px solid var(--hairline); }
 .footer .wrap { display: grid; gap: 20px; }
 @media (min-width: 880px) { .footer .wrap { grid-template-columns: 220px minmax(0, 1fr) auto; gap: 32px; align-items: start; } }
 .footer .mark { font: 400 16px/20px var(--display); color: var(--text); }
