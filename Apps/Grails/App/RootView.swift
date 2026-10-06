@@ -61,15 +61,13 @@ struct RootView: View {
                     .padding(contentInsets)
             }
             if model.items.isEmpty && model.store != nil {
-                // a library with nothing in it yet: ink rising through pixels at the foot of the window, and a nudge
-                if libraryIsEmpty {
-                    FluidBand(active: true)
-                        .frame(height: 240)
-                        .frame(maxHeight: .infinity, alignment: .bottom)
-                        .padding(contentInsets)
-                        .allowsHitTesting(false)
-                        .transition(.opacity)
-                }
+                // wherever there is nothing to show: ink rising through pixels at the foot of the window
+                FluidBand(active: true)
+                    .frame(height: 240)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .padding(contentInsets)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
                 emptyState
                     .padding(contentInsets)
             }
