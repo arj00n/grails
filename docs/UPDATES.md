@@ -16,9 +16,9 @@ Nothing installs on its own (`SUAllowsAutomaticUpdates` is off). The headless de
 
 ## Where the DMG lives
 
-`DMG_URL_TEMPLATE` at the top of `release.sh` sets the enclosure address; the default is the GitHub release asset in `arj00n/stash`.
-That repo is private, so the app can't download its release assets: publish releases from a public repo, or host the DMG on the site with
-`DMG_URL_TEMPLATE='https://grails.arjoon.xyz/download/Grails-{version}.dmg' Scripts/release.sh` (the DMG is already copied to `site/download/`).
+`DMG_URL_TEMPLATE` at the top of `release.sh` sets the enclosure address; the default is the site (`https://grails.arjoon.xyz/download/`),
+where the script already copies the DMG. GitHub release assets in the private `arj00n/grails` can't be used: an installed app has no
+login, and shipping a token inside the app would expose the private source. If releases ever move to a public repo, point the template there.
 
 ## The signing key
 

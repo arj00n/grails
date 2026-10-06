@@ -88,7 +88,7 @@
 ## UI simplification, canvas, auto-tagging — 2026-10-03 (post v0.1.0)
 - **Toolbar**: view switcher (Grid / Canvas), one Filter menu, info toggle. No zoom slider: pinch or ⌘-scroll zooms
   continuously (grid tiles 56–720 pt, settles to a filled row; ⌘+/⌘− step columns). ⌘1 Grid, ⌘2 Canvas, ⌘0 fit.
-- **Canvas** (Atlas model): per-board (library / collection / tag / smart folder) infinite pan/zoom, placements in
+- **Canvas** : per-board (library / collection / tag / smart folder) infinite pan/zoom, placements in
   `canvas/<boardKey>.json`, merged per placement across Macs, undoable, culled + pooled layers (20k items: 0–2 slow frames).
 - **Auto-tag**: Apple Vision `VNClassifyImageRequest` on the 512 px thumbnail, on-device, no model download, ~150 ms/image.
   Filter = confidence floor (0.5), a tiny fixed denylist (structure/material/object), word-overlap dedupe, cap 5; Settings has a
@@ -344,7 +344,7 @@ Perf, 20k items, debug build, M-series (`GRAILS_PERF=1 swift test --filter Perfo
 - Smart folders, canvas files and `tags.json` have layout paths but no models yet (M3 / M8).
 
 ## Flat UI — 2026-10-05
-- Dropped the glass look (it read too close to Atlas): docked flat sidebar and info panel (solid surface, hairline edge), one solid top bar (sidebar toggle, title + count or the
+- Dropped the glass look : docked flat sidebar and info panel (solid surface, hairline edge), one solid top bar (sidebar toggle, title + count or the
   filter chip, search, Grid/Canvas tabs with a sliding underline, filter, share, info), no floating pills or circles. Tokens in `App/Glass.swift` (`Ink`, `BarIcon`).
 - Hover fills ease in and symbols bounce under the pointer (`symbolEffect`), also in sidebar rows and tabs. The hold-⌘ shortcuts panel is gone.
 

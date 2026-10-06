@@ -11,11 +11,12 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # ---- Settings -------------------------------------------------------------------------------------------------------------
-# Where Sparkle downloads the DMG from ({version} is filled in). arj00n/stash is private, so GitHub release assets there can't be
-# downloaded by the app; use a public releases repo, or serve the DMG from the site (this script copies it to site/download/):
-#   DMG_URL_TEMPLATE='https://grails.arjoon.xyz/download/Grails-{version}.dmg' Scripts/release.sh
-[ -n "${DMG_URL_TEMPLATE:-}" ] || DMG_URL_TEMPLATE='https://github.com/arj00n/stash/releases/download/v{version}/Grails-{version}.dmg'
-GITHUB_REPO="${GITHUB_REPO:-arj00n/stash}"
+# Where Sparkle downloads the DMG from ({version} is filled in). The default is the site (this script copies the DMG to site/download/),
+# because arj00n/grails is private: an installed app has no login, so GitHub release assets there can't be downloaded. If the releases
+# ever live in a public repo, use:
+#   DMG_URL_TEMPLATE='https://github.com/arj00n/<public repo>/releases/download/v{version}/Grails-{version}.dmg' Scripts/release.sh
+[ -n "${DMG_URL_TEMPLATE:-}" ] || DMG_URL_TEMPLATE='https://grails.arjoon.xyz/download/Grails-{version}.dmg'
+GITHUB_REPO="${GITHUB_REPO:-arj00n/grails}"
 # The private EdDSA key (exported with generate_keys -x). Never in the repo.
 KEY_FILE="${SPARKLE_KEY_FILE:-$HOME/Library/Application Support/Grails-release/sparkle_ed25519_private.key}"
 SITE="${SITE_DIR:-site}"

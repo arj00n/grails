@@ -133,13 +133,3 @@ extension AppModel {
     }
 }
 
-/// The app was called Stash before: carry over its preferences (library, workspaces, view settings) the first time this one runs.
-enum LegacyDefaults {
-    static func migrate() {
-        let d = UserDefaults.standard
-        guard d.object(forKey: "migratedFromStash") == nil else { return }
-        d.set(true, forKey: "migratedFromStash")
-        guard let old = d.persistentDomain(forName: "in.justswish.stash") else { return }
-        for (key, value) in old where d.object(forKey: key) == nil && !key.hasPrefix("NS") && !key.hasPrefix("Apple") { d.set(value, forKey: key) }
-    }
-}

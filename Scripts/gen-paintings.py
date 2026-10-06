@@ -15,7 +15,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, "..", "Apps", "Grails", "Resources", "Paintings")
 CACHE = os.path.expanduser("~/Library/Caches/grails-paintings")
-UA = "Grails/0.1 (personal reference library; contact arjun@justswish.in) gen-paintings.py"
+UA = "Grails/0.1 (personal reference library; contact hi@arjoon.xyz) gen-paintings.py"
 LONG_EDGE, QUALITY, K = 1024, 70, 16
 REF_W, REF_H, REF_PX = 1280, 800, 3          # the window the levels are measured on
 LUM = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)

@@ -9,7 +9,6 @@ struct GrailsApp: App {
     @State private var updater = UpdaterController.shared
 
     init() {
-        LegacyDefaults.migrate()
         Typeface.register()
         UpdaterController.start()
         #if DEBUG

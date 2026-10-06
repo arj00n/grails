@@ -168,7 +168,7 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 
 /* ── Sections ─────────────────────────────────────────────────────────── */
 .wrap { width: 100%; max-width: calc(var(--measure) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter); }
-.section { border-top: 1px solid var(--hairline); padding: 56px 0 64px; }
+.section { padding: 56px 0 64px; }
 .section-grid { display: grid; gap: 20px 32px; }
 @media (min-width: 880px) {
   .section { padding: 72px 0 88px; }
@@ -234,19 +234,20 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 .link-sample code { color: var(--text); }
 
 /* Footer. */
-.footer { border-top: 1px solid var(--hairline); padding: 0 0 48px; font-size: 14px; line-height: 1.6; color: var(--secondary); }
-/* ink rising through pixels, stirred by the pointer (assets/fluid.js); a still dither when it can't move */
-.fluid { display: block; width: 100%; height: clamp(200px, 26vw, 320px); margin-bottom: 40px; background: var(--canvas); image-rendering: pixelated; image-rendering: crisp-edges; touch-action: pan-y; border-bottom: 1px solid var(--hairline); }
-.footer .wrap { display: grid; gap: 20px; }
-@media (min-width: 880px) { .footer .wrap { grid-template-columns: 220px minmax(0, 1fr) auto; gap: 32px; align-items: start; } }
+.footer { position: relative; height: clamp(300px, 34vw, 400px); font-size: 14px; line-height: 1.6; color: var(--secondary); background: var(--canvas); overflow: hidden; }
+/* ink rising through pixels, stirred by the pointer (assets/fluid.js); the links sit in it on small plates of canvas so they always read */
+.fluid { position: absolute; inset: 0; display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; touch-action: pan-y; }
+.footer .wrap { position: relative; height: 100%; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; padding-top: 32px; padding-bottom: 24px; pointer-events: none; }
+.footer .top { display: grid; gap: 14px; justify-items: start; }
+.footer .mark, .footer nav li, .footer .meta { background: var(--canvas); padding: 3px 10px; margin-left: -10px; border-radius: var(--radius); }
 .footer .mark { font: 400 16px/20px var(--display); color: var(--text); }
-.footer nav ul { display: flex; flex-wrap: wrap; gap: 4px 20px; }
-.footer a { color: var(--secondary); }
+.footer nav ul { display: flex; flex-wrap: wrap; gap: 6px 4px; }
+.footer a { color: var(--secondary); pointer-events: auto; }
 .footer a:hover { color: var(--text); }
-.footer .meta { font: 400 12px/20px var(--display); text-transform: uppercase; }
+.footer .meta { font: 400 12px/20px var(--display); text-transform: uppercase; align-self: flex-end; margin-right: -10px; }
 
 /* ── Plain pages (privacy, credits, 404) ──────────────────────────────── */
-.page-head { padding: 20px 0; border-bottom: 1px solid var(--hairline); }
+.page-head { padding: 20px 0; }
 .page-head a { font: 400 16px/20px var(--display); color: var(--text); text-decoration: none; text-transform: uppercase; }
 .doc { max-width: 680px; padding: 56px 0 72px; }
 .doc h1 { font: 400 24px/28px var(--display); text-transform: uppercase; }

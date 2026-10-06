@@ -1,8 +1,7 @@
-# Grails — an open-source, team-shareable Atlas for design teams
+# Grails — an open-source, team-shareable reference library for design teams
 
 > Execution plan for **Claude Sonnet 5.5**. Read this whole file once, then work milestone by milestone.
 > Owner: Arjun Vijayakumar. Codename **Grails** (rename later is a find/replace).
-> Reference product: [Atlas for Mac](https://atlasformac.com/) ([release notes](https://atlasformac.com/release-notes)). We copy *ideas*, never its name, icon, copy, or assets.
 
 ---
 
@@ -19,9 +18,9 @@
 
 ---
 
-## 1. What we're building (and why not just buy Atlas)
+## 1. What we're building
 
-Atlas is a $39 single-user, native macOS inspiration library (Grid / Canvas / Infinity views, collections, tags, colors, on-device semantic search, browser extension, MCP). It's local-first but **not built for a team**.
+Existing inspiration libraries are single-user, native macOS apps (Grid / Canvas / Infinity views, collections, tags, colors, on-device semantic search, browser extension, MCP). It's local-first but **not built for a team**.
 
 Grails = the same core experience, open source (MIT), plus **one shared library the whole design/brand/marketing team works out of**, synced through a Google Drive shared drive — no server to run.
 
@@ -42,7 +41,7 @@ Grails = the same core experience, open source (MIT), plus **one shared library 
 
 | Area | Decision | Why |
 |---|---|---|
-| Platform | Native macOS 14+, Swift 6, SwiftUI shell + **AppKit for hot paths** (grid, canvas) | Atlas's whole edge is native speed with 10k+ items. Team is on Macs. Local toolchain: Xcode 27, Swift 6.4. |
+| Platform | Native macOS 14+, Swift 6, SwiftUI shell + **AppKit for hot paths** (grid, canvas) | Native speed with 10k+ items is the whole edge. Team is on Macs. Local toolchain: Xcode 27, Swift 6.4. |
 | Project gen | **XcodeGen** (`project.yml` committed, `.xcodeproj` gitignored) | Agent-editable text instead of pbxproj. `brew install xcodegen`. |
 | Core logic | Local SPM package `GrailsKit` (no UI imports) | Fully testable with `swift test`; shared by app, CLI, MCP. |
 | Source of truth | **Folder of files + JSON sidecars** on disk | Sync-safe over Google Drive/Dropbox/iCloud; survives the app disappearing; Eagle-like. |
@@ -204,7 +203,7 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
   - index rebuild of 20k items < 10 s, FTS query < 50 ms (perf tests with `measure`)
 
 #### M2 · Grid, sidebar, info panel (≈1–2 days)
-- Grid = `NSCollectionView` wrapped in `NSViewRepresentable` (not SwiftUI `LazyVGrid` — it stutters at this scale). Two layouts: **Square tiles** (aspect-fit in square, like Atlas) and **Masonry**.
+- Grid = `NSCollectionView` wrapped in `NSViewRepresentable` (not SwiftUI `LazyVGrid` — it stutters at this scale). Two layouts: **Square tiles** (aspect-fit in square) and **Masonry**.
 - Zoom: ⌘+scroll / pinch / slider, **pointer-anchored** (keep the item under the cursor fixed). 5 zoom steps + "Fit".
 - Decode thumbs off-main with ImageIO, `NSCache` keyed by (id, pixel size); show `thumb.jpg` instantly, upgrade to sharper decode from original only when tile > 512 px.
 - Selection: click, ⌘-click, ⇧-click, rubber band, ⌘A, Esc deselect.
@@ -255,7 +254,7 @@ Time estimates assume one focused Sonnet session each. **Phase 1 (M0–M5) = usa
 - **Verify:** test harness that runs two `LibraryStore` instances on the same temp folder concurrently (simulating two Macs): 500 random adds/tags/moves each → after both settle + rescan, both indexes match and no item.json is invalid. Then manual test with a real Drive folder on two Macs if available.
 - Build an unsigned DMG (`Scripts/make-dmg.sh`), tag `v0.1.0` locally, ask Arjun before publishing.
 
-### Phase 2 — Parity with Atlas
+### Phase 2 — Depth
 
 #### M6 · Media formats (≈1 day)
 - GIF + video: animate/hover-scrub in grid (AVPlayerLayer only for the hovered/visible-at-large-zoom tiles; static thumbs otherwise). Expanded view: timeline, frame step (`,` `.`), mute, **capture frame** ⇧⌘S → new image item.
