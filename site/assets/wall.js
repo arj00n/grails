@@ -140,7 +140,7 @@
   var reduce = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
   var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
   var clock = 0, lastNow = 0, lastDraw = -1e9, raf = 0;
-  var warp = null, lastPointer = null;       // the painting as liquid under the pointer (assets/warp.js)
+  var warp = null, lastPointer = null;       // smoke dragged through the painting by the pointer (assets/smoke.js)
   var visible = true, onScreen = true, started = false, shownCaption = -1;
 
   function isDark() { return forcedTheme ? forcedTheme === "dark" : darkQuery.matches; }
@@ -193,7 +193,7 @@
       canvas.style.width = s.cols * s.px + "px";
       canvas.style.height = s.rows * s.px + "px";
       image = ctx.createImageData(s.cols, s.rows);
-      warp = window.GrailsWarp ? window.GrailsWarp.create(s.cols, s.rows, 4) : null;
+      warp = window.GrailsSmoke ? window.GrailsSmoke.create(s.cols, s.rows, 3) : null;
       words = new Uint32Array(image.data.buffer);
       noiseMap = new Float32Array(s.cols * s.rows);
       for (var y = 0, i = 0; y < s.rows; y++) for (var x = 0; x < s.cols; x++, i++) noiseMap[i] = noise(x, y);
@@ -309,7 +309,7 @@
         }
       }
     }
-    if (warp && warp.active && !isStill()) warp.displace(out);
+    if (warp && warp.active && !isStill()) warp.overlay(out, isDark() ? 0xffffffff : 0xff000000);
     ctx.putImageData(image, 0, 0);
     return true;
   }
