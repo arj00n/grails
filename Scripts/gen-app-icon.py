@@ -16,7 +16,13 @@ ICONSET = os.path.join(ROOT, "Apps/Grails/Resources/Assets.xcassets/AppIcon.appi
 SITE = os.path.join(ROOT, "site")
 
 S, BODY, OFF, U = 1024, 824, 100, 8           # canvas, icon body, margin, one dither pixel
-PLATE_Y = 0.60                                 # where the plate and the G sit, from the top of the body
+# Tunable from the environment for previews: where the plate and the G sit (0.5 is the middle), the G's size, the plate's half size in cells,
+# and how far down the painting the square is cut.
+PLATE_Y = float(os.environ.get("ICON_PLATE_Y", "0.5"))
+G_SCALE = float(os.environ.get("ICON_G_SCALE", "0.46"))
+PLATE_HW = int(os.environ.get("ICON_PLATE_HW", "20"))
+PLATE_HH = int(os.environ.get("ICON_PLATE_HH", "24"))
+CROP_TOP = float(os.environ.get("ICON_CROP_TOP", "0.52"))
 N = BODY // U                                  # 103 cells a side
 
 
@@ -49,7 +55,7 @@ def painting_cells():
     img = Image.open(PAINTING).convert("RGB")
     w, h = img.size
     side = min(w, h)
-    left, top = (w - side) // 2, int((h - side) * 0.52)       # her face above, the dark dress under the G
+    left, top = (w - side) // 2, int((h - side) * CROP_TOP)       # her face above, the dark dress under the G
     img = img.crop((left, top, left + side, top + side)).resize((N, N), Image.LANCZOS)
     a = np.asarray(img).astype(np.float32)
     # a little contrast, a darker edge, so the plate and the G stay the brightest things
@@ -80,7 +86,7 @@ def build():
     out[smoke] = (250, 248, 240)
     # the plate behind the G: black, with a dithered edge, like the title plate on the title screen. It sits low, so her face stays above it.
     cx, cy = (N - 1) / 2, (N - 1) * PLATE_Y
-    hw, hh, reach = 21, 26, 8
+    hw, hh, reach = PLATE_HW, PLATE_HH, 8
     dx = np.maximum(np.abs(np.arange(N)[None, :] - cx) - hw, 0) * np.ones((N, 1))
     dy = np.maximum(np.abs(np.arange(N)[:, None] - cy) - hh, 0) * np.ones((1, N))
     plate = 1 - smoothstep(0, reach, np.hypot(dx, dy))
@@ -110,7 +116,7 @@ def compose():
     rects = favicon_rects()
     ys = [r[1] for r in rects] + [r[1] + r[3] for r in rects]
     xs = [r[0] for r in rects] + [r[0] + r[2] for r in rects]
-    scale = 0.50
+    scale = G_SCALE
     mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
     glyph = []
     for x, y, w, h in rects:
@@ -132,6 +138,11 @@ def compose():
 
 def main():
     icon = compose()
+    preview = os.environ.get("ICON_PREVIEW")
+    if preview:                      # a look only: nothing in the app or the site is touched
+        icon.save(preview)
+        print("preview", preview)
+        return
     sizes = {"icon_16x16@1x.png": 16, "icon_16x16@2x.png": 32, "icon_32x32@1x.png": 32, "icon_32x32@2x.png": 64, "icon_128x128@1x.png": 128,
              "icon_128x128@2x.png": 256, "icon_256x256@1x.png": 256, "icon_256x256@2x.png": 512, "icon_512x512@1x.png": 512, "icon_512x512@2x.png": 1024}
     for name, px in sizes.items():

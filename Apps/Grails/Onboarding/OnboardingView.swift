@@ -17,7 +17,7 @@ struct OnboardingView: View {
                     .frame(width: geo.size.width, height: min(geo.size.height * 0.3, 280))
                     .position(x: geo.size.width / 2, y: geo.size.height - min(geo.size.height * 0.3, 280) / 2)
                     .opacity(shown ? 1 : 0)
-                    .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.4).delay(shown ? 0.12 : 0), value: shown)
+                    .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.4), value: shown)
             }
             .ignoresSafeArea().allowsHitTesting(false)
             switch model.step {
@@ -214,7 +214,9 @@ private struct HelloChooseStep: View {
 
     var body: some View {
         GeometryReader { geo in
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotionOn || model.step == .choose)) { timeline in
+            // never paused: a paused timeline that is created while Choose is already showing (coming Back from the paste screen) stalls the whole
+            // screen, so it just ticks slowly there
+            TimelineView(.animation(minimumInterval: model.step == .choose ? 1 : 1.0 / 30, paused: reduceMotionOn)) { timeline in
                 let t = reduceMotionOn ? 10 : timeline.date.timeIntervalSince(epoch)
                 let specs = PaintingWallEngine.shared?.specs ?? []
                 let shown = PaintingWall.captionIndex(PaintingWall.schedule(t: t, count: specs.count, reduceMotion: reduceMotionOn))

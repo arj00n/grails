@@ -18,3 +18,4 @@ site/.vercel
 # Sparkle's private EdDSA key lives in ~/Library/Application Support/Grails-release/, never here
 *.key
 sparkle_ed25519_private*
+icon-preview/

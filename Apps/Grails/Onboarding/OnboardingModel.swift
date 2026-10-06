@@ -44,6 +44,15 @@ final class OnboardingModel {
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_CHOOSE"] != nil { step = .choose }      // dev: look at Choose without clicking through Hello
         handle = Handle.normalize(s.handle.isEmpty ? NSUserName() : s.handle)
         seed = Self.seed(for: NSUserName())
+        if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_BACKTEST"] != nil {                   // dev: Get Started, Import boards, then Back, logging each step
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2)); self?.start()
+                try? await Task.sleep(for: .seconds(2)); self?.thisMac = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("BackTest-\(UUID().uuidString.prefix(6)).grails"); self?.remember = false; self?.importBoards()
+                try? await Task.sleep(for: .seconds(14)); print("BACKTEST at paste? step=\(String(describing: self?.step)) busy=\(self?.busy ?? false) problem=\(self?.problem ?? "-") store=\(self?.app?.store != nil)")
+                self?.back()
+                try? await Task.sleep(for: .seconds(4)); print("BACKTEST after back: step=\(String(describing: self?.step)) store=\(self?.app?.store != nil)")
+            }
+        }
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_AUTOSTART"] != nil {                    // dev: press Get Started after 3 s, as a person would
             Task { @MainActor [weak self] in try? await Task.sleep(for: .seconds(3)); self?.start() }
         }
