@@ -83,6 +83,15 @@ struct OnboardingDemo {
         check(model.step == .paste && app.store != nil, "Import boards makes the library and goes to Paste")
         check(FileManager.default.fileExists(atPath: dir + "/This Mac.grails/library.json"), "library made on This Mac with no questions")
 
+        // Back from Paste: never a dead end. The empty library made on the way in is thrown away, and Choose works again
+        model.back()
+        await until(10) { model.step == .choose }
+        check(model.step == .choose && app.store == nil && app.needsLibrary, "Back from Paste returns to Choose with no library left")
+        check(!FileManager.default.fileExists(atPath: dir + "/This Mac.grails/library.json"), "the empty library it made is gone")
+        model.importBoards()
+        await until(10) { model.step == .paste }
+        check(model.step == .paste && app.store != nil, "Import boards works again after going back")
+
         // Paste: a Pinterest board of 240 pins is read by the in-app reader (a real web view against a stand-in server), no extension
         let fixture = CollectorFixture(pins: 240)
         let port = (try? await fixture.start()) ?? 0

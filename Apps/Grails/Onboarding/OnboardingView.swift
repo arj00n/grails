@@ -30,7 +30,7 @@ struct OnboardingView: View {
     private var topBar: some View {
         VStack {
             HStack {
-                if model.step == .whereIt && !model.returning {
+                if (model.step == .whereIt && !model.returning) || (model.step == .paste && !(model.app?.importModel.isRunning ?? false)) {
                     BarButton(symbol: "chevron.left", help: "Back (Esc)", identifier: "onboarding-back") { model.back() }.padding(.leading, 86)
                 }
                 Spacer()

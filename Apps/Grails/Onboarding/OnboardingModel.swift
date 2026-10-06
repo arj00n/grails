@@ -74,9 +74,28 @@ final class OnboardingModel {
         if teamSetup { closeTeamSetup(); return }
         switch step {
         case .whereIt: if !returning { go(.choose) }
+        case .paste: leavePaste()
         default: break      // once the library exists, going back would make a second one
         }
     }
+
+    /// Back from the paste screen to Choose, so no route is a dead end. The empty library this run made on the way in is thrown away, so
+    /// the next route (join one, another folder, a team library) starts clean; a library that was already there is left alone.
+    func leavePaste() {
+        guard let app, !app.importModel.isRunning else { return }
+        let fresh = freshRoot
+        freshRoot = nil
+        Task {
+            if let fresh, app.layout?.root.standardizedFileURL == fresh.standardizedFileURL, await app.discardFreshLibrary(forget: remember) {
+                state.libraryPath = nil
+                state.save(defaults)
+            }
+            go(.choose)
+        }
+    }
+
+    /// The folder a library was just made in by this run (nil if it was already there).
+    @ObservationIgnored private var freshRoot: URL?
 
     /// Hello → Choose: 240 ms, the painting fades out and the two options fade in, with the name staying where it is.
     func start() { scan(); go(.choose, duration: 0.24) }
@@ -207,7 +226,9 @@ final class OnboardingModel {
             }
         }
         guard let url else { return }
+        let existed = FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path)
         await app.openOrCreate(at: url, remember: remember)
+        freshRoot = existed ? nil : url
         guard app.store != nil else { problem = "Couldn't open that folder"; return }
         await opened(app, next: next)
     }

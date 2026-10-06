@@ -337,6 +337,29 @@ final class AppModel {
 
     var userHandle: String { UserDefaults.standard.string(forKey: "userHandle") ?? GrailsPaths.defaultUserHandle }
 
+    /// Onboarding went back before anything was imported: a library it just made, still empty, goes to the Trash, and the app has no library
+    /// again (as at the very start). Returns false, leaving everything as it was, if the library has anything in it.
+    @discardableResult
+    func discardFreshLibrary(forget: Bool = true) async -> Bool {
+        guard let store, let root = layout?.root else { return false }
+        guard ((try? await store.index.count(ItemQuery())) ?? 1) == 0 else { return false }
+        let id = libraryID
+        watcher?.stop(); watcher = nil
+        rescanLoop?.cancel(); rescanLoop = nil
+        self.store = nil
+        layout = nil
+        libraryID = ""
+        items = []; itemsVersion += 1; collections = []; totalCount = 0
+        needsLibrary = true
+        LibraryIndex.discard(libraryId: id)
+        if forget {
+            workspaces = Workspaces.remove(id: id)
+            UserDefaults.standard.removeObject(forKey: "libraryPath")
+        }
+        try? FileManager.default.trashItem(at: root, resultingItemURL: nil)
+        return true
+    }
+
     func openOrCreate(at url: URL, remember: Bool = true) async {
         do {
             let index = ProcessInfo.processInfo.environment["GRAILS_INDEX_PATH"].map { try? LibraryIndex(path: URL(fileURLWithPath: $0)) } ?? nil
