@@ -10,6 +10,16 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             Ink.canvas.ignoresSafeArea()
+            // the painting's place once Hello is over: ink rising through pixels at the foot of the screen, stirred by the pointer
+            GeometryReader { geo in
+                let shown = model.step == .choose || model.step == .whereIt
+                FluidBand(active: shown)
+                    .frame(width: geo.size.width, height: min(geo.size.height * 0.3, 280))
+                    .position(x: geo.size.width / 2, y: geo.size.height - min(geo.size.height * 0.3, 280) / 2)
+                    .opacity(shown ? 1 : 0)
+                    .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.4).delay(shown ? 0.12 : 0), value: shown)
+            }
+            .ignoresSafeArea().allowsHitTesting(false)
             switch model.step {
             case .hello, .choose: HelloChooseStep(model: model)
             case .whereIt: LibraryStep(model: model).transition(.opacity)

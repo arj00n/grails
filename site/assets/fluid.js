@@ -91,13 +91,14 @@
       var plume = 0.5 + 0.5 * Math.sin(x * 0.11 + time * 0.7) * Math.sin(x * 0.043 - time * 0.31 + 1.7);
       for (y = H - 2; y < H; y++) { i = y * W + x; d[i] = Math.min(1, d[i] + plume * plume * 0.04 * dt * 60); }
     }
+    var damp = Math.pow(0.96, dt * 60);       // damping and fade are per 1/60 s: a slow frame doesn't thicken the ink
     for (y = 0; y < H; y++) {
       var wind = Math.sin(y * 0.19 + time * 0.5) * 0.35;
       for (x = 0; x < W; x++) {
         i = y * W + x;
         u[i] += wind * dt * 2;
         v[i] -= (0.03 + d[i] * 0.2) * dt * 6;         // ink is lighter than the air: it floats up
-        u[i] *= 0.96; v[i] *= 0.96;
+        u[i] *= damp; v[i] *= damp;
       }
     }
     if (stir && pointer.on && pointer.moved) {
@@ -117,7 +118,8 @@
     project(u, v);
     advect(d0, d, u, v, dt * 60 * 0.9);
     t = d; d = d0; d0 = t;
-    for (i = 0; i < N; i++) d[i] *= 0.982;
+    var fade = Math.pow(0.982, dt * 60);
+    for (i = 0; i < N; i++) d[i] *= fade;
     // the top edge lets ink go
     for (x = 0; x < W; x++) { d[x] *= 0.6; d[x + W] *= 0.85; }
   }

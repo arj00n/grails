@@ -77,6 +77,19 @@ struct OnboardingDemo {
         snap({ _ in HelloFrame(t: 10, size: size, caption: "", choosing: true, wall: { Color.clear }, chooser: { ChooserCards(model: model) }) }, "choose")
         snap(ZStack { LibraryStep(model: model) }, "where")
 
+        // The ink band at the foot of Choose: settles by itself, stays finite when stirred, and draws as a dithered bitmap
+        let fluid = FluidField()
+        fluid.resize(320, 70)
+        for _ in 0..<200 { fluid.step(1 / 60, stir: nil) }
+        for i in 0..<90 { fluid.step(1 / 60, stir: .init(x: 40 + Float(i) * 2.5, y: 38 + 12 * sin(Float(i) / 9), vx: 2.2, vy: -1.4)) }
+        if let img = fluid.image(ink: (255, 255, 255), paper: (0, 0, 0)) {
+            let rep = NSBitmapImageRep(cgImage: img)
+            check(img.width == 320 && img.height == 70, "the ink band renders at its grid size")
+            try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: "\(dir)/snap-fluid-band.png"))
+        } else { check(false, "the ink band renders") }
+        let probe = fluid.image(ink: (255, 255, 255), paper: (0, 0, 0))
+        check(probe != nil, "stirred ink stays a valid picture (no runaway values)")
+
         // Choose → Import boards: the library is made without asking, then Paste
         model.importBoards()
         await until(10) { model.step == .paste }

@@ -41,6 +41,7 @@ final class OnboardingModel {
         if returning { s = OnboardingState() }
         state = s
         step = resuming ? s.step : (returning ? .whereIt : .hello)
+        if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_CHOOSE"] != nil { step = .choose }      // dev: look at Choose without clicking through Hello
         handle = Handle.normalize(s.handle.isEmpty ? NSUserName() : s.handle)
         seed = Self.seed(for: NSUserName())
     }

@@ -280,6 +280,17 @@ extension RootView {
             }
             // the AppKit grid renders offscreen; a SwiftUI window does not
             let root = NSApp.windows.compactMap(\.contentView).first
+            func fluid(_ v: NSView) -> FluidDitherView? {
+                if let f = v as? FluidDitherView { return f }
+                for s in v.subviews { if let hit = fluid(s) { return hit } }
+                return nil
+            }
+            if let root, let band = fluid(root), let image = band.lastImage {
+                try? NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+                print("SNAPSHOT: \(path)")
+                if env["GRAILS_SNAPSHOT_QUIT"] != nil { NSApp.terminate(nil) }
+                return
+            }
             if let root, let v = find(root), let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
                 v.cacheDisplay(in: v.bounds, to: rep)
                 try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
