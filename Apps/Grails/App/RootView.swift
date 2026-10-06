@@ -61,12 +61,26 @@ struct RootView: View {
                     .padding(contentInsets)
             }
             if model.items.isEmpty && model.store != nil {
+                // a library with nothing in it yet: ink rising through pixels at the foot of the window, and a nudge
+                if libraryIsEmpty {
+                    FluidBand(active: true)
+                        .frame(height: 240)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .padding(contentInsets)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                }
                 emptyState
                     .padding(contentInsets)
             }
         }
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }
         .onDrop(of: [.fileURL, .grailsItems], delegate: ContentDrop(model: model, targeted: $dropTargeted))
+    }
+
+    /// Nothing in the library at all, and no search or filter in the way.
+    private var libraryIsEmpty: Bool {
+        model.source == .all && model.totalCount == 0 && !model.isSearching && !model.filters.isActive && model.stripTags.isEmpty
     }
 
     /// Plain words, centred. Only the two states with something to do carry buttons.
@@ -79,14 +93,19 @@ struct RootView: View {
                 Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil; model.stripTags = [] }.buttonStyle(PrimaryButtonStyle())
             } else if model.source == .trash {
                 Text("Trash is empty")
+            } else if libraryIsEmpty {
+                Text("Nothing here yet").font(.grailsDisplay(24)).foregroundStyle(Ink.text)
+                Text("Bring in a board you already love, or paste anything worth keeping.")
+                    .font(.grailsBody(14)).foregroundStyle(Ink.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
+                HStack(spacing: 8) {
+                    Button("Import a board") { model.promptImportBoard() }.buttonStyle(PrimaryButtonStyle()).accessibilityIdentifier("empty-import")
+                    Button("Add files…") { model.promptAddFiles() }.buttonStyle(OutlineButtonStyle()).accessibilityIdentifier("empty-add")
+                }
+                .padding(.top, 6)
             } else if model.source == .all {
                 Text("Empty")
-                HStack(spacing: 8) {
-                    Button("Add Files…") { model.promptAddFiles() }.buttonStyle(PrimaryButtonStyle())
-                    Button("Import Board…") { model.promptImportBoard() }.buttonStyle(PrimaryButtonStyle())
-                }
             } else {
-                Text("Empty")
+                Text("Nothing here yet")
             }
         }
         .font(.grailsDisplay(24))
