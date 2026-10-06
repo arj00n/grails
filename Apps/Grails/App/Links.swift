@@ -97,14 +97,11 @@ extension AppModel {
 
     /// Asks where a library lives on this Mac (a synced shared drive, usually) and opens it if it's the right one.
     func locateLibrary(id: String, name: String?) async -> Bool {
-        let p = NSOpenPanel()
-        p.canChooseDirectories = true
-        p.canChooseFiles = false
-        p.treatsFilePackagesAsDirectories = false
-        p.message = name.map { "Choose the folder for “\($0)” (it ends in .grails)" } ?? "Choose the library folder (it ends in .grails)"
-        p.prompt = "Open"
-        guard p.runModal() == .OK, let url = p.url else { return false }
-        guard let found = Self.libraryID(at: url) else { errorMessage = "“\(url.lastPathComponent)” isn't a Grails library."; return false }
+        let p = LibraryPicker.panel(message: name.map { "Choose the folder for “\($0)” (it ends in .grails)" } ?? "Choose the library folder (it ends in .grails)")
+        guard p.runModal() == .OK, let chosen = p.url else { return false }
+        guard let url = LibraryFinder.picked(chosen, named: name), let found = Self.libraryID(at: url) else {
+            errorMessage = "“\(chosen.lastPathComponent)” isn't a Grails library."; return false
+        }
         guard found == id else { errorMessage = "“\(url.lastPathComponent)” is a different library from the one this link is for."; return false }
         await openOrCreate(at: url)
         return libraryID == id

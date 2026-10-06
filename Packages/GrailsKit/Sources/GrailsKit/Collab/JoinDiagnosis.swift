@@ -42,6 +42,22 @@ public enum LibraryFinder {
         return nil
     }
 
+    /// The folder the open panel returns is often the one *around* the library: a `.grails` package looks like a file, so Open confirms the folder you are looking at.
+    /// The package itself, the library named `name`, or the only library in that folder.
+    public static func picked(_ chosen: URL, named name: String? = nil, fileManager fm: FileManager = .default) -> URL? {
+        if libraryID(at: chosen) != nil { return chosen }
+        let kids = (try? fm.contentsOfDirectory(at: chosen, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles])) ?? []
+        let libs = kids.filter { url in
+            let ext = url.pathExtension.lowercased()
+            return (ext == "grails" || ext == "stash") && libraryID(at: url) != nil
+        }
+        if let name {
+            let want = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if let hit = libs.first(where: { $0.deletingPathExtension().lastPathComponent.lowercased() == want }) { return hit }
+        }
+        return libs.count == 1 ? libs[0] : nil
+    }
+
     static func libraryID(at url: URL) -> String? {
         guard let data = try? Data(contentsOf: url.appendingPathComponent("library.json")),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }

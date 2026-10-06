@@ -258,6 +258,18 @@ enum FakeCloud {
         #expect(JoinDiagnosis.noApp(.googleDrive).copy(library: "T", hint: hint).steps[1] == "Sign in with your studio.com account")
     }
 
+    @Test func openingTheFolderAroundALibraryUsesTheLibrary() throws {
+        let home = try FakeCloud.home()
+        let refs = home.appendingPathComponent("References")
+        try FileManager.default.createDirectory(at: refs, withIntermediateDirectories: true)
+        let lib = try FakeCloud.makeLibrary("References/Team Library.grails", in: home, id: "01T", name: "Team Library")
+        #expect(LibraryFinder.picked(refs)?.standardizedFileURL == lib.standardizedFileURL)
+        #expect(LibraryFinder.picked(lib, named: "Team Library")?.standardizedFileURL == lib.standardizedFileURL)
+        _ = try FakeCloud.makeLibrary("References/Other.grails", in: home, id: "01O", name: "Other")
+        #expect(LibraryFinder.picked(refs) == nil)
+        #expect(LibraryFinder.picked(refs, named: "Team Library")?.standardizedFileURL == lib.standardizedFileURL)
+    }
+
     @Test func findsTheLibraryWhereverDriveShowsIt() throws {
         let home = try FakeCloud.home()
         let accounts = { CloudPlaces.driveAccounts(home: home) }

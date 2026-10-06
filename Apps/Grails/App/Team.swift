@@ -76,12 +76,13 @@ extension AppModel {
 
     /// Opens an existing library, or (for the default location only) creates one. Anything else that isn't a library is refused.
     func openLibrary(at url: URL) {
-        let isLibrary = FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path)
+        let target = LibraryFinder.picked(url) ?? url
+        let isLibrary = FileManager.default.fileExists(atPath: target.appendingPathComponent("library.json").path)
         guard isLibrary || url == AppModel.defaultLibraryURL else {
             errorMessage = "“\(url.lastPathComponent)” isn't a Grails library."
             return
         }
-        Task { await openOrCreate(at: url) }
+        Task { await openOrCreate(at: isLibrary ? target : url) }
     }
 
     // MARK: Watching a shared folder
@@ -175,11 +176,13 @@ extension AppModel {
     }
 
     func chooseLibrary(then action: @escaping (URL) -> Void) {
-        let p = NSOpenPanel()
-        p.canChooseDirectories = true
-        p.canChooseFiles = false
-        p.message = "Choose a Grails library (a folder ending in .grails)"
-        if p.runModal() == .OK, let url = p.url { action(url) }
+        let p = LibraryPicker.panel(message: "Choose a Grails library (a folder ending in .grails)")
+        guard p.runModal() == .OK, let url = p.url else { return }
+        guard let lib = LibraryFinder.picked(url) else {
+            errorMessage = "“\(url.lastPathComponent)” isn't a Grails library."
+            return
+        }
+        action(lib)
     }
 
     // MARK: Initials for the "added by" badge

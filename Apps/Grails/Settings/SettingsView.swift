@@ -1,5 +1,6 @@
 import GrailsKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     var model: AppModel
@@ -114,11 +115,20 @@ enum GrailsPathsShim { static var handle: String { NSUserName() } }
 
 @MainActor
 enum LibraryPicker {
-    static func openExisting(_ model: AppModel) {
+    /// A `.grails` library is a package, so the panel shows it as a file. Files of that type can be chosen, and so can the folder around one.
+    static func panel(message: String) -> NSOpenPanel {
         let p = NSOpenPanel()
         p.canChooseDirectories = true
-        p.canChooseFiles = false
+        p.canChooseFiles = true
         p.treatsFilePackagesAsDirectories = false
+        p.allowedContentTypes = [UTType("xyz.arjoon.grails.library")].compactMap { $0 }
+        p.message = message
+        p.prompt = "Open"
+        return p
+    }
+
+    static func openExisting(_ model: AppModel) {
+        let p = panel(message: "Choose a Grails library (a folder ending in .grails)")
         if p.runModal() == .OK, let url = p.url { model.openLibrary(at: url) }
     }
 
