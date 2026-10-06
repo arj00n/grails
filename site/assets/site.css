@@ -146,6 +146,9 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 }
 .plate h1 { font: 400 32px/1 var(--display); text-transform: uppercase; letter-spacing: 0; }
 .plate .lede { margin: 14px auto 0; max-width: 300px; font-size: 15px; line-height: 1.4; color: var(--secondary); text-wrap: balance; }
+.plate .usp,
+.plate .start { margin: 10px auto 0; max-width: 340px; font-size: 15px; line-height: 1.4; color: var(--secondary); text-wrap: balance; }
+.plate .start { margin-top: 8px; font-size: 14px; }
 .plate .button { margin-top: 20px; }
 .plate .facts { margin-top: 14px; font-size: 13px; line-height: 1.45; color: var(--secondary); }
 /* the painter, bottom right, on a small plate of canvas so it reads over the painting */
@@ -182,12 +185,13 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 
 /* What it does: the Choose cards. */
 .cards { display: grid; gap: 8px; grid-template-columns: 1fr; }
-@media (min-width: 560px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .card { min-height: 112px; } }
+@media (min-width: 560px) { .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } .card { min-height: 148px; } }
 @media (min-width: 1040px) { .cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 .card {
   padding: 16px;
   background: var(--surface); border: 1px solid var(--hairline); border-radius: var(--card-radius);
 }
+.card .icon { width: 22px; height: 22px; margin-bottom: 12px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .card h3 { font: 700 15px/20px var(--body); }
 .card p { margin-top: 4px; font-size: 14px; line-height: 1.45; color: var(--secondary); }
 
@@ -207,6 +211,10 @@ code { font-family: var(--mono); font-size: 0.875em; letter-spacing: 0; }
 .facts-list dd { font-size: 15px; line-height: 1.45; color: var(--secondary); }
 .facts-list dd a { color: var(--link); }
 .facts-list code { color: var(--text); }
+.faq { border-top: 1px solid var(--hairline); }
+.faq > div { display: grid; gap: 2px 24px; padding: 14px 0; border-bottom: 1px solid var(--hairline); }
+.faq h3 { font: 700 15px/1.45 var(--body); }
+.faq p { font-size: 15px; line-height: 1.45; color: var(--secondary); }
 
 /* Install. */
 .install { display: grid; gap: 40px; }
