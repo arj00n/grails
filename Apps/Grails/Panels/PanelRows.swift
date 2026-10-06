@@ -16,6 +16,7 @@ extension AppModel {
         let n = selection.count
 
         // Commands
+        add(.init(id: "cmd-feedback", title: "Send Feedback…", symbol: "envelope") { [self] in feedbackOpen = true })
         if hasSelection {
             add(.init(id: "cmd-like", title: "Like / Unlike \(n) selected", symbol: "heart", accessory: key(.like)) { [self] in run(.like) }, boost: 2)
             add(.init(id: "cmd-tag", title: "Edit Tags…", symbol: "tag", accessory: key(.tag)) { [self] in run(.tag) }, boost: 2)

@@ -33,7 +33,7 @@ struct RootView: View {
             Button("OK") { model.errorMessage = nil }
         } message: { Text(model.errorMessage ?? "") }
         .task { await model.openInitialLibrary() }
-        .onAppear { applyAppearance(); Self.snapshotIfRequested() }
+        .onAppear { applyAppearance(); Self.snapshotIfRequested(); if ProcessInfo.processInfo.environment["GRAILS_OPEN_FEEDBACK"] != nil { model.feedbackOpen = true } }
         .onChange(of: appearance) { applyAppearance() }
         .onChange(of: model.sidebarVisible) { model.workspaceMenuOpen = false }
     }
@@ -251,6 +251,7 @@ struct RootView: View {
         if let onboarding = model.onboarding { OnboardingView(model: onboarding) }
         if model.previewID != nil { PreviewPage(model: model) }
         if model.importPanelOpen { ImportPanel(model: model) }
+        if model.feedbackOpen { FeedbackCard(model: model).transition(.opacity) }
         if let w = model.welcome { WelcomeCard(model: model, request: w).transition(.opacity) }
         if model.extensionSetup.isOpen { ExtensionModal(model: model) }
         if let req = model.pairRequest, !model.importPanelOpen, !model.extensionSetup.isOpen { PairPrompt(model: model, request: req) }

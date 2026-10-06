@@ -162,6 +162,7 @@ final class AppModel {
     var previewSetVersion = 0
     var workspaceMenuOpen = false
     var importPanelOpen = false
+    var feedbackOpen = false
     /// Right out of onboarding: the tiles settle in, then this welcome card.
     var welcome: WelcomeRequest?
     var settleTick = 0

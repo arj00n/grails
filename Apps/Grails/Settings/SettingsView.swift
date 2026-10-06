@@ -91,6 +91,9 @@ struct SettingsView: View {
                         }
                     }
                 }
+                Section("Feedback") {
+                    Button("Send Feedback…") { model.feedbackOpen = true }.accessibilityIdentifier("settings-feedback")
+                }
                 .disabled(!updater.isAvailable)
             }
             .tabItem { Label("Library", systemImage: "books.vertical") }

@@ -57,6 +57,9 @@ struct GrailsApp: App {
                         .keyboardShortcut(KeyEquivalent(Character("\(index + 1)")), modifiers: .control)
                 }
             }
+            CommandGroup(after: .help) {
+                Button("Send Feedback…") { model.feedbackOpen = true }
+            }
             CommandGroup(after: .textEditing) {
                 Button("Find") { model.focusSearchTick += 1 }.keyboardShortcut("f")
                 Button("Back") { model.goBack() }.keyboardShortcut("[").disabled(!model.canGoBack)
