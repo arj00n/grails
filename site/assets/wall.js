@@ -140,6 +140,7 @@
   var reduce = window.matchMedia ? window.matchMedia("(prefers-reduced-motion: reduce)") : { matches: false };
   var darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : { matches: false };
   var clock = 0, lastNow = 0, lastDraw = -1e9, raf = 0;
+  var warp = null, lastPointer = null;       // the painting as liquid under the pointer (assets/warp.js)
   var visible = true, onScreen = true, started = false, shownCaption = -1;
 
   function isDark() { return forcedTheme ? forcedTheme === "dark" : darkQuery.matches; }
@@ -192,6 +193,7 @@
       canvas.style.width = s.cols * s.px + "px";
       canvas.style.height = s.rows * s.px + "px";
       image = ctx.createImageData(s.cols, s.rows);
+      warp = window.GrailsWarp ? window.GrailsWarp.create(s.cols, s.rows, 4) : null;
       words = new Uint32Array(image.data.buffer);
       noiseMap = new Float32Array(s.cols * s.rows);
       for (var y = 0, i = 0; y < s.rows; y++) for (var x = 0; x < s.cols; x++, i++) noiseMap[i] = noise(x, y);
@@ -307,6 +309,7 @@
         }
       }
     }
+    if (warp && warp.active && !isStill()) warp.displace(out);
     ctx.putImageData(image, 0, 0);
     return true;
   }
@@ -343,8 +346,10 @@
     // nothing to show yet: wait for the picture (its load calls kick)
     if (!look(state.to)) { load(state.to); lastNow = 0; return; }
 
-    var moving = state.e !== null;
-    var interval = 1000 / (moving ? FPS_MOVING : FPS_HOLD);
+    if (warp && !isStill()) warp.step(dt);
+    var warping = !!(warp && warp.active);
+    var moving = state.e !== null || warping;
+    var interval = warping ? 16 : 1000 / (moving ? FPS_MOVING : FPS_HOLD);
     var drawn = true;
     if (!started || moving || now - lastDraw >= interval - 4 || isStill()) {
       drawn = draw(clock, state);
@@ -379,6 +384,19 @@
     if (isStill() && started) { draw(clock, at(clock)); return; }
     kick();
   }
+
+  // ── The pointer ─────────────────────────────────────────────────────
+  window.addEventListener("pointermove", function (e) {
+    if (!warp || !size || isStill() || !visible || !onScreen) return;
+    var r = canvas.getBoundingClientRect();
+    var x = (e.clientX - r.left) / size.px, y = (e.clientY - r.top) / size.px;
+    var inside = x >= -8 && x <= size.cols + 8 && y >= -8 && y <= size.rows + 8;
+    if (inside && lastPointer) {
+      warp.stir(x, y, x - lastPointer[0], y - lastPointer[1]);
+      kick();
+    }
+    lastPointer = inside ? [x, y] : null;
+  }, { passive: true });
 
   // ── Wiring ──────────────────────────────────────────────────────────
   function start(manifest) {
