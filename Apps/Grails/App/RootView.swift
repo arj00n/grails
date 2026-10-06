@@ -285,6 +285,16 @@ extension RootView {
                 for s in v.subviews { if let hit = fluid(s) { return hit } }
                 return nil
             }
+            if let root, let band = fluid(root) {
+                var chain: [String] = []
+                var v: NSView? = band
+                while let x = v { chain.append("\(type(of: x)) a=\(x.alphaValue) h=\(x.isHidden) f=\(x.frame.integral)"); v = x.superview }
+                print("FLUID chain:\n" + chain.joined(separator: "\n"))
+                if let win = band.window, let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(win.windowNumber), [.boundsIgnoreFraming]) {
+                    try? NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path + ".window.png"))
+                }
+                print("FLUID window \(String(describing: band.window?.frame)) occlusion \(String(describing: band.window?.occlusionState)) visible \(band.window?.isVisible ?? false)")
+            }
             if let root, let band = fluid(root), let image = band.lastImage {
                 try? NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
                 print("SNAPSHOT: \(path)")

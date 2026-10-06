@@ -44,6 +44,9 @@ final class OnboardingModel {
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_CHOOSE"] != nil { step = .choose }      // dev: look at Choose without clicking through Hello
         handle = Handle.normalize(s.handle.isEmpty ? NSUserName() : s.handle)
         seed = Self.seed(for: NSUserName())
+        if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_AUTOSTART"] != nil {                    // dev: press Get Started after 3 s, as a person would
+            Task { @MainActor [weak self] in try? await Task.sleep(for: .seconds(3)); self?.start() }
+        }
     }
 
     /// A stable number from the person's account name, so their wall is theirs.
