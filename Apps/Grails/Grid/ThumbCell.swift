@@ -16,6 +16,48 @@ final class PassthroughLabel: NSTextField {
     }
 }
 
+/// The small pill at a tile's corner: an optional play symbol and a word or a length. Drawn by hand, with the text's cap height centred in
+/// a fixed height, so no font's line metrics can push it out of the pill.
+final class BadgePill: NSView {
+    private var text = ""
+    private var play = false
+    private var fill = NSColor.black
+    private let font = NSFont.grailsBody(9)
+    private static let height: CGFloat = 16
+
+    override var isFlipped: Bool { true }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    private var textSize: CGSize { (text as NSString).size(withAttributes: [.font: font]) }
+    private static let playSize = CGSize(width: 6, height: 7)
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 6 + (play ? Self.playSize.width + 3 : 0) + ceil(textSize.width) + 6, height: Self.height)
+    }
+
+    func show(_ text: String, play: Bool, color: NSColor) {
+        self.text = text; self.play = play; fill = color
+        invalidateIntrinsicContentSize()
+        needsDisplay = true
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        fill.setFill()
+        NSBezierPath(roundedRect: bounds, xRadius: 4, yRadius: 4).fill()
+        var x: CGFloat = 6
+        if play {
+            let r = NSRect(x: x, y: (bounds.height - Self.playSize.height) / 2, width: Self.playSize.width, height: Self.playSize.height)
+            let path = NSBezierPath()
+            path.move(to: NSPoint(x: r.minX, y: r.minY)); path.line(to: NSPoint(x: r.maxX, y: r.midY)); path.line(to: NSPoint(x: r.minX, y: r.maxY)); path.close()
+            NSColor.onImage.setFill(); path.fill()
+            x += Self.playSize.width + 3
+        }
+        // flipped: the line box's top is y; the baseline is ascender below it, and the cap height is centred on the pill
+        let baseline = (bounds.height + font.capHeight) / 2
+        (text as NSString).draw(at: NSPoint(x: x, y: baseline - font.ascender), withAttributes: [.font: font, .foregroundColor: NSColor.onImage])
+    }
+}
+
 final class TileView: NSView {
     /// What VoiceOver reads (and UI tests find): the item's name.
     var axLabel: String?
@@ -51,7 +93,7 @@ final class ThumbCell: NSCollectionViewItem {
     private let caption = PassthroughLabel.make()
     private let titleLabel = PassthroughLabel.make(wrapping: true)
     private let siteLabel = PassthroughLabel.make()
-    private let badge = PassthroughLabel.make()
+    private let badge = BadgePill()
     private let cloud = NSImageView()
     private let avatar = PassthroughLabel.make()
     private let sectionLabel = PassthroughLabel.make()
@@ -115,11 +157,6 @@ final class ThumbCell: NSCollectionViewItem {
         siteLabel.isHidden = true
         v.addSubview(titleLabel)
         v.addSubview(siteLabel)
-        badge.font = .grailsBody(9)
-        badge.textColor = .onImage
-        badge.wantsLayer = true
-        badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
-        badge.layer?.cornerRadius = 4
         badge.translatesAutoresizingMaskIntoConstraints = false
         badge.isHidden = true
         v.addSubview(badge)
@@ -259,12 +296,10 @@ final class ThumbCell: NSCollectionViewItem {
         if isLink && !showsPicture { titleLabel.stringValue = s.name; siteLabel.stringValue = s.site ?? "" }
         if s.kind == .video, let d = s.durationSec, d > 0 {
             badge.isHidden = false
-            badge.stringValue = String(format: " ▶ %d:%02d ", Int(d) / 60, Int(d) % 60)
-            badge.layer?.backgroundColor = NSColor.onImageScrim.cgColor
+            badge.show(String(format: "%d:%02d", Int(d) / 60, Int(d) % 60), play: true, color: .onImageScrim)
         } else {
             badge.isHidden = s.badge == nil
-            badge.layer?.backgroundColor = NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95).cgColor
-            if let b = s.badge { badge.stringValue = " \(b.capitalized) " }
+            if let b = s.badge { badge.show(b.capitalized, play: false, color: NSColor(red: 0.64, green: 0.33, blue: 1.0, alpha: 0.95)) }
         }
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         placeholder.image = NSImage(systemSymbolName: Self.symbol(for: s.kind), accessibilityDescription: nil)
