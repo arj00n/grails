@@ -516,6 +516,8 @@ final class AppModel {
             if viewMode == .canvas { await syncCanvas() }
             await refreshSections()
         } catch {
+            // typing quickly cancels the reload before it: that is not an error
+            if error is CancellationError || Task.isCancelled || generation != reloadGeneration { return }
             if LibraryIndex.isDamaged(error), await repairIndex() { return }
             errorMessage = "Couldn't load items: \(error.localizedDescription)"
         }
@@ -602,6 +604,7 @@ final class AppModel {
             await reload()
             return value
         } catch {
+            if error is CancellationError { return nil }
             errorMessage = "\(label) failed: \(error.localizedDescription)"
             return nil
         }

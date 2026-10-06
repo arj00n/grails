@@ -152,7 +152,8 @@ struct RootView: View {
 
     private var topBar: some View {
         VStack(spacing: 0) {
-            barRow
+            // above the tag strip, so the search field's recent searches drop over it instead of under it
+            barRow.zIndex(1)
             if model.stripVisible { TagStrip(model: model) }
         }
         .background(Ink.canvas)
