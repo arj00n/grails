@@ -12,9 +12,10 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             Ink.canvas.ignoresSafeArea()
-            // the painting's place once Hello is over: ink rising through pixels at the foot of the screen, stirred by the pointer
+            // the painting's place once Hello is over: ink rising through pixels at the foot of the screen, stirred by the pointer.
+            // It stays through Paste. The links sit on the same ground as Choose; the band only leaves when the pictures arrive.
             GeometryReader { geo in
-                let shown = model.step == .choose || model.step == .whereIt
+                let shown = model.step == .choose || model.step == .whereIt || model.step == .paste
                 FluidBand(active: shown)
                     .frame(width: geo.size.width, height: min(geo.size.height * 0.3, 280))
                     .position(x: geo.size.width / 2, y: geo.size.height - min(geo.size.height * 0.3, 280) / 2)
@@ -22,8 +23,8 @@ struct OnboardingView: View {
                     .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.4), value: shown)
             }
             .ignoresSafeArea().allowsHitTesting(false)
-            // Hello and Choose are mounted for the whole run and only shown while they are the step: building them afresh when someone comes
-            // Back from a later screen left that screen stuck in place. Disabled when hidden, so none of its shortcuts (Return, ⌘V) leak out.
+            // Hello and Choose stay mounted for the whole run and are only shown on those steps. Rebuilding them when someone
+            // comes Back left the screen they left stuck in place. Disabled when hidden, so none of its shortcuts (Return, ⌘V) leak out.
             HelloChooseStep(model: model)
                 .opacity(helloShown ? 1 : 0).allowsHitTesting(helloShown).disabled(!helloShown)
                 .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.2), value: helloShown)
@@ -218,6 +219,14 @@ private struct ChooserCard: View {
 private struct HelloChooseStep: View {
     var model: OnboardingModel
     @State private var epoch = Date()
+    /// The painting stays up through the fade into Choose, then leaves the tree. Hiding it with opacity is not enough: it is an AppKit
+    /// view, and the fade between Choose and Paste composites it again for a moment, under that screen.
+    @State private var wallLive: Bool
+
+    init(model: OnboardingModel) {
+        self.model = model
+        _wallLive = State(initialValue: model.step == .hello)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -226,11 +235,24 @@ private struct HelloChooseStep: View {
                 let t = reduceMotionOn ? 10 : timeline.date.timeIntervalSince(epoch)
                 let specs = PaintingWallEngine.shared?.specs ?? []
                 let shown = PaintingWall.captionIndex(PaintingWall.schedule(t: t, count: specs.count, reduceMotion: reduceMotionOn))
-                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "", choosing: model.step == .choose,
-                           wall: { PaintingWallBackground(epoch: epoch, reduceMotion: reduceMotionOn) }, chooser: { ChooserCards(model: model) }) { model.start() }
+                // After Hello the wall stays down. Turning it back on for a later step fades the launch screen in under that step.
+                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "", choosing: model.step != .hello,
+                           wall: {
+                               if wallLive {
+                                   PaintingWallBackground(epoch: epoch, reduceMotion: reduceMotionOn)
+                               }
+                           }, chooser: { ChooserCards(model: model) }) { model.start() }
             }
         }
         .ignoresSafeArea()
+        .task(id: model.step) {
+            guard wallLive, model.step != .hello else { return }
+            try? await Task.sleep(for: .milliseconds(reduceMotionOn ? 140 : 280))
+            guard !Task.isCancelled, model.step != .hello else { return }
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { wallLive = false }
+        }
     }
 }
 

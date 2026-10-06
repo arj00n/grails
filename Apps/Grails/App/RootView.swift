@@ -60,8 +60,9 @@ struct RootView: View {
                 CanvasView(model: model)
                     .padding(contentInsets)
             }
-            if model.items.isEmpty && model.store != nil {
-                // wherever there is nothing to show: ink rising through pixels at the foot of the window
+            if model.items.isEmpty && model.store != nil && model.onboarding == nil {
+                // wherever there is nothing to show: ink rising through pixels at the foot of the window.
+                // not during onboarding: Paste already has this band, and a second one starting underneath is the hitch between the two screens
                 FluidBand(active: true)
                     .frame(height: 240)
                     .frame(maxHeight: .infinity, alignment: .bottom)

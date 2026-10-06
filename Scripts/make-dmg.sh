@@ -11,6 +11,8 @@ BUILD=build
 rm -rf "$BUILD/dmg" "dist/Grails-$VERSION.dmg"; mkdir -p "$BUILD/dmg" dist
 
 xcodegen >/dev/null
+# XcodeGen 2.46 types a .icon as wrapper.icon. Xcode 27 only compiles it as the app icon when the type is folder.iconcomposer.icon.
+sed -i '' 's/lastKnownFileType = wrapper\.icon;/lastKnownFileType = folder.iconcomposer.icon;/' Grails.xcodeproj/project.pbxproj
 xcodebuild -scheme Grails -configuration Release -destination 'platform=macOS' -derivedDataPath "$BUILD/derived" CODE_SIGNING_ALLOWED=NO build >/dev/null
 APP="$BUILD/derived/Build/Products/Release/Grails.app"
 [ -d "$APP" ] || { echo "build failed: no Grails.app"; exit 1; }
