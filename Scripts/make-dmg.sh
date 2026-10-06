@@ -23,18 +23,28 @@ else
 fi
 codesign --verify --deep --strict "$BUILD/dmg/Grails.app"
 
-ln -s /Applications "$BUILD/dmg/Applications"
-cat > "$BUILD/dmg/READ ME FIRST.txt" <<TXT
+# The installer window: the app and an Applications shortcut over a picture with the steps on it (Scripts/gen-dmg-background.py,
+# Scripts/dmg-settings.py). It needs dmgbuild:  python3 -m venv ~/.local/share/grails-dmg && ~/.local/share/grails-dmg/bin/pip install dmgbuild
+# Without it the DMG is the plain folder (the app, an Applications shortcut and a few lines of text).
+DMGBUILD="${DMGBUILD:-$HOME/.local/share/grails-dmg/bin/dmgbuild}"
+rm -f "dist/Grails-$VERSION.dmg"
+if [ -x "$DMGBUILD" ]; then
+  python3 Scripts/gen-dmg-background.py "$BUILD/dmg-background.tiff" >/dev/null
+  GRAILS_APP="$PWD/$BUILD/dmg/Grails.app" GRAILS_DMG_BACKGROUND="$PWD/$BUILD/dmg-background.tiff" \
+    "$DMGBUILD" -s Scripts/dmg-settings.py "Grails" "dist/Grails-$VERSION.dmg" >/dev/null
+else
+  ln -s /Applications "$BUILD/dmg/Applications"
+  cat > "$BUILD/dmg/READ ME FIRST.txt" <<TXT
 Grails $VERSION
 
 1. Drag Grails into Applications.
-2. This build isn't notarised yet, so macOS asks before the first launch. Open System Settings > Privacy & Security, scroll down and click "Open Anyway" next to Grails (on macOS 14 you can also Control-click Grails > Open > Open).
-3. Press Start, then choose Import boards or Start empty.
+2. This build isn't notarised yet, so macOS asks before the first launch. Open System Settings > Privacy & Security, scroll down and click "Open Anyway" next to Grails.
+3. Press Get Started.
 
 More: https://grails.arjoon.xyz
 TXT
-
-hdiutil create -volname "Grails $VERSION" -srcfolder "$BUILD/dmg" -ov -format UDZO "dist/Grails-$VERSION.dmg" >/dev/null
+  hdiutil create -volname "Grails $VERSION" -srcfolder "$BUILD/dmg" -ov -format UDZO "dist/Grails-$VERSION.dmg" >/dev/null
+fi
 
 if [ -n "${DEVELOPER_ID:-}" ] && [ -n "${NOTARY_PROFILE:-}" ]; then
   xcrun notarytool submit "dist/Grails-$VERSION.dmg" --keychain-profile "$NOTARY_PROFILE" --wait
