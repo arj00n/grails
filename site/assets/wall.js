@@ -309,7 +309,7 @@
         }
       }
     }
-    if (warp && warp.active && !isStill()) warp.overlay(out, isDark() ? 0xffffffff : 0xff000000);
+    if (warp && warp.active && !isStill()) warp.overlay(out);
     ctx.putImageData(image, 0, 0);
     return true;
   }

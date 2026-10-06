@@ -1,6 +1,5 @@
 /* The hero as smoke: the pointer drags ink through the painting. Dye on a coarse grid is carried by a small stable-fluids flow (with a little
-   vorticity so it curls), rises slowly, thins out within a couple of seconds, and is drawn through an 8×8 ordered dither in the page's text
-   colour, the same ink as the footer. wall.js asks for it after it has drawn the painting. */
+   vorticity so it curls), rises slowly, thins out within a couple of seconds, and is drawn through an 8×8 ordered dither with the picture's colours turned over under it. wall.js asks for it after it has drawn the painting. */
 (function () {
   "use strict";
 
@@ -105,8 +104,8 @@
       }
     };
 
-    /* Draws the smoke over the picture, in place: `ink` is an opaque ABGR word (white or black). */
-    api.overlay = function (words, ink) {
+    /* Draws the smoke over the picture, in place: where it is, the picture's own colours are turned over, so it reads on any painting. */
+    api.overlay = function (words) {
       if (!api.active) return;
       var last = gw - 1.001, lastY = gh - 1.001;
       for (var y = 0, i = 0; y < rows; y++) {
@@ -116,7 +115,7 @@
           var s = d[j] * (1 - fx) * (1 - fy) + d[j + 1] * fx * (1 - fy) + d[j + gw] * (1 - fx) * fy + d[j + gw + 1] * fx * fy;
           if (s < 0.02) continue;
           s = s > 1 ? 1 : s; s = s * s * (3 - 2 * s) * 0.94;
-          if (s > bayer[tb | (x & 7)]) words[i] = ink;
+          if (s > bayer[tb | (x & 7)]) words[i] = (~words[i] & 0x00ffffff) | 0xff000000;
         }
       }
     };
