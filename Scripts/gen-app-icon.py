@@ -16,6 +16,7 @@ ICONSET = os.path.join(ROOT, "Apps/Grails/Resources/Assets.xcassets/AppIcon.appi
 SITE = os.path.join(ROOT, "site")
 
 S, BODY, OFF, U = 1024, 824, 100, 8           # canvas, icon body, margin, one dither pixel
+PLATE_Y = 0.60                                 # where the plate and the G sit, from the top of the body
 N = BODY // U                                  # 103 cells a side
 
 
@@ -53,7 +54,7 @@ def painting_cells():
     a = np.asarray(img).astype(np.float32)
     # a little contrast, a darker edge, so the plate and the G stay the brightest things
     g = a.mean(-1, keepdims=True)
-    a = np.clip(g + (a - g) * 1.25, 0, 255)             # a little richer
+    a = np.clip(g + (a - g) * 1.5, 0, 255)              # richer colour
     a = np.clip((a - 128) * 1.2 + 128, 0, 255)
     yy, xx = np.mgrid[0:N, 0:N] / (N - 1)
     vig = 1 - 0.30 * smoothstep(0.45, 0.8, np.hypot(xx - 0.5, yy - 0.5))
@@ -73,15 +74,17 @@ def build():
     wx = xx + 0.20 * fbm(xx * 2.2, yy * 2.2 + 1.3, 3)
     wy = yy + 0.20 * fbm(xx * 2.2 + 4.1, yy * 2.2, 5)
     dens = smoothstep(0.0, 0.6, fbm(wx * 2.4, wy * 2.4 - 0.4, 11) * 0.5 + 0.5 - 0.05)
-    dens = dens * (0.0 + 0.78 * yy ** 2.3)
+    dens = dens * (0.0 + 0.9 * yy ** 2.3)
     smoke = dens * 1.15 > t
     out = cells.copy()
     out[smoke] = (250, 248, 240)
-    # no box: a wide, soft shade of the painting's own colours behind the G keeps it readable on any picture
-    cx = cy = (N - 1) / 2
-    r = np.hypot((np.arange(N)[None, :] - cx) / 1.0, (np.arange(N)[:, None] - cy * 1.15) / 1.15)
-    shade = 0.62 * (1 - smoothstep(10, 40, r))
-    out = (out.astype(np.float32) * (1 - shade[..., None] * (t[..., None] < 2))).astype(np.uint8)
+    # the plate behind the G: black, with a dithered edge, like the title plate on the title screen. It sits low, so her face stays above it.
+    cx, cy = (N - 1) / 2, (N - 1) * PLATE_Y
+    hw, hh, reach = 21, 26, 8
+    dx = np.maximum(np.abs(np.arange(N)[None, :] - cx) - hw, 0) * np.ones((N, 1))
+    dy = np.maximum(np.abs(np.arange(N)[:, None] - cy) - hh, 0) * np.ones((1, N))
+    plate = 1 - smoothstep(0, reach, np.hypot(dx, dy))
+    out[plate > t] = 0
     big = Image.fromarray(out).resize((BODY, BODY), Image.NEAREST)
 
     return big
@@ -107,20 +110,17 @@ def compose():
     rects = favicon_rects()
     ys = [r[1] for r in rects] + [r[1] + r[3] for r in rects]
     xs = [r[0] for r in rects] + [r[0] + r[2] for r in rects]
-    scale = 0.54
+    scale = 0.50
     mx, my = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
     glyph = []
     for x, y, w, h in rects:
-        x0, y0 = BODY / 2 + (x - mx) * scale, BODY * 0.575 + (y - my) * scale
+        x0, y0 = BODY / 2 + (x - mx) * scale, BODY * PLATE_Y + (y - my) * scale
         # snap to the dither grid so the G stays crisp against the plate
         x0, y0 = round(x0 / U) * U, round(y0 / U) * U
-        x1, y1 = round((BODY / 2 + (x + w - mx) * scale) / U) * U, round((BODY * 0.575 + (y + h - my) * scale) / U) * U
+        x1, y1 = round((BODY / 2 + (x + w - mx) * scale) / U) * U, round((BODY * PLATE_Y + (y + h - my) * scale) / U) * U
         glyph.append((x0, y0, x1, y1))
-    # a one-cell outline in the painting's darkest brown, so the white G holds against light skin as well as dark dress
     for x0, y0, x1, y1 in glyph:
-        d.rectangle([x0 - U, y0 - U, x1 - 1 + U, y1 - 1 + U], fill=(24, 14, 8, 255))
-    for x0, y0, x1, y1 in glyph:
-        d.rectangle([x0, y0, x1 - 1, y1 - 1], fill=(255, 250, 238, 255))
+        d.rectangle([x0, y0, x1 - 1, y1 - 1], fill=(255, 255, 255, 255))
     # rounded body, antialiased by drawing the mask at 4x
     k = 4
     mask = Image.new("L", (BODY * k, BODY * k), 0)
