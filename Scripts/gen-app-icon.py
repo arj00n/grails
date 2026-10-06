@@ -19,10 +19,11 @@ S, BODY, OFF, U = 1024, 824, 100, 8           # canvas, icon body, margin, one d
 # Tunable from the environment for previews: where the plate and the G sit (0.5 is the middle), the G's size, the plate's half size in cells,
 # and how far down the painting the square is cut.
 PLATE_Y = float(os.environ.get("ICON_PLATE_Y", "0.5"))
-G_SCALE = float(os.environ.get("ICON_G_SCALE", "0.46"))
-PLATE_HW = int(os.environ.get("ICON_PLATE_HW", "20"))
-PLATE_HH = int(os.environ.get("ICON_PLATE_HH", "24"))
+G_SCALE = float(os.environ.get("ICON_G_SCALE", "0.52"))
+PLATE_HW = int(os.environ.get("ICON_PLATE_HW", "21"))
+PLATE_HH = int(os.environ.get("ICON_PLATE_HH", "26"))
 CROP_TOP = float(os.environ.get("ICON_CROP_TOP", "0.52"))
+SMOKE = os.environ.get("ICON_SMOKE", "0") == "1"       # white smoke at the foot of the picture (off: the painting runs to the edge, as on the title screen)
 N = BODY // U                                  # 103 cells a side
 
 
@@ -83,7 +84,8 @@ def build():
     dens = dens * (0.0 + 0.9 * yy ** 2.3)
     smoke = dens * 1.15 > t
     out = cells.copy()
-    out[smoke] = (250, 248, 240)
+    if SMOKE:
+        out[smoke] = (250, 248, 240)
     # the plate behind the G: black, with a dithered edge, like the title plate on the title screen. It sits low, so her face stays above it.
     cx, cy = (N - 1) / 2, (N - 1) * PLATE_Y
     hw, hh, reach = PLATE_HW, PLATE_HH, 8

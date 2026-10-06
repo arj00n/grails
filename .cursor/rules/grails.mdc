@@ -1,0 +1,12 @@
+---
+description: Grails project rules
+alwaysApply: true
+---
+Read docs/HANDOFF.md first (state, release steps, gotchas), then PROGRESS.md.
+
+- Swift 6, SwiftUI + AppKit, XcodeGen (project.yml is the source; run `xcodegen`). Never run the whole `swift test` suite (it hangs): use `--filter`.
+- Quit any running Grails before running a GRAILS_*_DEMO check.
+- UI copy minimal, quiet flat design, Geist Mono titles / Geist text, no bounce, ease-out <= 240 ms.
+- No Claude or Co-Authored-By trailers. Commit locally; push and publish only as docs/HANDOFF.md describes or when the owner says so.
+- Ask the owner before shipping visual changes. Do not commit Package.resolved noise, build/, dist/, icon-preview/.
+- After every install to /Applications run Scripts/reset-app.sh.
