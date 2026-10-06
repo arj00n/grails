@@ -5,5 +5,13 @@
     <link>https://grails.arjoon.xyz/appcast.xml</link>
     <description>Grails updates</description>
     <language>en</language>
+    <item>
+      <title>Grails 0.3.0</title>
+      <pubDate>Tue, 06 Oct 2026 09:30:30 +0000</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.3.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <enclosure url="https://grails.arjoon.xyz/download/Grails-0.3.0.dmg" length="14899968" type="application/octet-stream" sparkle:edSignature="yvXvlvDHQqmo0ampToKRAa6ZK52uD2CYxByQF2xqEFoEJUIfstWyOLNg5qh2h9gBtxOjaQQIT9VWa9sXpLubAw=="/>
+    </item>
   </channel>
 </rss>
