@@ -312,6 +312,14 @@ extension RootView {
                 if let win = band.window, let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(win.windowNumber), [.boundsIgnoreFraming]) {
                     try? NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path + ".window.png"))
                 }
+                if let win = band.window, let content = win.contentView {
+                    // dev: which view would take a click on the back chevron (99 pt from the left, 22 pt from the top)?
+                    let p = NSPoint(x: 99, y: content.bounds.height - 22)
+                    var hit = content.hitTest(content.convert(p, from: nil)); var chain: [String] = []
+                    while let x = hit { chain.append("\(type(of: x))"); hit = x.superview }
+                    print("HITTEST chevron:", chain.joined(separator: " < "))
+                    print("HITTEST titlebar height", win.frame.height - win.contentLayoutRect.height, "contentLayoutRect", win.contentLayoutRect)
+                }
                 print("FLUID window \(String(describing: band.window?.frame)) occlusion \(String(describing: band.window?.occlusionState)) visible \(band.window?.isVisible ?? false)")
             }
             if let root, let band = fluid(root), let image = band.lastImage {

@@ -7,6 +7,8 @@ import SwiftUI
 struct OnboardingView: View {
     var model: OnboardingModel
 
+    private var helloShown: Bool { model.step == .hello || model.step == .choose }
+
     var body: some View {
         ZStack {
             Ink.canvas.ignoresSafeArea()
@@ -20,8 +22,13 @@ struct OnboardingView: View {
                     .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.4), value: shown)
             }
             .ignoresSafeArea().allowsHitTesting(false)
+            // Hello and Choose are mounted for the whole run and only shown while they are the step: building them afresh when someone comes
+            // Back from a later screen left that screen stuck in place. Disabled when hidden, so none of its shortcuts (Return, ⌘V) leak out.
+            HelloChooseStep(model: model)
+                .opacity(helloShown ? 1 : 0).allowsHitTesting(helloShown).disabled(!helloShown)
+                .animation(.easeOut(duration: reduceMotionOn ? 0.12 : 0.2), value: helloShown)
             switch model.step {
-            case .hello, .choose: HelloChooseStep(model: model)
+            case .hello, .choose: EmptyView()
             case .whereIt: LibraryStep(model: model).transition(.opacity)
             case .paste, .arriving: ImportStep(model: model).transition(.opacity)
             }
@@ -214,9 +221,8 @@ private struct HelloChooseStep: View {
 
     var body: some View {
         GeometryReader { geo in
-            // never paused: a paused timeline that is created while Choose is already showing (coming Back from the paste screen) stalls the whole
-            // screen, so it just ticks slowly there
-            TimelineView(.animation(minimumInterval: model.step == .choose ? 1 : 1.0 / 30, paused: reduceMotionOn)) { timeline in
+            // slow once Hello is over (and while the screen is hidden behind a later one); never paused
+            TimelineView(.animation(minimumInterval: model.step == .hello ? 1.0 / 30 : 1, paused: reduceMotionOn)) { timeline in
                 let t = reduceMotionOn ? 10 : timeline.date.timeIntervalSince(epoch)
                 let specs = PaintingWallEngine.shared?.specs ?? []
                 let shown = PaintingWall.captionIndex(PaintingWall.schedule(t: t, count: specs.count, reduceMotion: reduceMotionOn))

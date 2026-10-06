@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The picture behind the icons in the installer window: the Mona Lisa in the title dither, a title plate, a pixel arrow from Grails to
-Applications, and the install steps as text on a plate. Writes a two-resolution TIFF (660 x 400 pt, retina) for dmgbuild.
+"""The picture behind the icons in the installer window: the Mona Lisa dithered edge to edge, as on the title screen (no smoke, no fade), a
+title plate, a pixel arrow from Grails to Applications, and the install steps as text on a plate. Writes a two-resolution TIFF (660 x 400 pt, retina) for dmgbuild.
 
   Scripts/gen-dmg-background.py [OUT.tiff]        (default: build/dmg-background.tiff)
 
@@ -59,11 +59,6 @@ def cells():
     t = bayer8()[yy % 8, xx % 8]
     d = (((a + (t[..., None] - 0.5) * 60)[:, :, None, :] - pal[None, None].astype(np.float32)) ** 2).sum(-1)
     out = pal[d.argmin(-1)].astype(np.uint8)
-    # smoke rising from the floor, in white, thin enough to leave the painting readable
-    ny, nx = yy / (ch - 1), xx / (cw - 1)
-    wx, wy = nx + 0.16 * fbm(nx * 3.0, ny * 2.0 + 1.3, 3), ny + 0.2 * fbm(nx * 3.0 + 4.1, ny * 2.0, 5)
-    dens = smooth(0.0, 0.6, fbm(wx * 3.2, wy * 2.4 - 0.4, 11) * 0.5 + 0.45) * (0.8 * ny ** 2.6)
-    out[dens * 1.1 > t] = (250, 248, 240)
     return out, t
 
 

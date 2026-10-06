@@ -44,13 +44,16 @@ final class OnboardingModel {
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_CHOOSE"] != nil { step = .choose }      // dev: look at Choose without clicking through Hello
         handle = Handle.normalize(s.handle.isEmpty ? NSUserName() : s.handle)
         seed = Self.seed(for: NSUserName())
+        if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_BACKTEST"] != nil {
+            NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { e in print("BACKTEST mouse", e.type == .leftMouseDown ? "down" : "up", e.locationInWindow, "clickCount", e.clickCount); fflush(stdout); return e }
+        }
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_BACKTEST"] != nil {                   // dev: Get Started, Import boards, then Back, logging each step
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(2)); self?.start()
-                try? await Task.sleep(for: .seconds(2)); self?.thisMac = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("BackTest-\(UUID().uuidString.prefix(6)).grails"); self?.remember = false; self?.importBoards()
-                try? await Task.sleep(for: .seconds(14)); print("BACKTEST at paste? step=\(String(describing: self?.step)) busy=\(self?.busy ?? false) problem=\(self?.problem ?? "-") store=\(self?.app?.store != nil)")
-                self?.back()
-                try? await Task.sleep(for: .seconds(4)); print("BACKTEST after back: step=\(String(describing: self?.step)) store=\(self?.app?.store != nil)")
+                try? await Task.sleep(for: .seconds(2)); self?.thisMac = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("BackTest-\(UUID().uuidString.prefix(6)).grails"); if ProcessInfo.processInfo.environment["GRAILS_BACKTEST_REMEMBER"] == nil { self?.remember = false }; self?.importBoards()
+                try? await Task.sleep(for: .seconds(14)); print("BACKTEST at paste? step=\(String(describing: self?.step)) busy=\(self?.busy ?? false) problem=\(self?.problem ?? "-") store=\(self?.app?.store != nil)"); fflush(stdout)
+                if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_BACKTEST"] != "paste" { self?.back() }      // "paste": stop here and let a real click do it
+                try? await Task.sleep(for: .seconds(4)); print("BACKTEST after back: step=\(String(describing: self?.step)) store=\(self?.app?.store != nil)"); fflush(stdout)
             }
         }
         if ProcessInfo.processInfo.environment["GRAILS_ONBOARDING_AUTOSTART"] != nil {                    // dev: press Get Started after 3 s, as a person would
@@ -98,14 +101,19 @@ final class OnboardingModel {
         guard let app, !app.importModel.isRunning else { return }
         let fresh = freshRoot
         freshRoot = nil
-        Task {
-            if let fresh, app.layout?.root.standardizedFileURL == fresh.standardizedFileURL, await app.discardFreshLibrary(forget: remember) {
+        // the screen goes back at once; the empty library is cleared away behind it (the next route waits for that to finish)
+        go(.choose)
+        discarding = Task { [weak self] in
+            guard let self, let fresh, app.layout?.root.standardizedFileURL == fresh.standardizedFileURL else { return }
+            if await app.discardFreshLibrary(forget: remember) {
                 state.libraryPath = nil
                 state.save(defaults)
             }
-            go(.choose)
         }
     }
+
+    /// The clearing away of the empty library, while it runs.
+    @ObservationIgnored private var discarding: Task<Void, Never>?
 
     /// The folder a library was just made in by this run (nil if it was already there).
     @ObservationIgnored private var freshRoot: URL?
@@ -213,9 +221,11 @@ final class OnboardingModel {
         guard canContinue, let app, !busy else { return }
         busy = true
         problem = nil
+        let pending = discarding
         defaults.set(Handle.normalize(handle), forKey: "userHandle")
         state.handle = Handle.normalize(handle)
         Task {
+            await pending?.value
             await open(app, next: next)
             busy = false
         }

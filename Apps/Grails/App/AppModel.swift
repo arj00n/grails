@@ -357,7 +357,8 @@ final class AppModel {
             workspaces = Workspaces.remove(id: id)
             UserDefaults.standard.removeObject(forKey: "libraryPath")
         }
-        try? FileManager.default.trashItem(at: root, resultingItemURL: nil)
+        // moving a folder to the Trash can be slow (or wait on a macOS prompt): not on the main thread
+        await Task.detached { try? FileManager.default.trashItem(at: root, resultingItemURL: nil) }.value
         return true
     }
 

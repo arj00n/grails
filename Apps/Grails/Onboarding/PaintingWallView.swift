@@ -62,8 +62,16 @@ final class PaintingWallView: NSView {
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); dirty = true }
     override func setFrameSize(_ newSize: NSSize) { super.setFrameSize(newSize); dirty = true }
 
+    /// Not worth drawing while it is hidden behind a later screen (the whole first run keeps this view mounted).
+    private var isShown: Bool {
+        guard window != nil else { return false }
+        var v: NSView? = self
+        while let x = v { if x.isHidden || x.alphaValue < 0.01 { return false }; v = x.superview }
+        return true
+    }
+
     @objc private func tick() {
-        guard let engine, bounds.width > 8 else { return }
+        guard let engine, bounds.width > 8, isShown else { return }
         let now = CACurrentMediaTime()
         updateSmoke(now)
         // the painting itself moves slowly: 15 frames a second, or only when something about it changed
