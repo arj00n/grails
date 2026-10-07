@@ -82,28 +82,14 @@ public enum InviteText {
         public var body: String
     }
 
-    /// The invite: one message for everyone, since the link is the same for all of them.
+    /// The invite: one short message for everyone. The link is the same; Grails on their Mac shows the steps for their situation.
     public static func invite(library: String, link: URL, hint: LibraryHint?, from sender: String) -> Message {
-        var lines: [String] = ["Hi,", ""]
+        var lines = ["Hi,", ""]
         lines.append("I've set up \(library), our team's picture library in Grails." + (hint.map { " It lives in \($0.whereSentence)." } ?? ""))
         lines.append("")
-        var steps: [String] = []
-        switch hint?.service ?? .googleDrive {
-        case .googleDrive:
-            let account = (hint?.domain).map { DriveAccount.consumerDomains.contains($0) ? "sign in" : "sign in with your \($0) account" } ?? "sign in"
-            steps.append("Install Google Drive for desktop and \(account): \(DriveWeb.download.absoluteString)")
-            if hint?.kind == .myDrive {
-                steps.append("On drive.google.com, open Shared with me, right-click “\(library)” and choose Organize ▸ Add shortcut ▸ My Drive.")
-            }
-        case .dropbox: steps.append("Accept the shared folder in Dropbox and let it sync to this Mac.")
-        case .oneDrive: steps.append("Add the shared folder to your OneDrive and let it sync to this Mac.")
-        case .box: steps.append("Accept the shared folder in Box Drive.")
-        case .iCloud: steps.append("Accept the shared folder from iCloud Drive.")
-        }
-        steps.append("Install Grails: \(grailsSite)")
-        steps.append("Open this link: \(link.absoluteString)")
-        lines += steps.enumerated().map { "\($0.offset + 1). \($0.element)" }
-        lines += ["", "Grails finds the library in your \(hint?.service.label ?? "Google Drive") by itself. If it can't, it says what's missing.", ""]
+        lines.append("1. Install Grails: \(grailsSite)")
+        lines.append("2. Open this link: \(link.absoluteString)")
+        lines += ["", "Grails shows the steps on your Mac.", ""]
         if !sender.isEmpty { lines.append(sender) }
         return Message(subject: "Join \(library) on Grails", body: lines.joined(separator: "\n"))
     }

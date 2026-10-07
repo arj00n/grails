@@ -12,7 +12,7 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             Ink.canvas.ignoresSafeArea()
-            // the painting's place once Hello is over: ink rising through pixels at the foot of the screen, stirred by the pointer.
+            // the painting's place once Hello is over: ink rising through pixels at the foot of the screen.
             // It stays through Paste. The links sit on the same ground as Choose; the band only leaves when the pictures arrive.
             GeometryReader { geo in
                 let shown = model.step == .choose || model.step == .whereIt || model.step == .paste

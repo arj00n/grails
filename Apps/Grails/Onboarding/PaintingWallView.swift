@@ -13,6 +13,7 @@ final class PaintingWallView: NSView {
     private let baseLayer = CALayer()
     private let smokeLayer = CALayer()
     private var link: CADisplayLink?
+    private var occlusionObserver: NSObjectProtocol?
     private var dirty = true
     private var debugged = false
     // the pointer dragging ink through the painting
@@ -50,12 +51,21 @@ final class PaintingWallView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         link?.invalidate(); link = nil
-        guard window != nil else { return }
+        if let occlusionObserver { NotificationCenter.default.removeObserver(occlusionObserver) }
+        occlusionObserver = nil
+        guard let window else { return }
         let l = displayLink(target: self, selector: #selector(tick))
         // the drift is slow: 15 frames a second is plenty
         l.preferredFrameRateRange = CAFrameRateRange(minimum: 10, maximum: 20, preferred: 15)
         l.add(to: .main, forMode: .common)
         link = l
+        occlusionObserver = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.link?.isPaused = !(self.window?.occlusionState.contains(.visible) ?? false)
+            }
+        }
+        link?.isPaused = !window.occlusionState.contains(.visible)
         dirty = true
     }
 

@@ -174,18 +174,17 @@ enum FakeCloud {
 
         I've set up Team Inspo, our team's picture library in Grails. It lives in the Shared drive “Design” in our studio.com Google Drive.
 
-        1. Install Google Drive for desktop and sign in with your studio.com account: https://www.google.com/drive/download/
-        2. Install Grails: https://grails.arjoon.xyz
-        3. Open this link: \(link.absoluteString)
+        1. Install Grails: https://grails.arjoon.xyz
+        2. Open this link: \(link.absoluteString)
 
-        Grails finds the library in your Google Drive by itself. If it can't, it says what's missing.
+        Grails shows the steps on your Mac.
 
         arjun
         """)
         let my = InviteText.invite(library: "Refs", link: link, hint: LibraryHint(kind: .myDrive, domain: "gmail.com"), from: "")
-        #expect( my.body.contains("a folder in my Google Drive") && my.body.contains("Organize ▸ Add shortcut ▸ My Drive"))
+        #expect(my.body.contains("a folder in my Google Drive") && my.body.contains("Grails shows the steps on your Mac.") && !my.body.contains("Add shortcut"))
         let dropbox = InviteText.invite(library: "Refs", link: link, hint: LibraryHint(kind: .dropbox), from: "a")
-        #expect(dropbox.body.contains("Accept the shared folder in Dropbox") && !dropbox.body.contains("Google"))
+        #expect(dropbox.body.contains("a shared folder in Dropbox") && dropbox.body.contains("Open this link:") && !dropbox.body.contains("Google"))
     }
 
     @Test func theAccessRequestNamesWhatToAddAndWho() {
@@ -247,15 +246,39 @@ enum FakeCloud {
         for c in cases {
             for h in [hint, LibraryHint(kind: .myDrive, domain: "studio.com"), nil] as [LibraryHint?] {
                 let copy = c.copy(library: "Team Inspo", hint: h)
-                #expect(!copy.title.isEmpty && !copy.steps.isEmpty && copy.secondary.contains(.locate) && copy.secondary.contains(.checkAgain))
+                let current = copy.steps.filter { $0.mark == .current }
+                #expect(!copy.title.isEmpty && current.count == 1 && copy.secondary.contains(.locate) && copy.secondary.contains(.checkAgain))
                 #expect(!copy.secondary.contains(copy.primary))
+                if let i = copy.steps.firstIndex(where: { $0.mark == .current }) {
+                    #expect(copy.steps[..<i].allSatisfy { $0.mark == .done })
+                    #expect(copy.steps[(i + 1)...].allSatisfy { $0.mark == .later })
+                }
             }
         }
         let shared = JoinDiagnosis.notShared(signedIn: ["ben@studio.com"]).copy(library: "Team Inspo", hint: hint)
         #expect(shared.title == "Not shared with you yet" && shared.primary == .askForAccess)
-        #expect(shared.detail == "Team Inspo is in the Shared drive “Design”, which isn't in your Drive (ben@studio.com).")
-        #expect(JoinDiagnosis.notShared(signedIn: []).copy(library: "T", hint: LibraryHint(kind: .myDrive)).primary == .openSharedWithMe)
-        #expect(JoinDiagnosis.noApp(.googleDrive).copy(library: "T", hint: hint).steps[1] == "Sign in with your studio.com account")
+        #expect(shared.steps.map(\.text) == ["Install Google Drive", "Signed in as ben@studio.com", "Ask to be added to “Design”", "Grails opens it"])
+        #expect(shared.steps.map(\.mark) == [.done, .done, .current, .later])
+        let mine = JoinDiagnosis.notShared(signedIn: []).copy(library: "T", hint: LibraryHint(kind: .myDrive))
+        #expect(mine.primary == .openSharedWithMe)
+        #expect(mine.steps.first { $0.mark == .current }?.text == "Add a shortcut to My Drive")
+        let early = JoinDiagnosis.noApp(.googleDrive).copy(library: "T", hint: hint)
+        #expect(early.primary == .installDrive)
+        #expect(early.steps[1].text == "Sign in with your studio.com account" && early.steps[1].mark == .later)
+    }
+
+    @Test func theChecklistMovesForwardAsThisMacCatchesUp() {
+        func marks(_ d: JoinDiagnosis) -> [JoinDiagnosis.Step.Mark] { d.copy(library: "Team Inspo", hint: hint).steps.map(\.mark) }
+        #expect(marks(.noApp(.googleDrive)) == [.current, .later, .later, .later])
+        #expect(marks(.notSignedIn) == [.done, .current, .later, .later])
+        #expect(marks(.wrongAccount(domain: "studio.com", signedIn: ["b@gmail.com"])) == [.done, .current, .later, .later])
+        #expect(marks(.notShared(signedIn: ["ben@studio.com"])) == [.done, .done, .current, .later])
+        let wrong = JoinDiagnosis.wrongAccount(domain: "studio.com", signedIn: ["b@gmail.com"]).copy(library: "T", hint: hint)
+        #expect(wrong.primary == .openDriveApp && wrong.steps[1].text == "Add your studio.com account")
+        let blocked = JoinDiagnosis.cannotRead.copy(library: "T", hint: hint)
+        #expect(blocked.primary == .openPrivacySettings && blocked.steps.map(\.mark) == [.done, .current, .later])
+        let drop = JoinDiagnosis.notShared(signedIn: []).copy(library: "T", hint: LibraryHint(kind: .dropbox))
+        #expect(drop.steps.map(\.mark) == [.done, .current, .later] && drop.steps[0].text == "Install Dropbox and sign in")
     }
 
     @Test func openingTheFolderAroundALibraryUsesTheLibrary() throws {

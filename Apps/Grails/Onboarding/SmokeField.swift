@@ -112,9 +112,14 @@ final class SmokeField {
         }
     }
 
+    private var pixels: [UInt32] = []
+    private let space = CGColorSpace(name: CGColorSpace.sRGB)!
+
     /// The smoke as a bitmap the size of the wall in dither pixels: `ink` (opaque RGBA word) where the dithered density says so, clear elsewhere.
     func image(ink: UInt32) -> CGImage? {
-        var pixels = [UInt32](repeating: 0, count: cols * rows)
+        let count = cols * rows
+        if pixels.count != count { pixels = [UInt32](repeating: 0, count: count) }
+        else { pixels.withUnsafeMutableBytes { if let p = $0.baseAddress { memset(p, 0, $0.count) } } }
         let lastX = Float(gw) - 1.001, lastY = Float(gh) - 1.001
         for y in 0..<rows {
             let gy = min(max(Float(y) / Float(cell) - 0.5, 0), lastY)
@@ -128,10 +133,9 @@ final class SmokeField {
                 if s > FluidField.bayer[tb | (x & 7)] { pixels[y * cols + x] = ink }
             }
         }
-        let data = pixels.withUnsafeBufferPointer { Data(buffer: $0) }
-        return CGDataProvider(data: data as CFData).flatMap {
-            CGImage(width: cols, height: rows, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: cols * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
-                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: $0, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        return pixels.withUnsafeMutableBytes { raw in
+            CGContext(data: raw.baseAddress, width: cols, height: rows, bitsPerComponent: 8, bytesPerRow: cols * 4, space: space,
+                      bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue))?.makeImage()
         }
     }
 }

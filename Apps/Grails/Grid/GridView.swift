@@ -101,6 +101,8 @@ struct GridView: NSViewRepresentable {
         private var lastZoomTick = 0
         private var lastSettleTick = 0
         private var settleUntil = Date.distantPast
+        /// Landing on a board: fade the visible rows from the top. Cleared once they have been laid out.
+        private var landUntil = Date.distantPast
         private var mode: GridLayoutMode = .square
         private var cornerRadius: CGFloat = 8
         private var focusTick = 0
@@ -149,6 +151,7 @@ struct GridView: NSViewRepresentable {
 
             if cv.collectionViewLayout !== activeLayout { cv.collectionViewLayout = activeLayout }
             if needsData {
+                let incoming: [ItemSummary]
                 if let sections {
                     // one header row per cluster, then its tiles
                     let byID = Dictionary(model.items.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
@@ -158,24 +161,27 @@ struct GridView: NSViewRepresentable {
                         flat.append(.sectionHeader(id: sec.id, title: sec.title, count: sec.ids.count))
                         for id in sec.ids { if let it = byID[id] { flat.append(it) } }
                     }
-                    items = flat
+                    incoming = flat
                 } else {
-                    items = model.items
+                    incoming = model.items
                 }
-                sectionsSeen = model.sectionsVersion
-                indexByID = Dictionary(uniqueKeysWithValues: items.enumerated().map { ($1.id, $0) })
-                version = model.itemsVersion
-                masonryLayout.aspects = items.map { s in
-                    guard let w = s.width, let h = s.height, w > 0 else { return 1 }
-                    return CGFloat(h) / CGFloat(w)
+                // The rest of a list arriving after its first screen: keep the tiles already on screen and add below them.
+                let extend = sections == nil && !items.isEmpty && incoming.count > items.count
+                    && !items.contains { $0.kind == .section }
+                    && incoming.prefix(items.count).map(\.id) == items.map(\.id)
+                let start = items.count
+                let arriving = resetScroll || items.isEmpty
+                install(incoming)
+                if extend {
+                    NSAnimationContext.runAnimationGroup { context in
+                        context.duration = 0
+                        cv.insertItems(at: Set((start..<items.count).map { IndexPath(item: $0, section: 0) }))
+                    }
+                } else {
+                    cv.reloadData()
+                    // A new view, not the rest of a list catching up, and not the onboarding settle (that one has its own entrance).
+                    if arriving, Date() >= settleUntil { landUntil = Date().addingTimeInterval(0.5) }
                 }
-                masonryLayout.dataVersion = version &+ model.sectionsVersion
-                masonryLayout.invalidateLayout()
-                sectionedLayout.aspects = masonryLayout.aspects
-                sectionedLayout.headerFlags = items.map { $0.kind == .section }
-                sectionedLayout.dataVersion = version &+ model.sectionsVersion &* 7919
-                sectionedLayout.invalidateLayout()
-                cv.reloadData()
                 applySelection()
                 // A refresh (a teammate's save arriving, an edit) keeps you where you were; a new view starts at the top.
                 if let scroll = cv.enclosingScrollView {
@@ -212,6 +218,39 @@ struct GridView: NSViewRepresentable {
                 cv.window?.makeFirstResponder(cv)
             }
             runSettleIfDue(cv)
+            runLandIfDue(cv)
+        }
+
+        /// The visible rows fade in from the top. Each row waits a moment on the one above it; the whole cascade stays short.
+        /// Cells further down the board, and anything scrolled into view afterwards, just appear.
+        private func runLandIfDue(_ cv: NSCollectionView) {
+            guard Date() < landUntil, zoomBase == nil else { return }
+            cv.layoutSubtreeIfNeeded()
+            let cells = cv.visibleItems().compactMap { $0 as? ThumbCell }.filter { !$0.view.frame.isEmpty }
+            guard !cells.isEmpty else { return }
+            landUntil = .distantPast
+            guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+            let ordered = cells.sorted { ($0.view.frame.minY, $0.view.frame.minX) < ($1.view.frame.minY, $1.view.frame.minX) }
+            let now = CACurrentMediaTime()
+            let curve = CAMediaTimingFunction(controlPoints: Float(Motion.standardCurve.x1), Float(Motion.standardCurve.y1), Float(Motion.standardCurve.x2), Float(Motion.standardCurve.y2))
+            var band = 0
+            var bandY = ordered[0].view.frame.minY
+            for cell in ordered {
+                guard let layer = cell.view.layer else { continue }
+                if cell.view.frame.minY > bandY + 12 { band += 1; bandY = cell.view.frame.minY }
+                let fade = CABasicAnimation(keyPath: "opacity")
+                fade.fromValue = 0
+                fade.toValue = 1
+                fade.duration = Motion.standard
+                fade.beginTime = now + min(Double(band) * 0.028, 0.11)
+                fade.fillMode = .backwards
+                fade.timingFunction = curve
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                layer.opacity = 1
+                layer.add(fade, forKey: "land")
+                CATransaction.commit()
+            }
         }
 
         /// Right out of onboarding the visible pictures settle in one after another (a short rise and fade, ease-out, no bounce). If the
@@ -241,6 +280,23 @@ struct GridView: NSViewRepresentable {
                 group.timingFunction = curve
                 layer.add(group, forKey: "settle")
             }
+        }
+
+        private func install(_ incoming: [ItemSummary]) {
+            items = incoming
+            sectionsSeen = model.sectionsVersion
+            indexByID = Dictionary(uniqueKeysWithValues: items.enumerated().map { ($1.id, $0) })
+            version = model.itemsVersion
+            masonryLayout.aspects = items.map { s in
+                guard let w = s.width, let h = s.height, w > 0 else { return 1 }
+                return CGFloat(h) / CGFloat(w)
+            }
+            masonryLayout.dataVersion = version &+ model.sectionsVersion
+            masonryLayout.invalidateLayout()
+            sectionedLayout.aspects = masonryLayout.aspects
+            sectionedLayout.headerFlags = items.map { $0.kind == .section }
+            sectionedLayout.dataVersion = version &+ model.sectionsVersion &* 7919
+            sectionedLayout.invalidateLayout()
         }
 
         private func applySelection() {

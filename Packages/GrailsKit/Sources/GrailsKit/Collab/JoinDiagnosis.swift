@@ -127,63 +127,99 @@ public enum JoinDiagnosis: Equatable, Sendable {
         return .notShared(signedIn: relevant.map(\.email))
     }
 
-    /// The screen's words: a title, one line, the steps, then the main button and the others.
+    /// One row of the join checklist. `done` is already true on this Mac; `current` is the next thing; `later` is what follows.
+    public struct Step: Equatable, Sendable {
+        public enum Mark: Equatable, Sendable { case done, current, later }
+        public var text: String
+        public var mark: Mark
+    }
+
+    /// The screen's words: a title and the checklist, then the main button and the others.
     public struct Copy: Equatable, Sendable {
         public var title: String
-        public var detail: String
-        public var steps: [String]
+        public var steps: [Step]
         public var primary: JoinAction
         public var secondary: [JoinAction]
     }
 
     public func copy(library: String, hint: LibraryHint?) -> Copy {
-        let account = hint?.domain.flatMap { DriveAccount.consumerDomains.contains($0) ? nil : "your \($0) account" } ?? "the account it was shared with"
+        let account = Self.accountPhrase(hint)
         let more: [JoinAction] = [.checkAgain, .locate]
         switch self {
         case .found:
-            return Copy(title: "Found", detail: "\(library) is on this Mac.", steps: [], primary: .checkAgain, secondary: [])
+            return Copy(title: "Found", steps: [], primary: .checkAgain, secondary: [])
         case .noApp(let s) where s == .googleDrive:
-            return Copy(title: "Google Drive isn't set up", detail: "\(library) lives in Google Drive. Grails reads it through Drive for desktop.",
-                        steps: ["Install Google Drive for desktop", "Sign in with \(account)", "Come back here; Grails looks again by itself"],
-                        primary: .installDrive, secondary: [.askForAccess] + more)
+            return Self.drive(library: library, hint: hint, signIn: "Sign in with \(account)", at: 0,
+                               title: "Google Drive isn't set up", extra: [.askForAccess])
         case .noApp(let s):
-            return Copy(title: "\(s.label) isn't set up", detail: "\(library) lives in \(s.label), which isn't on this Mac.",
-                        steps: ["Install \(s.label) and sign in", "Accept the shared folder", "Come back here; Grails looks again by itself"],
+            return Copy(title: "\(s.label) isn't set up",
+                        steps: Self.marked(["Install \(s.label) and sign in", "Accept the shared folder", "Grails opens it"], at: 0),
                         primary: .askForAccess, secondary: more)
         case .notSignedIn:
-            return Copy(title: "Google Drive isn't signed in", detail: "Drive for desktop is installed, but no account is showing.",
-                        steps: ["Open Google Drive", "Sign in with \(account)", "Grails looks again by itself"],
-                        primary: .openDriveApp, secondary: [.askForAccess] + more)
+            return Self.drive(library: library, hint: hint, signIn: "Sign in with \(account)", at: 1,
+                               title: "Google Drive isn't signed in", extra: [.askForAccess])
         case .cannotRead:
-            return Copy(title: "Can't look inside Drive", detail: "macOS isn't letting Grails see Google Drive's folders.",
-                        steps: ["Open System Settings ▸ Privacy & Security ▸ Files & Folders", "Allow Grails to open Google Drive", "Grails looks again by itself"],
+            return Copy(title: "Can't look inside Drive",
+                        steps: Self.marked(["Install Google Drive", "Allow Grails in Files and Folders", "Grails looks again"], at: 1),
                         primary: .openPrivacySettings, secondary: more)
-        case .wrongAccount(let domain, let signedIn):
-            return Copy(title: "Different Google account", detail: "\(library) is in a \(domain) Drive. This Mac has \(Self.list(signedIn)).",
-                        steps: ["Open Google Drive ▸ Settings ▸ Add another account", "Sign in with your \(domain) account", "Grails looks again by itself"],
-                        primary: .openDriveApp, secondary: [.askForAccess] + more)
+        case .wrongAccount(let domain, _):
+            return Self.drive(library: library, hint: hint, signIn: "Add your \(domain) account", at: 1,
+                               title: "Different Google account", extra: [.askForAccess])
         case .notShared(let signedIn):
-            let inDrive = signedIn.isEmpty ? "" : " (\(Self.list(signedIn)))"
             switch hint?.kind {
-            case .sharedDrive?:
-                let drive = hint?.place.map { "the Shared drive “\($0)”" } ?? "a Shared drive"
-                return Copy(title: "Not shared with you yet", detail: "\(library) is in \(drive), which isn't in your Drive\(inDrive).",
-                            steps: ["Ask the owner to add you to \(hint?.place.map { "“\($0)”" } ?? "it")", "Drive shows it within a few minutes", "Grails opens it by itself"],
-                            primary: .askForAccess, secondary: more)
-            case .myDrive?:
-                return Copy(title: "Add it to your Drive", detail: "\(library) is a folder shared from someone's Drive. Drive for desktop only shows it once you add a shortcut.",
-                            steps: ["Open Shared with me on drive.google.com", "Right-click “\(library)” ▸ Organize ▸ Add shortcut ▸ My Drive", "Not there? Ask for access"],
-                            primary: .openSharedWithMe, secondary: [.askForAccess] + more)
-            case nil:
-                return Copy(title: "Can't find \(library)", detail: "It isn't in any folder your sync apps show here\(inDrive).",
-                            steps: ["Ask the owner to share it with you", "If it's shared already, let Drive finish syncing", "Or locate the folder yourself"],
-                            primary: .askForAccess, secondary: more)
+            case .sharedDrive?, .myDrive?, nil:
+                return Self.drive(library: library, hint: hint, signIn: "Sign in with \(account)", at: 2,
+                                   title: Self.sharedTitle(library: library, hint: hint),
+                                   extra: hint?.kind == .myDrive ? [.askForAccess] : [], signedIn: signedIn)
             default:
                 let s = hint?.service.label ?? "your sync app"
-                return Copy(title: "Not shared with you yet", detail: "\(library) is a shared folder in \(s) that isn't on this Mac yet.",
-                            steps: ["Accept the shared folder in \(s)", "Let it sync", "Grails opens it by itself"],
+                return Copy(title: "Not shared with you yet",
+                            steps: Self.marked(["Install \(s) and sign in", "Accept the shared folder", "Grails opens it"], at: 1),
                             primary: .askForAccess, secondary: more)
             }
+        }
+    }
+
+    /// Google Drive, in order. `at` is how far this Mac has got, from the diagnosis: 0 install, 1 the right account, 2 the library itself.
+    private static func drive(library: String, hint: LibraryHint?, signIn: String, at current: Int, title: String, extra: [JoinAction], signedIn: [String] = []) -> Copy {
+        let sign = (current > 1 && !signedIn.isEmpty) ? "Signed in as \(list(signedIn))" : signIn
+        let primary = driveAction(at: current, hint: hint)
+        var secondary = extra + [.checkAgain, .locate]
+        secondary.removeAll { $0 == primary }
+        return Copy(title: title, steps: marked(["Install Google Drive", sign, accessLine(library: library, hint: hint), "Grails opens it"], at: current),
+                    primary: primary, secondary: secondary)
+    }
+
+    private static func driveAction(at index: Int, hint: LibraryHint?) -> JoinAction {
+        switch index {
+        case 0: .installDrive
+        case 1: .openDriveApp
+        default: hint?.kind == .myDrive ? .openSharedWithMe : .askForAccess
+        }
+    }
+
+    private static func marked(_ lines: [String], at current: Int) -> [Step] {
+        lines.enumerated().map { i, text in Step(text: text, mark: i < current ? .done : (i == current ? .current : .later)) }
+    }
+
+    private static func accountPhrase(_ hint: LibraryHint?) -> String {
+        hint?.domain.flatMap { DriveAccount.consumerDomains.contains($0) ? nil : "your \($0) account" } ?? "the account it was shared with"
+    }
+
+    private static func accessLine(library: String, hint: LibraryHint?) -> String {
+        switch hint?.kind {
+        case .sharedDrive?: "Ask to be added to \(hint?.place.map { "“\($0)”" } ?? "the Shared drive")"
+        case .myDrive?: "Add a shortcut to My Drive"
+        case nil: "Ask the owner to share \(library)"
+        default: "Accept the shared folder"
+        }
+    }
+
+    private static func sharedTitle(library: String, hint: LibraryHint?) -> String {
+        switch hint?.kind {
+        case .myDrive?: "Add it to your Drive"
+        case nil: "Can't find \(library)"
+        default: "Not shared with you yet"
         }
     }
 

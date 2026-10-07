@@ -295,6 +295,20 @@ public final class LibraryIndex: Sendable {
         return try await db.read { db in try Int.fetchOne(db, sql: sql, arguments: args) ?? 0 }
     }
 
+    /// Tags on the items matching `q`, most used first, and how many items that is. The strip's own tabs (`extraTags`) are
+    /// ignored, so the bar stays put while a tab narrows the grid. One grouped read: it does not load the items.
+    public func viewTagCounts(_ q: ItemQuery) async throws -> (tags: [(tag: String, count: Int)], items: Int) {
+        var base = q
+        base.extraTags = []
+        let (countSQL, countArgs) = Self.build(base, shape: .count)
+        let (tagSQL, tagArgs) = Self.build(base, shape: .tags)
+        return try await db.read { db in
+            let items = try Int.fetchOne(db, sql: countSQL, arguments: countArgs) ?? 0
+            let tags: [(tag: String, count: Int)] = try Row.fetchAll(db, sql: tagSQL, arguments: tagArgs).map { ($0["tag"], $0["n"]) }
+            return (tags, items)
+        }
+    }
+
     // MARK: Internals
 
     private static func summary(_ r: Row) -> ItemSummary {
@@ -307,7 +321,13 @@ public final class LibraryIndex: Sendable {
         )
     }
 
+    private enum Shape { case rows, count, tags }
+
     static func build(_ q: ItemQuery, count: Bool) -> (String, StatementArguments) {
+        build(q, shape: count ? .count : .rows)
+    }
+
+    private static func build(_ q: ItemQuery, shape: Shape) -> (String, StatementArguments) {
         var args = StatementArguments()
         var wheres: [String] = []
         var from = "items i"
@@ -360,7 +380,24 @@ public final class LibraryIndex: Sendable {
         }
         if q.unfiled { wheres.append("NOT EXISTS (SELECT 1 FROM item_collections ic WHERE ic.itemId = i.id)") }
         let whereSQL = wheres.joined(separator: " AND ")
-        if count { return ("SELECT COUNT(*) FROM \(from) WHERE \(whereSQL)", args) }
+        switch shape {
+        case .count:
+            return ("SELECT COUNT(*) FROM \(from) WHERE \(whereSQL)", args)
+        case .tags:
+            // `tg`, not `t`: the filters above already use `t` inside their own EXISTS
+            let source = pattern == nil
+                ? "item_tags tg JOIN items i ON i.id = tg.itemId"
+                : "item_tags tg JOIN items i ON i.id = tg.itemId JOIN items_fts f ON i.rowid = f.rowid"
+            return ("""
+            SELECT tg.tag AS tag, COUNT(*) AS n
+            FROM \(source)
+            WHERE \(whereSQL)
+            GROUP BY tg.tag
+            ORDER BY n DESC, tg.tag
+            """, args)
+        case .rows:
+            break
+        }
 
         let order: String
         switch q.effectiveSort {

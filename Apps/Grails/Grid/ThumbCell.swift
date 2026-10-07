@@ -344,6 +344,11 @@ final class ThumbCell: NSCollectionViewItem {
         source = nil
         itemID = nil
         view.alphaValue = 1
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        view.layer?.removeAnimation(forKey: "land")
+        view.layer?.opacity = 1
+        CATransaction.commit()
         view.layer?.contents = nil
         cloud.isHidden = true
         avatar.isHidden = true

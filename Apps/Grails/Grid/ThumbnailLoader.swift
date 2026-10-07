@@ -7,10 +7,13 @@ final class ThumbnailLoader: @unchecked Sendable {
     static let shared = ThumbnailLoader()
 
     private let cache = NSCache<NSString, CGImage>()
+    private let gate = NSLock()
+    /// One decode per picture. A cell that asks while that decode is running joins it instead of starting another.
+    private var flights: [String: Flight] = [:]
     private let queue: OperationQueue = {
         let q = OperationQueue()
         q.name = "grails.thumbnails"
-        q.maxConcurrentOperationCount = 4
+        q.maxConcurrentOperationCount = 8
         q.qualityOfService = .userInitiated
         return q
     }()
@@ -36,32 +39,63 @@ final class ThumbnailLoader: @unchecked Sendable {
     }
 
     /// Calls `completion` on the main thread. Cancel the returned operation when the cell is reused.
+    /// That cancels only this caller: a decode someone else is waiting on keeps going.
     @discardableResult
-    func load(id: String, thumb: URL, original: URL?, pixels: CGFloat, variant: String = "", completion: @escaping @Sendable (CGImage?) -> Void) -> Operation {
+    func load(id: String, thumb: URL, original: URL?, pixels: CGFloat, variant: String = "", priority: Operation.QueuePriority = .normal, completion: @escaping @Sendable (CGImage?) -> Void) -> Operation {
         let b = Self.bucket(forPixels: pixels)
-        let k = key(id, b, variant)
+        let flightKey = "\(id)\(variant)@\(b)"
+        let token = BlockOperation()
+        gate.lock()
+        if let flight = flights[flightKey] {
+            flight.waiters.append((token, completion))
+            if priority.rawValue > flight.op.queuePriority.rawValue { flight.op.queuePriority = priority }
+            gate.unlock()
+            return token
+        }
         let op = BlockOperation()
-        op.addExecutionBlock { [weak op, weak self] in
-            guard let self, let op, !op.isCancelled else { return }
-            var image = self.cache.object(forKey: k)
+        let flight = Flight(op: op)
+        flight.waiters.append((token, completion))
+        flights[flightKey] = flight
+        gate.unlock()
+        op.queuePriority = priority
+        op.addExecutionBlock { [weak self] in
+            guard let self else { return }
+            self.gate.lock()
+            let live = flight.waiters.contains { !$0.token.isCancelled }
+            if !live { self.flights[flightKey] = nil }
+            self.gate.unlock()
+            guard live else { return }
+            let cacheKey = flightKey as NSString
+            var image = self.cache.object(forKey: cacheKey)
             if image == nil {
                 if b > 512, let original { image = Self.decode(original, maxPixel: b) }
                 if image == nil { image = Self.decode(thumb, maxPixel: min(b, 512)) }
-                if let image { self.cache.setObject(image, forKey: k, cost: image.width * image.height * 4) }
+                if let image { self.cache.setObject(image, forKey: cacheKey, cost: image.width * image.height * 4) }
             }
-            guard !op.isCancelled else { return }
-            DispatchQueue.main.async { completion(image) }
+            self.gate.lock()
+            let waiters = flight.waiters
+            self.flights[flightKey] = nil
+            self.gate.unlock()
+            DispatchQueue.main.async {
+                for waiter in waiters where !waiter.token.isCancelled { waiter.completion(image) }
+            }
         }
         queue.addOperation(op)
-        return op
+        return token
     }
 
-    func prefetch(id: String, thumb: URL, pixels: CGFloat) {
-        guard cached(id: id, pixels: pixels) == nil else { return }
-        load(id: id, thumb: thumb, original: nil, pixels: min(pixels, 512)) { _ in }.queuePriority = .low
+    func prefetch(id: String, thumb: URL, pixels: CGFloat, variant: String = "", priority: Operation.QueuePriority = .low) {
+        guard cached(id: id, pixels: pixels, variant: variant) == nil else { return }
+        load(id: id, thumb: thumb, original: nil, pixels: min(pixels, 512), variant: variant, priority: priority) { _ in }
     }
 
     func clear() { cache.removeAllObjects() }
+
+    private final class Flight: @unchecked Sendable {
+        let op: BlockOperation
+        var waiters: [(token: Operation, completion: @Sendable (CGImage?) -> Void)] = []
+        init(op: BlockOperation) { self.op = op }
+    }
 
     static func decode(_ url: URL, maxPixel: Int) -> CGImage? {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }

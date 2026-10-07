@@ -119,6 +119,9 @@ final class AppModel {
         }
     }
     private(set) var items: [ItemSummary] = []
+    /// False while the items on screen still belong to the previous view. An empty screen waits for this, so switching
+    /// off an empty board doesn't flash "Empty" before All's pictures arrive.
+    private(set) var itemsReady = false
     /// Views you came from, newest last, for Back.
     @ObservationIgnored var viewHistory: [ViewSnapshot] = []
     @ObservationIgnored var restoringHistory = false
@@ -228,6 +231,8 @@ final class AppModel {
     private var reloadTask: Task<Void, Never>?
     /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
     private var reloadGeneration = 0
+    /// `scrollResetTick` last applied. A view change (not a refresh of the view you're already on) reveals the first screen early.
+    private var shownScrollTick = -1
     private var toastTask: Task<Void, Never>?
     // Canvas: free-form boards (see CanvasModel.swift)
     @ObservationIgnored var canvasClusters: [CanvasCluster] = []
@@ -445,6 +450,7 @@ final class AppModel {
     // MARK: Data
 
     func reloadSoon() {
+        itemsReady = false
         reloadTask?.cancel()
         reloadTask = Task { await reload() }
     }
@@ -477,45 +483,85 @@ final class AppModel {
         return q
     }
 
-    /// Reads everything the window shows into locals first and applies it in one go, so an older, slower reload can
-    /// never overwrite a newer one's data piecemeal.
+    /// The grid shows titled clusters only for a real board, in its natural order, with two or more clusters.
+    private var gridIsSectioned: Bool {
+        !canvasIsDerived && sort == .newest && canvasBoardKey != nil && sectionKey == canvasBoardKey && sectionClusters.count >= 2
+    }
+
+    /// Puts items on screen and starts the first pictures decoding. Sections are rebuilt in the same turn, so the grid
+    /// never paints a new list under the previous board's clusters.
+    private func showItems(_ result: [ItemSummary]) {
+        items = result
+        itemsReady = true
+        itemsVersion += 1
+        selection.formIntersection(Set(result.map(\.id)))
+        if canvasBoardKey == nil {
+            sectionClusters = []
+            sectionKey = nil
+        }
+        rebuildSections()
+        warmFirstPictures(result)
+        shownScrollTick = scrollResetTick
+    }
+
+    /// The first screen of pictures, ahead of the cells, so they are decoding while the rest of the library is read.
+    private func warmFirstPictures(_ rows: [ItemSummary]) {
+        guard let layout else { return }
+        var left = 40
+        for s in rows {
+            guard left > 0 else { return }
+            guard s.kind != .section, s.kind != .link else { continue }
+            ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: 512, priority: .high)
+            left -= 1
+        }
+    }
+
+    /// One turn of the main queue, so the grid can paint the items already published before the next read.
+    private func letTheGridPaint() async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { cont.resume() }
+        }
+    }
+
+    /// Reads everything the window shows. The pictures go up as soon as the query returns; tags and counts follow.
+    /// A new view shows its first screen before the rest of the list, so the board is not blank while the library is read.
     func reload() async {
         guard let store else { return }
         reloadGeneration += 1
         let generation = reloadGeneration
+        let switchingView = scrollResetTick != shownScrollTick
         do {
             let smart = await store.smartFolders()
-            let colls = try await store.index.collections()
-            let q = try await makeQuery(store: store, smartFolders: smart)
-            var result = try await store.index.query(q)
-            let tagList = try await store.index.tagCounts().map { (tag: $0.tag, count: $0.count) }
-            // the strip's tags come from the view without the strip's own narrowing, so its tabs stay put while you switch between them
-            var baseIDs = Set(result.map(\.id))
-            if !stripTags.isEmpty {
-                var base = q
-                base.extraTags = []
-                baseIDs = Set(try await store.index.query(base).map(\.id))
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            if let key = canvasBoardKey, sectionKey != key {
+                let board = await store.canvasBoard(key: key)
+                guard !Task.isCancelled, generation == reloadGeneration else { return }
+                sectionClusters = board?.clusters ?? []
+                sectionKey = key
+            } else if canvasBoardKey == nil {
+                sectionClusters = []
+                sectionKey = nil
             }
-            let inView = try await store.index.tagCounts(among: baseIDs)
-            let baseCount = baseIDs.count
+            let q = try await makeQuery(store: store, smartFolders: smart)
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            let reveal = switchingView && viewMode != .canvas && sort != .random
+            _ = try await loadItems(query: q, generation: generation, revealFirstScreen: reveal && !gridIsSectioned, primeFirstScreen: reveal && gridIsSectioned)
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            if viewMode == .canvas { await syncCanvas() }
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            let colls = try await store.index.collections()
+            let tagList = try await store.index.tagCounts().map { (tag: $0.tag, count: $0.count) }
             let colors = await store.tagMetadata().compactMapValues(\.color)
             let total = try await store.index.count(ItemQuery())
             let people = try await store.index.addedByCounts()
             guard !Task.isCancelled, generation == reloadGeneration else { return }
-            if sort == .random { result = Self.shuffled(result, seed: shuffleSeed) }
             smartFolders = smart
             collections = colls
-            items = result
-            itemsVersion += 1
-            selection.formIntersection(Set(result.map(\.id)))
             tags = tagList
-            viewTags = inView.map { (tag: $0.tag, count: $0.count) }
-            viewBaseCount = baseCount
             tagColors = colors
             totalCount = total
             if autoTagSeenTotal >= 0, total > autoTagSeenTotal { kickAutoTag() }
             contributors = people.map { (who: $0.who, count: $0.count) }
-            if viewMode == .canvas { await syncCanvas() }
             await refreshSections()
         } catch {
             // typing quickly cancels the reload before it: that is not an error
@@ -523,6 +569,64 @@ final class AppModel {
             if LibraryIndex.isDamaged(error), await repairIndex() { return }
             errorMessage = "Couldn't load items: \(error.localizedDescription)"
         }
+    }
+
+    /// The items for `query`. The tag bar is read alongside them and published in the same turn as the first pictures,
+    /// so a filled board lands with its tabs instead of the bar arriving later and pushing the grid down.
+    /// A new flat view then paints that first screen before the rest of the list. A new sectioned view keeps one layout,
+    /// and starts the first pictures while the full list is still being read.
+    private func loadItems(query q: ItemQuery, generation: Int, revealFirstScreen: Bool, primeFirstScreen: Bool) async throws -> [ItemSummary] {
+        guard let store else { return [] }
+        let stripTask = Task { try await store.index.viewTagCounts(q) }
+        defer { stripTask.cancel() }
+        let firstScreen = 80
+
+        /// Tags and the first pictures, then one turn so the window lays them out together.
+        func land(_ rows: [ItemSummary]) async throws {
+            let strip = try await stripTask.value
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            let sameTags = viewTags.count == strip.tags.count && zip(viewTags, strip.tags).allSatisfy { $0.tag == $1.tag && $0.count == $1.count }
+            if !sameTags { viewTags = strip.tags }
+            if viewBaseCount != strip.items { viewBaseCount = strip.items }
+            showItems(rows)
+            await letTheGridPaint()
+        }
+
+        if revealFirstScreen {
+            var page = q
+            page.limit = firstScreen
+            page.offset = 0
+            let head = try await store.index.query(page)
+            guard !Task.isCancelled, generation == reloadGeneration else { return head }
+            if head.count < firstScreen {
+                try await land(head)
+                return head
+            }
+            async let rest = store.index.query(q)
+            try await land(head)
+            let full = try await rest
+            guard !Task.isCancelled, generation == reloadGeneration else { return full }
+            if full.count != head.count || full.prefix(head.count).map(\.id) != head.map(\.id) { showItems(full) }
+            return full
+        }
+        if primeFirstScreen {
+            var page = q
+            page.limit = firstScreen
+            page.offset = 0
+            async let rest = store.index.query(q)
+            let head = try await store.index.query(page)
+            if generation == reloadGeneration, !Task.isCancelled { warmFirstPictures(head) }
+            var result = try await rest
+            guard !Task.isCancelled, generation == reloadGeneration else { return result }
+            if sort == .random { result = Self.shuffled(result, seed: shuffleSeed) }
+            try await land(result)
+            return result
+        }
+        var result = try await store.index.query(q)
+        guard !Task.isCancelled, generation == reloadGeneration else { return result }
+        if sort == .random { result = Self.shuffled(result, seed: shuffleSeed) }
+        try await land(result)
+        return result
     }
 
     /// The index file went missing or bad: throw it away and read the library again, once, without bothering the person.

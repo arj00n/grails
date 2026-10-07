@@ -9,8 +9,11 @@ final class FluidField {
     private var n = 0
     private var u, v, u0, v0, d, d0, p, div: UnsafeMutablePointer<Float>
     private var time: Float = 0
+    /// Reused bitmap. `makeImage` copies out of it, so the next frame can write over the same storage.
+    private var pixels: [UInt8] = []
+    private let space = CGColorSpace(name: CGColorSpace.sRGB)!
 
-    struct Stir { var x: Float, y: Float, vx: Float, vy: Float }
+    struct Stir: Sendable { var x: Float, y: Float, vx: Float, vy: Float }
 
     init() {
         u = .allocate(capacity: 1); v = .allocate(capacity: 1); u0 = .allocate(capacity: 1); v0 = .allocate(capacity: 1)
@@ -122,7 +125,8 @@ final class FluidField {
     /// The field as a bitmap of `ink` where the dithered density says so and `paper` elsewhere (RGBA, premultiplied, opaque).
     func image(ink: (UInt8, UInt8, UInt8), paper: (UInt8, UInt8, UInt8)) -> CGImage? {
         guard n > 0 else { return nil }
-        var pixels = [UInt8](repeating: 255, count: n * 4)
+        let count = n * 4
+        if pixels.count != count { pixels = [UInt8](repeating: 255, count: count) }
         for y in 0..<h { for x in 0..<w {
             var val = min(d[y * w + x], 1)
             val = val * val * (3 - 2 * val) * 0.94
@@ -131,27 +135,33 @@ final class FluidField {
             let c = on ? ink : paper
             pixels[o] = c.0; pixels[o + 1] = c.1; pixels[o + 2] = c.2
         } }
-        let provider = CGDataProvider(data: Data(pixels) as CFData)
-        return provider.flatMap {
-            CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        let data = pixels.withUnsafeBufferPointer { Data(buffer: $0) }
+        return CGDataProvider(data: data as CFData).flatMap {
+            CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: space,
                     bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: $0, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
         }
     }
 }
 
-/// The band at the foot of the first-run screens. It follows the pointer without ever taking a click, sleeps when it isn't shown, and with
-/// Reduce Motion draws one still frame.
+/// The band at the foot of an empty screen. A looping dither of flames, drawn from a formula. No fluid steps, so the first picture is immediate.
 final class FluidDitherView: NSView {
     static let cell: CGFloat = 4
+    /// One trip around the loop, in seconds.
+    static let loop: Float = 8
     var active = true { didSet { if active != oldValue { activeChanged() } } }
     var reduceMotion = false
 
-    private let field = FluidField()
     private let imageLayer = CALayer()
     private var link: CADisplayLink?
-    private var lastMouse: CGPoint?
     private var lastTick: CFTimeInterval = 0
     private var needsStill = true
+    private var grid = (0, 0)
+    private var pending: (Int, Int)?
+    private var resizeQueued = false
+    /// 0...1 around `loop`. Starts mid-cycle so the first frame is already flames, not a blank floor.
+    private var phase: Float = 0.35
+    private var pixels: [UInt8] = []
+    private let space = CGColorSpace(name: CGColorSpace.sRGB)!
     /// The bitmap last drawn (dev snapshots read it: a layer's contents don't show up in cacheDisplay).
     private(set) var lastImage: CGImage?
 
@@ -174,8 +184,9 @@ final class FluidDitherView: NSView {
         super.viewDidMoveToWindow()
         link?.invalidate(); link = nil
         guard window != nil else { return }
+        if imageLayer.superlayer == nil { layer?.addSublayer(imageLayer) }
         let l = displayLink(target: self, selector: #selector(tick))
-        l.preferredFrameRateRange = CAFrameRateRange(minimum: 30, maximum: 60, preferred: 60)
+        l.preferredFrameRateRange = CAFrameRateRange(minimum: 15, maximum: 30, preferred: 30)
         l.add(to: .main, forMode: .common)
         l.isPaused = !active
         link = l
@@ -186,16 +197,36 @@ final class FluidDitherView: NSView {
 
     override func layout() {
         super.layout()
+        if imageLayer.superlayer == nil { layer?.addSublayer(imageLayer) }
         imageLayer.frame = bounds
-        let before = (field.w, field.h)
-        field.resize(Int(bounds.width / Self.cell), Int(bounds.height / Self.cell))
-        if before != (field.w, field.h) { for _ in 0..<160 { field.step(1 / 60, stir: nil) }; needsStill = true }
+        guard bounds.width >= 8, bounds.height >= 8 else { return }
+        let size = (max(Int(bounds.width / Self.cell), 24), max(Int(bounds.height / Self.cell), 12))
+        guard size != grid else { return }
+        pending = size
+        guard active else { return }
+        if grid.0 == 0 { apply(size); return }
+        guard !resizeQueued else { return }
+        resizeQueued = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) { [weak self] in
+            guard let self else { return }
+            self.resizeQueued = false
+            guard self.active, let size = self.pending, size != self.grid else { return }
+            self.apply(size)
+        }
     }
 
     private func activeChanged() {
         link?.isPaused = !active
         lastTick = 0
-        lastMouse = nil
+        if active, let size = pending, size != grid { apply(size) }
+        else if active, grid.0 > 0 { paint(phase) }
+    }
+
+    private func apply(_ size: (Int, Int)) {
+        pending = nil
+        grid = size
+        needsStill = false
+        paint(reduceMotion ? 0.35 : phase)
     }
 
     private func colours() -> ((UInt8, UInt8, UInt8), (UInt8, UInt8, UInt8)) {
@@ -210,36 +241,64 @@ final class FluidDitherView: NSView {
         return (rgb(.ink(.text)), rgb(.ink(.canvas)))
     }
 
-    /// The pointer in field cells (rows count down from the top), and how far it moved since the last frame.
-    private func stir() -> FluidField.Stir? {
-        guard let window, window.isVisible else { return nil }
-        let inWindow = window.convertPoint(fromScreen: NSEvent.mouseLocation)
-        let p = convert(inWindow, from: nil)
-        defer { lastMouse = p }
-        guard let last = lastMouse, bounds.insetBy(dx: -30, dy: -30).contains(p) else { return nil }
-        let dx = p.x - last.x, dy = p.y - last.y
-        guard abs(dx) + abs(dy) > 0.5 else { return nil }
-        // view y runs up, the field's runs down
-        return .init(x: Float(p.x / Self.cell), y: Float((bounds.height - p.y) / Self.cell), vx: Float(dx / Self.cell) * 0.6, vy: Float(-dy / Self.cell) * 0.6)
+    /// One frame of the loop. Each column is a flame of its own height; the licks scroll up and the whole thing repeats.
+    private func paint(_ phase: Float) {
+        let w = grid.0, h = grid.1
+        guard w > 1, h > 1 else { return }
+        let count = w * h * 4
+        if pixels.count != count { pixels = [UInt8](repeating: 255, count: count) }
+        let (ink, paper) = colours()
+        let bayer = FluidField.bayer
+        let turn = phase * 2 * Float.pi
+        let span = Float(h - 1)
+        for y in 0..<h {
+            let floor = Float(y) / span
+            let tb = (y & 7) << 3
+            for x in 0..<w {
+                let xF = Float(x)
+                let height = 0.38 + 0.62 * max(0, sin(xF * 0.09 + turn) * sin(xF * 0.041 + 1.6))
+                let along = (1 - floor) / height
+                var density: Float = 0
+                if along < 1 {
+                    let body = 1 - along
+                    let lick = 0.5 + 0.5 * sin(Float(y) * 0.45 + turn * 2 + xF * 0.13)
+                    density = body * body * (0.42 + 0.58 * lick)
+                    density *= 0.72 + 0.28 * sin(turn * 3 + xF * 0.2)
+                }
+                density = min(max(density, 0), 1)
+                density = density * density * (3 - 2 * density) * 0.94
+                let on = density > bayer[tb | (x & 7)]
+                let o = (y * w + x) * 4
+                let c = on ? ink : paper
+                pixels[o] = c.0; pixels[o + 1] = c.1; pixels[o + 2] = c.2
+            }
+        }
+        let data = pixels.withUnsafeBufferPointer { Data(buffer: $0) }
+        guard let image = CGDataProvider(data: data as CFData).flatMap({
+            CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: w * 4, space: space,
+                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: $0, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+        }) else { return }
+        lastImage = image
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        imageLayer.contents = image
+        CATransaction.commit()
     }
 
     @objc private func tick() {
-        guard active, field.w > 0, window?.occlusionState.contains(.visible) ?? false else { lastTick = 0; return }
+        guard active, grid.0 > 0, window?.occlusionState.contains(.visible) ?? false else { lastTick = 0; return }
         if reduceMotion {
             guard needsStill else { return }
             needsStill = false
-        } else {
-            let now = CACurrentMediaTime()
-            let dt = lastTick == 0 ? 1.0 / 60 : Float(min(now - lastTick, 0.05))
-            lastTick = now
-            field.step(dt, stir: stir())
+            paint(0.35)
+            return
         }
-        let (ink, paper) = colours()
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        lastImage = field.image(ink: ink, paper: paper)
-        imageLayer.contents = lastImage
-        CATransaction.commit()
+        let now = CACurrentMediaTime()
+        let dt = lastTick == 0 ? Float(1.0 / 30) : Float(min(now - lastTick, 0.05))
+        lastTick = now
+        phase += dt / Self.loop
+        if phase >= 1 { phase -= 1 }
+        paint(phase)
     }
 }
 

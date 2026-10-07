@@ -430,4 +430,26 @@ import Testing
         #expect(try await store.index.tagCounts(among: []).isEmpty)
         #expect(!(try await store.index.tagCounts(among: [items[3].id])).contains { $0.tag == "poster" })
     }
+
+    @Test func viewTagCountsIgnoresTheStripAndDoesNotNeedTheItemIds() async throws {
+        let (store, _) = try TestSupport.newStore(handle: "ana")
+        let dir = TestSupport.tempDir()
+        var items: [Item] = []
+        for i in 0..<4 { items.append(try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "v\(i)", rgb: (Double(i) / 4, 0.2, 0.8))).item) }
+        try await store.addTags(["poster", "swiss"], to: [items[0].id, items[1].id])
+        try await store.addTags(["poster", "red"], to: [items[2].id])
+        try await store.addTags(["food"], to: [items[3].id])
+        var q = ItemQuery()
+        q.limit = Int.max
+        q.extraTags = ["poster"]
+        let all = try await store.index.viewTagCounts(q)
+        #expect(all.items == 4)
+        #expect(all.tags.map(\.tag) == ["poster", "swiss", "food", "red"])
+        #expect(all.tags.map(\.count) == [3, 2, 1, 1])
+        q.extraTags = []
+        q.tag = "food"
+        let food = try await store.index.viewTagCounts(q)
+        #expect(food.items == 1)
+        #expect(food.tags.map(\.tag) == ["food"])
+    }
 }

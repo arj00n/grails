@@ -168,19 +168,66 @@ struct ChoiceRow: View {
     }
 }
 
-/// Numbered steps the person takes outside Grails (in Drive, in Finder).
+/// Numbered steps. A checklist marks what this Mac already has, the one current step, and what comes after.
 struct StepsList: View {
-    let steps: [String]
+    private struct Row: Identifiable {
+        let id: Int
+        let text: String
+        let mark: Mark
+        enum Mark { case plain, done, current, later }
+    }
+
+    private let rows: [Row]
+
+    init(steps: [String]) {
+        rows = steps.enumerated().map { Row(id: $0.offset, text: $0.element, mark: .plain) }
+    }
+
+    init(_ steps: [JoinDiagnosis.Step]) {
+        rows = steps.enumerated().map { i, s in
+            let mark: Row.Mark = switch s.mark {
+            case .done: .done
+            case .current: .current
+            case .later: .later
+            }
+            return Row(id: i, text: s.text, mark: mark)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(steps.enumerated()), id: \.offset) { i, s in
+            ForEach(rows) { row in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
-                    Text("\(i + 1)").font(.grailsBody(11)).foregroundStyle(Ink.canvas).frame(width: 18, height: 18).background(Ink.text, in: Circle())
-                        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
-                    Text(s).font(.grailsBody(13)).foregroundStyle(Ink.text).fixedSize(horizontal: false, vertical: true)
+                    marker(row)
+                    Text(row.text).font(.grailsBody(13))
+                        .foregroundStyle(row.mark == .later || row.mark == .done ? Ink.secondary : Ink.text)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(access(row))
             }
+        }
+    }
+
+    private func marker(_ row: Row) -> some View {
+        let filled = row.mark == .plain || row.mark == .current
+        return Group {
+            if row.mark == .done {
+                Image(systemName: "checkmark").font(.system(size: 8, weight: .bold)).foregroundStyle(Ink.secondary)
+            } else {
+                Text("\(row.id + 1)").font(.grailsBody(11)).foregroundStyle(filled ? Ink.canvas : Ink.secondary)
+            }
+        }
+        .frame(width: 18, height: 18)
+        .background((filled ? Ink.text : Ink.fill), in: Circle())
+        .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+    }
+
+    private func access(_ row: Row) -> String {
+        switch row.mark {
+        case .done: "Done. \(row.text)"
+        case .current: "Current. \(row.text)"
+        case .plain, .later: row.text
         }
     }
 }

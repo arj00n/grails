@@ -212,6 +212,26 @@ struct InfoBlock: View {
     }
 }
 
+/// Four points, like a compass star. Small enough to sit in a tag chip.
+private struct FourPointStar: Shape {
+    func path(in r: CGRect) -> Path {
+        let c = CGPoint(x: r.midX, y: r.midY)
+        let o = min(r.width, r.height) / 2
+        let i = o * 0.38
+        var p = Path()
+        let v = [
+            CGPoint(x: c.x, y: c.y - o), CGPoint(x: c.x + i, y: c.y - i),
+            CGPoint(x: c.x + o, y: c.y), CGPoint(x: c.x + i, y: c.y + i),
+            CGPoint(x: c.x, y: c.y + o), CGPoint(x: c.x - i, y: c.y + i),
+            CGPoint(x: c.x - o, y: c.y), CGPoint(x: c.x - i, y: c.y - i),
+        ]
+        p.move(to: v[0])
+        for point in v.dropFirst() { p.addLine(to: point) }
+        p.closeSubpath()
+        return p
+    }
+}
+
 /// A tag you can click to see everything with it. Your own tags are filled; the machine's are outlined.
 struct TagToken: View {
     let label: String
@@ -223,8 +243,8 @@ struct TagToken: View {
         Button(action: action) {
             HStack(spacing: 3) {
                 if automatic {
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 8))
+                    FourPointStar()
+                        .frame(width: 8, height: 8)
                         .accessibilityHidden(true)
                 }
                 Text(label).font(.grailsBody(12))

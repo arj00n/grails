@@ -67,6 +67,7 @@ extension CollabModel {
             return await app.locateLibrary(id: link.library, name: name)
         }
         startJoinWatch(state)
+        joinFloat.arm(state)
         return await withCheckedContinuation { state.continuation = $0 }
     }
 
@@ -101,11 +102,12 @@ extension CollabModel {
             state.resolve(await open(url, for: state.link))
         } else {
             state.diagnosis = d
+            joinFloat.refit()
         }
     }
 
     func closeJoin(_ state: JoinState, resolving: Bool? = nil) {
-        if join === state { join = nil; sheet.dismiss() }
+        if join === state { join = nil; sheet.dismiss(); joinFloat.disarm() }
         if let resolving { state.resolve(resolving) }
     }
 

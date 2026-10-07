@@ -24,6 +24,8 @@ final class PaintingWallEngine {
     private var pending = Set<Key>()
     private var tints: [Int: [UInt32]] = [:]
     private var falloffs: [Int: [Float]] = [:]
+    /// Reused each frame. Cleared, because plate pixels and pixels under the threshold stay 0.
+    private var frameBuffer: [UInt32] = []
     private static let bayer: [Float] = (0..<64).map { Float(Dither.bayer($0 % 8, $0 / 8)) }
 
     init?() {
@@ -114,9 +116,11 @@ final class PaintingWallEngine {
     }
 
     private static func image(_ buffer: inout [UInt32], width: Int, height: Int) -> CGImage? {
-        buffer.withUnsafeMutableBytes { raw in
-            CGContext(data: raw.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
-                      space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)?.makeImage()
+        // a copy the frame owns: the buffer is cleared and drawn into again next frame
+        let data = buffer.withUnsafeBufferPointer { Data(buffer: $0) }
+        return CGDataProvider(data: data as CFData).flatMap {
+            CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: $0, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
         }
     }
 
@@ -151,9 +155,11 @@ final class PaintingWallEngine {
         let shimmer = PaintingWall.Shimmer(t: reduceMotion ? 0 : t, cols: cols, rows: rows)
         let amplitude = reduceMotion ? 0 : Float(PaintingWall.shimmerAmplitude)
 
-        var buffer = [UInt32](repeating: 0, count: cols * rows)
+        let count = cols * rows
+        if frameBuffer.count != count { frameBuffer = [UInt32](repeating: 0, count: count) }
+        else { frameBuffer.withUnsafeMutableBytes { if let p = $0.baseAddress { memset(p, 0, $0.count) } } }
         let table = Self.bayer
-        buffer.withUnsafeMutableBufferPointer { out in
+        frameBuffer.withUnsafeMutableBufferPointer { out in
             for y in 0..<rows {
                 for x in 0..<cols {
                     if x >= pc0 && x < pc1 && y >= pr0 && y < pr1 { continue }
@@ -174,7 +180,7 @@ final class PaintingWallEngine {
                 }
             }
         }
-        guard let base = Self.image(&buffer, width: cols, height: rows) else { return nil }
+        guard let base = Self.image(&frameBuffer, width: cols, height: rows) else { return nil }
         return Frame(base: base, baseSize: CGSize(width: cols * px, height: rows * px))
     }
 

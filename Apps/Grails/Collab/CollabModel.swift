@@ -304,4 +304,6 @@ final class CollabModel {
 
     /// The "can't find this library" screen, while it's up.
     var join: JoinState?
+    /// The same checklist, above whatever app is in front, while this one is not.
+    @ObservationIgnored let joinFloat = JoinFloat()
 }

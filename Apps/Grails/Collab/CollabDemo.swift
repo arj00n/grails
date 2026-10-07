@@ -146,8 +146,8 @@ final class CollabDemo {
               "invite link: \(link)")
         let msg = c.message?.body ?? ""
         say("---- invite message ----\n\(msg)\n------------------------")
-        check(msg.hasPrefix("Hi,\n") && msg.contains("It lives in the Shared drive “Design” in our studio.com Google Drive.") && msg.contains("sign in with your studio.com account") && msg.contains(link),
-              "the message says where it lives, which account, and carries the link")
+        check(msg.hasPrefix("Hi,\n") && msg.contains("It lives in the Shared drive “Design” in our studio.com Google Drive.") && msg.contains("Grails shows the steps on your Mac.") && msg.contains(link),
+              "the message says where it lives, points at the link, and leaves the steps to Grails")
         snap(setup, "setup-5-invite", size)
         NSPasteboard.general.clearContents()
         c.copyMessage()
@@ -186,7 +186,9 @@ final class CollabDemo {
             let d = JoinDiagnosis.diagnose(hint: invite.hint, facts: facts)
             check(expect(d), "invitee \(name): \(d)")
             let state = JoinState(link: invite, name: "Team Inspo", diagnosis: d, emails: facts.accounts.filter { $0.state == .ready }.map(\.email))
-            say("     \(name): \(state.copy.title) — \(state.copy.detail) [\(state.copy.primary.label)]")
+            let current = state.copy.steps.first { $0.mark == .current }?.text ?? ""
+            check(state.copy.steps.filter { $0.mark == .current }.count == 1, "invitee \(name) has one current step")
+            say("     \(name): \(state.copy.title) — \(current) [\(state.copy.primary.label)]")
             snap({ JoinProblemView(model: self.app, state: state) }, "join-\(name)", CGSize(width: JoinProblemView.width, height: 420))
             if name == "not-shared" {
                 check(state.request.body.contains("Could you add me (ben@studio.com) to the Shared drive “Design” as a Content manager?"), "Ask for access names the drive and the address to add")
@@ -212,6 +214,14 @@ final class CollabDemo {
         let found = await c.joinFacts(for: invite)
         check(found.found?.standardizedFileURL.path == benLib.standardizedFileURL.path,
               "on a Mac whose Drive has it, the library is found by itself: \(found.found?.path ?? "nil")")
+
+        // the checklist follows them into Drive: up while Grails is not in front, gone when it is
+        c.joinFloat.arm(my)
+        NotificationCenter.default.post(name: NSApplication.didResignActiveNotification, object: NSApp)
+        check(c.joinFloat.isVisible, "the checklist floats above other apps while Grails is not in front")
+        NotificationCenter.default.post(name: NSApplication.didBecomeActiveNotification, object: NSApp)
+        check(!c.joinFloat.isVisible, "the checklist steps aside when Grails is in front")
+        c.joinFloat.disarm()
 
         // nothing left behind in the person's own index folder
         for id in made {
