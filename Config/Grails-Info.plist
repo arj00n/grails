@@ -58,12 +58,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT licensed</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Grails uses the microphone for a spoken note.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Grails transcribes a voice note on this Mac.</string>
-	<key>NSHumanReadableCopyright</key>
-	<string>MIT licensed</string>
 	<key>SUAllowsAutomaticUpdates</key>
 	<false/>
 	<key>SUEnableAutomaticChecks</key>

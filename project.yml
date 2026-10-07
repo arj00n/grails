@@ -46,6 +46,8 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         LSApplicationCategoryType: public.app-category.graphics-design
         NSHumanReadableCopyright: MIT licensed
+        NSMicrophoneUsageDescription: Grails uses the microphone for a spoken note.
+        NSSpeechRecognitionUsageDescription: Grails transcribes a voice note on this Mac.
         LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
