@@ -13,7 +13,7 @@ extension LibraryStore {
     public func endRecording(label: String) -> ChangeSet {
         let r = recorder ?? ChangeRecorder()
         recorder = nil
-        return ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders, canvases: r.canvases, clusters: r.clusters)
+        return ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders, canvases: r.canvases, clusters: r.clusters, notes: r.notes)
     }
 
     /// Runs `body` and returns the "before" state of everything it changed, ready to hand to `apply(_:)`.
@@ -60,6 +60,17 @@ extension LibraryStore {
                 try await updatePlacements(boardKey: key, restore, removing: remove)
             }
             for (key, before) in changes.clusters { try await setClusters(boardKey: key, before) }
+            for (id, before) in changes.notes {
+                let current = LibraryNotes.read(id, in: layout)
+                noteBefore(note: id)
+                if let note = before {
+                    try LibraryNotes.write(note, in: layout)
+                } else if var current {
+                    current.deletedAt = .grailsNow
+                    try LibraryNotes.write(current, in: layout)
+                }
+                if let itemId = before?.itemId ?? current?.itemId { try await reindexNoted(itemId) }
+            }
             for (id, before) in changes.smartFolders {
                 if var f = before {
                     f.updatedAt = .grailsNow
@@ -76,6 +87,11 @@ extension LibraryStore {
     func noteBefore(item id: String) {
         guard recorder != nil, recorder?.items.keys.contains(id) == false else { return }
         recorder?.items[id] = .some(try? item(id: id))
+    }
+
+    func noteBefore(note id: String) {
+        guard recorder != nil, recorder?.notes.keys.contains(id) == false else { return }
+        recorder?.notes[id] = LibraryNotes.read(id, in: layout)
     }
 
     func noteBefore(collection id: String) {
@@ -103,6 +119,98 @@ extension LibraryStore {
 
     public func setNote(_ note: String, ids: [String]) async throws {
         try await updateItems(ids: ids) { $0.note = note }
+    }
+
+    /// Adds a note as its own file. `people` are handles that `@` can name, along with anyone already in the library.
+    @discardableResult
+    public func addNote(text: String, itemId: String? = nil, board: String? = nil, clusterId: String? = nil,
+                        voiceFrom: URL? = nil, seconds: Double? = nil, people: [String] = []) async throws -> GrailsNote {
+        let id = ULID().string
+        if let voiceFrom {
+            try FileManager.default.createDirectory(at: layout.notesDir, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: voiceFrom, to: layout.noteVoice(id))
+        }
+        let note = GrailsNote(
+            id: id, itemId: itemId, board: board, clusterId: clusterId, author: userHandle, at: .grailsNow,
+            text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+            mentions: LibraryNotes.mentions(in: text, people: knownHandles(also: people)),
+            voice: voiceFrom != nil, seconds: seconds
+        )
+        noteBefore(note: id)
+        try LibraryNotes.write(note, in: layout)
+        if let itemId { try await reindexNoted(itemId) }
+        return note
+    }
+
+    /// Writes a transcript onto a voice note. A caption already there stays above the spoken words.
+    /// A repeat of the same words does nothing, so the line is not doubled.
+    public func fillTranscript(_ id: String, text: String, people: [String] = []) async throws {
+        guard var note = LibraryNotes.read(id, in: layout), note.deletedAt == nil, note.voice else { return }
+        let spoken = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !spoken.isEmpty else { return }
+        if note.text == spoken || note.text.hasSuffix("\n" + spoken) { return }
+        let combined = note.text.isEmpty ? spoken : note.text + "\n" + spoken
+        note.text = combined
+        note.mentions = LibraryNotes.mentions(in: combined, people: knownHandles(also: people))
+        try LibraryNotes.write(note, in: layout)
+        if let itemId = note.itemId { try await reindexNoted(itemId) }
+    }
+
+    /// Marks a note removed. The file stays, so a copy that has not synced yet does not restore it.
+    public func deleteNote(_ id: String) async throws {
+        guard var note = LibraryNotes.read(id, in: layout), note.deletedAt == nil else { return }
+        noteBefore(note: id)
+        note.deletedAt = .grailsNow
+        try LibraryNotes.write(note, in: layout)
+        if let itemId = note.itemId { try await reindexNoted(itemId) }
+    }
+
+    /// Handles `@` can attach to: you, people who have opened the library, people who have added something, note authors.
+    public func knownHandles(also extra: [String] = []) -> [String] {
+        var seen = Set<String>()
+        var out: [String] = []
+        let raw = [userHandle] + extra + Members.all(in: layout).map(\.handle) + LibraryNotes.live(in: layout).map(\.author)
+        for name in raw {
+            let handle = Handle.normalize(name)
+            guard !handle.isEmpty, seen.insert(handle).inserted else { continue }
+            out.append(handle)
+        }
+        return out
+    }
+
+    /// The item as the search index should store it: the old note plus every note file on it.
+    func forSearch(_ item: Item, blobs: [String: String]? = nil) -> Item {
+        var copy = item
+        let extra = blobs?[item.id] ?? LibraryNotes.extraText(itemId: item.id, in: layout)
+        guard !extra.isEmpty else { return copy }
+        copy.note = item.note.isEmpty ? extra : item.note + "\n" + extra
+        return copy
+    }
+
+    func reindexNoted(_ id: String) async throws {
+        guard let item = try item(id: id) else { return }
+        try await index.upsert(forSearch(item), mtime: FileStat.mtime(layout.itemJSON(id)) ?? 0)
+    }
+
+    /// Rewrites search text for creatives whose notes changed. Returns how many were rewritten.
+    @discardableResult
+    public func reindexNoteSearch() async throws -> Int {
+        let blobs = LibraryNotes.textsByItem(in: layout)
+        let stored = try await index.noteTexts()
+        var ids = Set(blobs.keys)
+        for (id, column) in stored {
+            guard blobs[id] == nil, let item = try item(id: id), column != item.note else { continue }
+            ids.insert(id)
+        }
+        var wrote = 0
+        for id in ids {
+            guard let item = try item(id: id) else { continue }
+            let composed = forSearch(item, blobs: blobs).note
+            if stored[id] == composed { continue }
+            try await index.upsert(forSearch(item, blobs: blobs), mtime: FileStat.mtime(layout.itemJSON(id)) ?? 0)
+            wrote += 1
+        }
+        return wrote
     }
 
     public func rename(id: String, to name: String) async throws {

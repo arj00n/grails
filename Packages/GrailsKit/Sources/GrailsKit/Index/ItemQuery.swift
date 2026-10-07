@@ -23,6 +23,8 @@ public struct ItemQuery: Sendable {
     public var upgradeAutoTagsTo: String? = nil
     /// Only items saved by this person (the `addedBy` handle)
     public var addedBy: String?
+    /// Only these creatives. Empty means none. Nil means no such filter.
+    public var onlyIds: Set<String>?
     /// Roughly square images (aspect ratio within 5% of 1:1)
     public var squareOnly = false
     /// Evaluate a smart folder's rules in addition to the other filters
@@ -62,6 +64,8 @@ public struct ItemSummary: Sendable, Hashable, Identifiable {
     public var badge: String?
     /// Videos: length in seconds
     public var durationSec: Double? = nil
+    /// The creative has a note, or a note someone left on it.
+    public var noted: Bool = false
 
     /// A divider row for the grid: the cluster's title, and how many items follow in `bytes`.
     public static func sectionHeader(id: String, title: String, count: Int) -> ItemSummary {

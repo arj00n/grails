@@ -1,4 +1,5 @@
 import AppKit
+import GrailsDesign
 import GrailsKit
 
 /// Text label that ignores the mouse, so clicks and right-clicks reach the tile (and the grid's menu) underneath.
@@ -98,8 +99,22 @@ final class ThumbCell: NSCollectionViewItem {
     private var op: Operation?
     private var source: (id: String, thumb: URL, original: URL?, variant: String)?
     private(set) var itemID: String?
+    /// Picture held back so a landing sweep can reveal this row when its turn comes.
+    private var heldPicture: HeldPicture?
+    /// Set while this cell is waiting to take its place in the landing sweep.
+    private var sweepArmed = false
+    private var pixelScale: CGFloat = 2
+
+    private struct HeldPicture {
+        let loader: ThumbnailLoader
+        let id: String
+        let thumb: URL
+        let original: URL?
+        let variant: String
+    }
     private let placeholder = NSImageView()
     private let heart = NSImageView()
+    private let noteMark = NSImageView()
     private let captionBar = NSView()
     private let caption = PassthroughLabel.make()
     private let titleLabel = PassthroughLabel.make(wrapping: true)
@@ -131,6 +146,11 @@ final class ThumbCell: NSCollectionViewItem {
         }()
         heart.isHidden = true
         v.addSubview(heart)
+        noteMark.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: "Note")
+        noteMark.contentTintColor = .onImage
+        noteMark.shadow = heart.shadow
+        noteMark.isHidden = true
+        v.addSubview(noteMark)
         // Link cards: caption over the picture, or a big title when there's no picture
         captionBar.wantsLayer = true
         captionBar.layer?.backgroundColor = NSColor.onImageScrim.cgColor
@@ -180,6 +200,7 @@ final class ThumbCell: NSCollectionViewItem {
         let b = view.bounds
         placeholder.frame = NSRect(x: (b.width - 28) / 2, y: (b.height - 28) / 2, width: 28, height: 28)
         heart.frame = NSRect(x: b.width - 24, y: 8, width: 16, height: 16)
+        noteMark.frame = NSRect(x: 8, y: badge.isHidden ? 8 : 28, width: 14, height: 14)
         if !badge.isHidden {
             let badgeSize = badge.intrinsicContentSize
             badge.frame = NSRect(x: 8, y: 8, width: badgeSize.width, height: badgeSize.height)
@@ -233,7 +254,7 @@ final class ThumbCell: NSCollectionViewItem {
         field.begin(in: view, frame: NSRect(x: 0, y: max(r.minY - 3, 0), width: min(view.bounds.width, 520), height: 34))
     }
 
-    func configureSection(_ s: ItemSummary) {
+    func configureSection(_ s: ItemSummary, noted: Bool = false) {
         op?.cancel()
         HoverVideo.shared.release(host: view)
         source = nil
@@ -242,7 +263,7 @@ final class ThumbCell: NSCollectionViewItem {
         view.layer?.contents = nil
         view.layer?.backgroundColor = NSColor.clear.cgColor
         view.layer?.borderWidth = 0
-        for v in [placeholder, heart, captionBar, titleLabel, siteLabel, badge, cloud, avatar] as [NSView] { v.isHidden = true }
+        for v in [placeholder, heart, noteMark, captionBar, titleLabel, siteLabel, badge, cloud, avatar] as [NSView] { v.isHidden = true }
         let untitled = s.name.isEmpty
         let text = NSMutableAttributedString(string: untitled ? "Untitled" : s.name, attributes: [
             .font: NSFont.grailsDisplay(26),
@@ -251,14 +272,22 @@ final class ThumbCell: NSCollectionViewItem {
         text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
             .font: NSFont.grailsBody(16), .foregroundColor: NSColor.ink(.secondary),
         ]))
+        if noted {
+            text.append(NSAttributedString(string: "  note", attributes: [
+                .font: NSFont.grailsBody(13), .foregroundColor: NSColor.ink(.secondary),
+            ]))
+        }
         sectionLabel.attributedStringValue = text
         sectionLabel.isHidden = false
         (view as? TileView)?.axLabel = "Cluster: \(untitled ? "Untitled" : s.name)"
         view.needsLayout = true
     }
 
-    func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false) {
+    func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false, holdPicture: Bool = false) {
         op?.cancel()
+        heldPicture = nil
+        sweepArmed = false
+        pixelScale = scale
         // the hover player belongs to the item, not the cell: a cell given another item lets it go
         if itemID != s.id { HoverVideo.shared.release(host: view) }
         itemID = s.id
@@ -274,6 +303,7 @@ final class ThumbCell: NSCollectionViewItem {
             avatar.toolTip = s.addedBy
         }
         heart.isHidden = !s.liked
+        noteMark.isHidden = !s.noted || isSection
         view.layer?.cornerRadius = cornerRadius
         let isLink = s.kind == .link
         let mode = s.linkDisplay ?? "title"
@@ -303,6 +333,14 @@ final class ThumbCell: NSCollectionViewItem {
         }
         let variant = isLink ? mode : ""
         let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(s.id) : layout.thumbURL(s.id)
+        if holdPicture {
+            heldPicture = HeldPicture(loader: loader, id: s.id, thumb: pictureURL, original: isLink ? nil : original, variant: variant)
+            view.layer?.contents = nil
+            placeholder.isHidden = isLink
+            applySelection()
+            view.needsLayout = true
+            return
+        }
         if let hit = loader.cached(id: s.id, pixels: pixels, variant: variant) {
             show(hit)
         } else {
@@ -319,8 +357,69 @@ final class ThumbCell: NSCollectionViewItem {
         view.needsLayout = true
     }
 
+    /// Hide the tile until `revealSweep`. The landing sweep arms every visible row, then reveals them top to bottom.
+    func armSweep() {
+        sweepArmed = true
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        view.layer?.opacity = 0
+        CATransaction.commit()
+    }
+
+    /// Show this tile's picture and fade it in. No-op if the cell was reused for something else.
+    func revealSweep(priority: Operation.QueuePriority, fade: Bool) {
+        guard sweepArmed || heldPicture != nil else { return }
+        sweepArmed = false
+        let held = heldPicture
+        heldPicture = nil
+        guard let held else {
+            finishSweep(fade)
+            return
+        }
+        let pixels = max(view.bounds.width, view.bounds.height) * pixelScale
+        source = (held.id, held.thumb, held.original, held.variant)
+        if let hit = held.loader.cached(id: held.id, pixels: pixels, variant: held.variant) {
+            show(hit)
+            finishSweep(fade)
+            return
+        }
+        let id = held.id
+        op?.cancel()
+        op = held.loader.load(id: id, thumb: held.thumb, original: held.original, pixels: pixels, variant: held.variant, priority: priority) { [weak self] image in
+            MainActor.assumeIsolated {
+                guard let self, self.itemID == id else { return }
+                if let image { self.show(image) }
+                self.finishSweep(fade)
+            }
+        }
+    }
+
+    private func finishSweep(_ fade: Bool) {
+        guard let layer = view.layer else { return }
+        guard fade else {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.opacity = 1
+            CATransaction.commit()
+            return
+        }
+        let anim = CABasicAnimation(keyPath: "opacity")
+        anim.fromValue = 0
+        anim.toValue = 1
+        anim.duration = Motion.quick
+        anim.fillMode = .backwards
+        anim.timingFunction = CAMediaTimingFunction(controlPoints: Float(Motion.standardCurve.x1), Float(Motion.standardCurve.y1), Float(Motion.standardCurve.x2), Float(Motion.standardCurve.y2))
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.opacity = 1
+        layer.add(anim, forKey: "land")
+        CATransaction.commit()
+    }
+
     /// After the tile changed size: fetch a sharper picture and swap it in, leaving the current one up until it arrives.
     func refreshResolution(loader: ThumbnailLoader, scale: CGFloat) {
+        pixelScale = scale
+        if heldPicture != nil || sweepArmed { return }
         guard let src = source, itemID == src.id, !isSection else { return }
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         op?.cancel()
@@ -343,6 +442,8 @@ final class ThumbCell: NSCollectionViewItem {
         op = nil
         source = nil
         itemID = nil
+        heldPicture = nil
+        sweepArmed = false
         view.alphaValue = 1
         CATransaction.begin()
         CATransaction.setDisableActions(true)
@@ -352,6 +453,7 @@ final class ThumbCell: NSCollectionViewItem {
         view.layer?.contents = nil
         cloud.isHidden = true
         avatar.isHidden = true
+        noteMark.isHidden = true
         captionBar.isHidden = true
         titleLabel.isHidden = true
         siteLabel.isHidden = true

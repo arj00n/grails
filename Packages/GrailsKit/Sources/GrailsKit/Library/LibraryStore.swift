@@ -20,6 +20,8 @@ public struct RescanResult: Sendable, Equatable {
     public var removed = 0
     public var conflictsMerged = 0
     public var failures: [ScanFailure] = []
+    /// Notes were folded or their search text was rewritten.
+    public var notesChanged = 0
 }
 
 /// Owns a library folder. All writes go through here: the files are the source of truth and the SQLite
@@ -31,6 +33,8 @@ public actor LibraryStore {
     public var userHandle: String
     /// Non-nil while `recording(label:)` is running; mutations note the state they overwrite.
     var recorder: ChangeRecorder?
+    /// mtime of the notes folder last time we looked, so a teammate's note reloads even when no item file changed.
+    var notesStamp: Double = -1
 
     private init(layout: LibraryLayout, manifest: LibraryManifest, index: LibraryIndex, userHandle: String) {
         self.layout = layout; self.manifest = manifest; self.index = index; self.userHandle = userHandle
@@ -211,11 +215,16 @@ public actor LibraryStore {
         let scan = await ItemScanner.scan(folders: changed)
         result.failures = scan.failures
         for e in scan.items { if known[e.item.id] == nil { result.added += 1 } else { result.updated += 1 } }
-        try await index.upsert(scan.items)
+        try await index.upsert(scan.items.map { (forSearch($0.item), $0.mtime) })
 
         let gone = known.keys.filter { !onDisk.contains($0) }
         result.removed = gone.count
         try await index.remove(ids: gone)
+        result.conflictsMerged += LibraryNotes.foldConflicts(in: layout)
+        let stamp = FileStat.mtime(layout.notesDir) ?? 0
+        let dirChanged = notesStamp >= 0 && stamp != notesStamp
+        notesStamp = stamp
+        result.notesChanged = try await reindexNoteSearch() + (dirChanged ? 1 : 0)
 
         try await index.replaceCollections(LibraryIndex.readCollections(layout))
         return result
@@ -239,7 +248,7 @@ public actor LibraryStore {
             if let d = try? Data(contentsOf: file), let v = try? JSONDecoder().decode(JSONValue.self, from: d) { files[rel] = v }
         }
         add("library.json", layout.manifestURL)
-        for dir in [layout.collectionsDir, layout.smartDir, layout.canvasDir] {
+        for dir in [layout.collectionsDir, layout.smartDir, layout.canvasDir, layout.notesDir] {
             for u in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? [] where u.pathExtension == "json" && !AtomicFile.isTemp(u.lastPathComponent) {
                 add("\(dir.lastPathComponent)/\(u.lastPathComponent)", u)
             }
@@ -263,7 +272,7 @@ public actor LibraryStore {
         if record { noteBefore(item: item.id) }
         let url = layout.itemJSON(item.id)
         try AtomicFile.writeJSON(item, to: url)
-        try await index.upsert(item, mtime: FileStat.mtime(url) ?? 0)
+        try await index.upsert(forSearch(item), mtime: FileStat.mtime(url) ?? 0)
     }
 
     static func dedupeTags(_ tags: [String]) -> [String] {

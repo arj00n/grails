@@ -142,7 +142,7 @@ extension AppModel {
     func refreshLibrary(announce: Bool = true) async {
         guard let store else { return }
         let r = try? await store.rescan()
-        if let r, r.added + r.updated + r.removed + r.conflictsMerged > 0 {
+        if let r, r.added + r.updated + r.removed + r.conflictsMerged + r.notesChanged > 0 {
             await reload()
             if announce { showToast("Library refreshed") }
         } else if announce {

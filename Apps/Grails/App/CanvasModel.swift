@@ -8,7 +8,7 @@ extension AppModel {
     var canvasIsDerived: Bool {
         if isSearching || filters.isActive || addedByFilter != nil { return true }
         switch source {
-        case .liked, .untagged, .trash, .tag, .smart: return true
+        case .liked, .untagged, .trash, .tag, .smart, .mentions: return true
         case .all, .inbox, .collection: return false
         }
     }
@@ -20,7 +20,7 @@ extension AppModel {
         case .all: return CanvasKey.library
         case .inbox: return CanvasKey.inbox
         case .collection(let id): return CanvasKey.collection(id)
-        case .liked, .untagged, .trash, .tag, .smart: return nil
+        case .liked, .untagged, .trash, .tag, .smart, .mentions: return nil
         }
     }
 
@@ -29,6 +29,7 @@ extension AppModel {
         if let key = canvasBoardKey { return key }
         if isSearching { return "derived:search" }
         switch source {
+        case .mentions: return "derived:mentions"
         case .liked: return "derived:liked"
         case .untagged: return "derived:untagged"
         case .trash: return "derived:trash"
@@ -138,6 +139,10 @@ extension AppModel {
             menu.addItem(item)
         }
         add("Rename…", "pencil") { [self] in promptRenameCluster(id) }
+        add("Notes", "note.text") { [self] in
+            let title = canvasClusters.first { $0.id == id }?.title ?? ""
+            if let board = canvasBoardKey { showClusterNotes(board: board, id: id, title: title) }
+        }
         let sizes = NSMenu()
         for (name, tile) in [("Small", 160.0), ("Medium", 260.0), ("Large", 400.0), ("Extra Large", 600.0)] {
             let item = ClosureMenuItem(title: name) { [self] in setClusterTile(id, tile: tile) }

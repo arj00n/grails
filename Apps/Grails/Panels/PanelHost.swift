@@ -7,7 +7,7 @@ struct PanelHost: View {
     var model: AppModel
     let panel: Panel
 
-    private var fullHeight: CGFloat { panel == .note ? 230 : 460 }
+    private var fullHeight: CGFloat { panel == .note ? 420 : 460 }
 
     var body: some View {
         GeometryReader { geo in
@@ -38,54 +38,57 @@ struct PanelHost: View {
     }
 }
 
-/// N: edit one item's note, or append a note to every selected item.
+/// N: a note on the selection, or on a cluster. Several creatives get the same note, one file each.
 struct NotePanel: View {
     var model: AppModel
     @State private var text = ""
-    @State private var original = ""
     @FocusState private var focused: Bool
 
     private var ids: [String] { Array(model.selection) }
-    private var batch: Bool { ids.count > 1 }
+    private var batch: Bool {
+        if case .cluster = model.noteTarget { return false }
+        return ids.count > 1
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(batch ? "Add a note to \(ids.count) items" : "Note").font(.grailsDisplay(16))
-            TextEditor(text: $text)
-                .font(.grailsBody(14))
-                .frame(height: 140)
-                .focused($focused)
-                .scrollContentBackground(.hidden)
-                .padding(6)
-                .background(Ink.fill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .accessibilityIdentifier("note-field")
-            HStack {
-                Spacer()
-                Button("Cancel") { model.closePanel() }.keyboardShortcut(.cancelAction)
-                Button("Save") { save() }.keyboardShortcut(.return, modifiers: .command).buttonStyle(PrimaryButtonStyle())
-                    .disabled(batch && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            if case .cluster(let board, let id, let title) = model.noteTarget {
+                Text("Note").font(.grailsDisplay(16))
+                NoteThread(model: model, cluster: (board, id, title))
+            } else if batch {
+                Text("Add a note to \(ids.count) items").font(.grailsDisplay(16))
+                TextField("Note", text: $text, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.grailsBody(14))
+                    .lineLimit(3...8)
+                    .focused($focused)
+                    .accessibilityIdentifier("note-field")
+                HStack {
+                    Spacer()
+                    Button("Cancel") { model.closePanel() }.keyboardShortcut(.cancelAction)
+                    Button("Add") { saveBatch() }.keyboardShortcut(.return, modifiers: .command).buttonStyle(PrimaryButtonStyle())
+                        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            } else {
+                Text("Note").font(.grailsDisplay(16))
+                NoteThread(model: model, itemID: ids.first)
             }
         }
         .padding(16)
         .frame(maxWidth: 480)
         .surfaceCard()
-        .task {
-            if !batch, let id = ids.first, let item = try? await model.store?.item(id: id) { text = item.note; original = item.note }
-            focused = true
-        }
+        .onAppear { if batch { focused = true } }
     }
 
-    private func save() {
+    private func saveBatch() {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let targets = ids
-        let isBatch = batch
+        let people = model.contributors.map(\.who)
         model.closePanel()
         Task {
-            await model.perform(isBatch ? "Add Note" : "Edit Note") { store in
-                if isBatch {
-                    try await store.updateItems(ids: targets) { $0.note = $0.note.isEmpty ? trimmed : $0.note + "\n\n" + trimmed }
-                } else {
-                    try await store.setNote(trimmed, ids: targets)
+            await model.perform("Add Note") { store in
+                for id in targets {
+                    _ = try await store.addNote(text: trimmed, itemId: id, people: people)
                 }
             }
         }

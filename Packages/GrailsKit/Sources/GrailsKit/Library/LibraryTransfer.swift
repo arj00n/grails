@@ -53,6 +53,8 @@ public enum LibraryTransfer {
                 for (k, v) in mapped { existing.collections[k] = v }
                 existing.updatedAt = .grailsNow; existing.updatedBy = await dst.userHandle
                 try await dst.persist(existing)
+                try LibraryNotes.copyItem(itemId, from: src.layout, to: dst.layout)
+                try await dst.reindexNoted(existing.id)
                 result.reusedItems += 1
                 continue
             }
@@ -69,6 +71,8 @@ public enum LibraryTransfer {
             item.updatedAt = .grailsNow
             item.updatedBy = await dst.userHandle
             try await dst.persist(item)
+            try LibraryNotes.copyItem(itemId, from: src.layout, to: dst.layout)
+            try await dst.reindexNoted(itemId)
             result.copiedItems += 1
         }
 

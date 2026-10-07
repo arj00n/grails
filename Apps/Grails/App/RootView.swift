@@ -46,8 +46,12 @@ struct RootView: View {
     // MARK: Content
 
     /// The space between the docked panels and under the top bar.
+    private var mentionBar: CGFloat {
+        model.source == .mentions && !model.mentionClusters.isEmpty && !model.items.isEmpty ? 32 : 0
+    }
+
     private var contentInsets: EdgeInsets {
-        EdgeInsets(top: Self.barHeight + (model.stripVisible ? TagStrip.height : 0), leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: 0)
+        EdgeInsets(top: Self.barHeight + (model.stripVisible ? TagStrip.height : 0) + mentionBar, leading: model.sidebarVisible ? Self.sidebarWidth : 0, bottom: 0, trailing: 0)
     }
 
     private var content: some View {
@@ -73,8 +77,24 @@ struct RootView: View {
                     .padding(contentInsets)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if mentionBar > 0 { mentionChips.padding(.leading, (model.sidebarVisible ? Self.sidebarWidth : 0) + 12).padding(.top, Self.barHeight + (model.stripVisible ? TagStrip.height : 0)) }
+        }
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }
         .onDrop(of: [.fileURL, .grailsItems], delegate: ContentDrop(model: model, targeted: $dropTargeted))
+    }
+
+    private var mentionChips: some View {
+        HStack(spacing: 6) {
+            ForEach(model.mentionClusters) { c in
+                Button { model.showClusterNotes(board: c.board, id: c.id, title: c.title) } label: {
+                    Text(c.title.isEmpty ? "Untitled" : c.title).font(.grailsBody(12)).foregroundStyle(Ink.text)
+                        .padding(.horizontal, 8).frame(height: 24)
+                        .background(Ink.fill, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
     }
 
     /// Nothing in the library at all, and no search or filter in the way.
@@ -92,6 +112,9 @@ struct RootView: View {
                 Button("Clear Filters") { model.filters = ViewFilters(); model.addedByFilter = nil; model.stripTags = [] }.buttonStyle(PrimaryButtonStyle())
             } else if model.source == .trash {
                 Text("Trash is empty")
+            } else if model.source == .mentions && model.items.isEmpty {
+                Text(model.mentionClusters.isEmpty ? "Nothing for you yet" : "On a cluster")
+                if !model.mentionClusters.isEmpty { mentionChips }
             } else if libraryIsEmpty {
                 Text("Nothing here yet").font(.grailsDisplay(24)).foregroundStyle(Ink.text)
                 Text("Bring in a board you already love, or paste anything worth keeping.")

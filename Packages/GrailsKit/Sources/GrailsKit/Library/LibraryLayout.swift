@@ -11,6 +11,10 @@ public struct LibraryLayout: Sendable, Hashable {
     public var canvasDir: URL { root.appendingPathComponent("canvas", isDirectory: true) }
     public var smartDir: URL { root.appendingPathComponent("smart", isDirectory: true) }
     public var tagsURL: URL { root.appendingPathComponent("tags.json") }
+    /// One file per note, so two people never edit the same text. Voice sits beside its note as `<id>.m4a`.
+    public var notesDir: URL { root.appendingPathComponent("notes", isDirectory: true) }
+    public func noteURL(_ id: String) -> URL { notesDir.appendingPathComponent("\(id).json") }
+    public func noteVoice(_ id: String) -> URL { notesDir.appendingPathComponent("\(id).m4a") }
     public var trashDir: URL { root.appendingPathComponent(".trash", isDirectory: true) }
     public var snapshotsDir: URL { root.appendingPathComponent(".snapshots", isDirectory: true) }
 

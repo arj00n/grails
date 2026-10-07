@@ -147,7 +147,14 @@ public final class LibraryIndex: Sendable {
                 try db.execute(sql: "DELETE FROM \(table)")
             }
             try db.execute(sql: "DELETE FROM items_fts")
-            for e in scan.items { try Self.write(e.item, mtime: e.mtime, fresh: true, in: db) }
+            let blobs = LibraryNotes.textsByItem(in: layout)
+            for e in scan.items {
+                var item = e.item
+                if let extra = blobs[item.id], !extra.isEmpty {
+                    item.note = item.note.isEmpty ? extra : item.note + "\n" + extra
+                }
+                try Self.write(item, mtime: e.mtime, fresh: true, in: db)
+            }
             for c in collections {
                 try db.execute(sql: """
                 INSERT INTO collections (id, kind, name, parentId, orderKey, archived, mtime) VALUES (?,?,?,?,?,?,?)
@@ -176,6 +183,16 @@ public final class LibraryIndex: Sendable {
                 items: try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM items") ?? 0,
                 tags: try Int.fetchOne(db, sql: "SELECT COUNT(DISTINCT tag) FROM item_tags") ?? 0
             )
+        }
+    }
+
+    /// The note text stored for search, for items that have any. Used to tell a note-file edit from the creative's own note.
+    public func noteTexts() async throws -> [String: String] {
+        try await db.read { db in
+            var out: [String: String] = [:]
+            let cursor = try Row.fetchCursor(db, sql: "SELECT id, note FROM items WHERE note <> ''")
+            while let row = try cursor.next() { out[row["id"]] = row["note"] }
+            return out
         }
     }
 
@@ -317,7 +334,7 @@ public final class LibraryIndex: Sendable {
             height: r["height"], bytes: r["bytes"], liked: r["liked"],
             addedAt: Date(timeIntervalSince1970: r["addedAt"]), addedBy: r["addedBy"],
             deletedAt: (r["deletedAt"] as Double?).map { Date(timeIntervalSince1970: $0) },
-            site: r["sourceSite"], linkDisplay: r["linkDisplay"], badge: r["badge"], durationSec: r["durationSec"]
+            site: r["sourceSite"], linkDisplay: r["linkDisplay"], badge: r["badge"], durationSec: r["durationSec"], noted: r["noted"]
         )
     }
 
@@ -372,6 +389,14 @@ public final class LibraryIndex: Sendable {
             }
         }
         if let who = q.addedBy { wheres.append("i.addedBy = ?"); args += [who] }
+        if let ids = q.onlyIds {
+            if ids.isEmpty { wheres.append("0") }
+            else {
+                // ponytail: one IN list. Split it if someone is mentioned on more than a few hundred creatives.
+                wheres.append("i.id IN (\(ids.map { _ in "?" }.joined(separator: ",")))")
+                for id in ids.sorted() { args += [id] }
+            }
+        }
         if q.squareOnly { wheres.append("i.width > 0 AND i.height > 0 AND ABS(i.width * 1.0 / i.height - 1.0) <= 0.05") }
         if let smart = q.smart {
             let (sql, a) = SmartRuleCompiler.compile(smart)
@@ -411,7 +436,7 @@ public final class LibraryIndex: Sendable {
         }
         args += [q.limit, q.offset]
         return ("""
-        SELECT i.id, i.kind, i.name, i.ext, i.width, i.height, i.bytes, i.liked, i.addedAt, i.addedBy, i.deletedAt, i.sourceSite, i.linkDisplay, i.badge, i.durationSec
+        SELECT i.id, i.kind, i.name, i.ext, i.width, i.height, i.bytes, i.liked, i.addedAt, i.addedBy, i.deletedAt, i.sourceSite, i.linkDisplay, i.badge, i.durationSec, CASE WHEN i.note <> '' THEN 1 ELSE 0 END AS noted
         FROM \(from) WHERE \(whereSQL) ORDER BY \(order) LIMIT ? OFFSET ?
         """, args)
     }

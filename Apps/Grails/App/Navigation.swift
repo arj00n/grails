@@ -54,6 +54,7 @@ extension AppModel {
         if let who = addedByFilter { return ViewChip(label: who, symbol: "person") }
         switch source {
         case .liked: return ViewChip(label: "Liked", symbol: "heart")
+        case .mentions: return ViewChip(label: "For you", symbol: "at")
         case .untagged: return ViewChip(label: "Untagged", symbol: "tag.slash")
         default: return filters.isActive ? ViewChip(label: "Filtered", symbol: "line.3.horizontal.decrease") : nil
         }
@@ -62,13 +63,13 @@ extension AppModel {
     /// The ✕ on the chip: back to where you were, or just drop the filters when that's all there is.
     func clearViewChip() {
         if case .tag = source { leaveFilterView(); return }
-        if addedByFilter != nil || source == .liked || source == .untagged { leaveFilterView(); return }
+        if addedByFilter != nil || source == .liked || source == .untagged || source == .mentions { leaveFilterView(); return }
         filters = ViewFilters()
     }
 
     private func isFilterView(_ s: ViewSnapshot) -> Bool {
         if case .tag = s.source { return true }
-        return s.addedBy != nil || s.source == .liked || s.source == .untagged
+        return s.addedBy != nil || s.source == .liked || s.source == .untagged || s.source == .mentions
     }
 
     /// Leaves the whole run of filter views at once (tag, then another tag, then a person…): back to the last place that wasn't one,

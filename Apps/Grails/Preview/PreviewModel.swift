@@ -27,6 +27,8 @@ extension AppModel {
         previewSet = nil
         PreviewImageCache.shared.clear()
         focusGridTick_bump()
+        // After the grid applies this close. A selection write during the update would clear the hold; set it last.
+        suppressGridInfo = true
     }
 
     /// A page turn finished in the stage.

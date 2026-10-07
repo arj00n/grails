@@ -4,10 +4,17 @@ import GrailsKit
 import UniformTypeIdentifiers
 
 enum Source: Hashable {
-    case inbox, all, liked, untagged, trash
+    case inbox, all, liked, untagged, trash, mentions
     case collection(String)
     case smart(String)
     case tag(String)
+}
+
+/// A cluster note that names you. Shown above For you.
+struct MentionCluster: Identifiable, Equatable {
+    var board: String
+    var id: String
+    var title: String
 }
 
 enum GridLayoutMode: String, CaseIterable, Identifiable {
@@ -128,7 +135,9 @@ final class AppModel {
     var canGoBack: Bool { !viewHistory.isEmpty }
     /// Bumped on every reload so the grid can skip O(n) diffing.
     private(set) var itemsVersion = 0
-    var selection: Set<String> = []
+    var selection: Set<String> = [] {
+        didSet { if oldValue != selection { suppressGridInfo = false } }
+    }
     private(set) var collections: [GrailsCollection] = []
     private(set) var smartFolders: [SmartFolder] = []
     private(set) var tags: [(tag: String, count: Int)] = []
@@ -151,7 +160,10 @@ final class AppModel {
     private var shuffleSeed: UInt64 = 1
 
     /// The info panel is contextual: it is there while something is selected, and hiding the sidebar hides every panel with it.
-    var showInfo: Bool { sidebarVisible && !selection.isEmpty && previewID == nil }
+    /// Collapsing the preview leaves that creative selected; `suppressGridInfo` keeps the panel from opening on the way back to the grid.
+    var showInfo: Bool { sidebarVisible && !selection.isEmpty && previewID == nil && !suppressGridInfo }
+    /// Set for the collapse back to the grid. The next selection change (a click, arrows, the context menu) shows the panel again.
+    var suppressGridInfo = false
     /// One-shot commands for the canvas (fit, arrange, zoom); the canvas runs each request once.
     var canvasRequest: CanvasRequest?
     /// ⌘+ / ⌘− in the grid: one column fewer or more, animated.
@@ -260,6 +272,18 @@ final class AppModel {
     /// The open library's own id (the same on every Mac), used in `grails://` links.
     private(set) var libraryID = ""
     private(set) var contributors: [(who: String, count: Int)] = []
+    /// Clusters that have a note, so the section title can show it.
+    private(set) var notedClusters: Set<String> = []
+    /// Notes that mention you and that you have not opened.
+    private(set) var forYouUnread = 0
+    /// Cluster notes that mention you.
+    private(set) var mentionClusters: [MentionCluster] = []
+    /// What the note panel is about. Nil follows the current selection.
+    var noteTarget: NoteTarget?
+    enum NoteTarget: Equatable {
+        case selection
+        case cluster(board: String, id: String, title: String)
+    }
     var addedByFilter: String? { didSet { if oldValue != addedByFilter { scrollResetTick += 1; reloadSoon() } } }
     /// Bumped when the visible set changes meaning (new view, filter, search) so the grid jumps to the top; plain data
     /// refreshes (a teammate's save arriving) keep the scroll position.
@@ -469,6 +493,7 @@ final class AppModel {
             case .liked: q.likedOnly = true
             case .untagged: q.untagged = true
             case .trash: q.deleted = true
+            case .mentions: q.onlyIds = LibraryNotes.itemIds(mentioning: Handle.normalize(userHandle), in: store.layout)
             case .collection(let id): q.collectionIds = try await store.collectionTree(rootedAt: id)
             case .smart(let id): q.smart = smartFolders.first { $0.id == id }
             case .tag(let t): q.tag = t
@@ -504,14 +529,20 @@ final class AppModel {
         shownScrollTick = scrollResetTick
     }
 
-    /// The first screen of pictures, ahead of the cells, so they are decoding while the rest of the library is read.
+    /// The first row of pictures, ahead of the cells, so that line is decoding while the rest of the library is read.
+    /// Rows below the fold wait for the grid's sweep instead of decoding with this one.
     private func warmFirstPictures(_ rows: [ItemSummary]) {
         guard let layout else { return }
-        var left = 40
+        let windowWidth = NSApp.keyWindow?.contentView?.bounds.width ?? 1100
+        let gridWidth = max(320, windowWidth - (sidebarVisible ? 240 : 0) - 24)
+        let tile = max(tileWidth, Zoom.minWidth)
+        let spacing: CGFloat = 8
+        let columns = max(1, Int((gridWidth + spacing) / (tile + spacing)))
+        var left = columns
         for s in rows {
             guard left > 0 else { return }
             guard s.kind != .section, s.kind != .link else { continue }
-            ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: 512, priority: .high)
+            ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: 512, priority: .veryHigh)
             left -= 1
         }
     }
@@ -563,6 +594,7 @@ final class AppModel {
             if autoTagSeenTotal >= 0, total > autoTagSeenTotal { kickAutoTag() }
             contributors = people.map { (who: $0.who, count: $0.count) }
             await refreshSections()
+            refreshNoteMarks(in: store.layout)
         } catch {
             // typing quickly cancels the reload before it: that is not an error
             if error is CancellationError || Task.isCancelled || generation != reloadGeneration { return }
@@ -665,6 +697,7 @@ final class AppModel {
         case .liked: return "Liked"
         case .untagged: return "Untagged"
         case .trash: return "Trash"
+        case .mentions: return "For you"
         case .collection(let id): return collections.first { $0.id == id }?.name ?? "Collection"
         case .smart(let id): return smartFolders.first { $0.id == id }?.name ?? "Smart folder"
         case .tag(let t): return "#\(t)"
@@ -809,7 +842,7 @@ final class AppModel {
         #endif
         switch action {
         case .like: toggleLike(ids: Array(selection))
-        case .note: if !selection.isEmpty { panel = .note }
+        case .note: if !selection.isEmpty { showItemNotes() }
         case .move: if !selection.isEmpty { panel = .move }
         case .tag: if !selection.isEmpty { panel = .tags }
         case .copyURL: copySourceURL()
@@ -1068,7 +1101,46 @@ final class AppModel {
 
     // MARK: Preview / focus
 
-    func closePanel() { panel = nil; focusGridTick += 1 }
+    func closePanel() { panel = nil; noteTarget = nil; focusGridTick += 1 }
+
+    func showItemNotes() {
+        noteTarget = .selection
+        panel = .note
+    }
+
+    func showClusterNotes(board: String, id: String, title: String) {
+        noteTarget = .cluster(board: board, id: id, title: title)
+        panel = .note
+    }
+
+    /// Notes that name you count as unread until their thread is opened.
+    func markNotesSeen(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        var seen = Set(UserDefaults.standard.stringArray(forKey: seenNotesKey) ?? [])
+        let before = seen.count
+        seen.formUnion(ids)
+        guard seen.count != before else { return }
+        UserDefaults.standard.set(Array(seen), forKey: seenNotesKey)
+        if let layout { refreshNoteMarks(in: layout) }
+    }
+
+    private var seenNotesKey: String { "seenNotes.\(libraryID)" }
+
+    private func refreshNoteMarks(in layout: LibraryLayout) {
+        let notes = LibraryNotes.live(in: layout)
+        notedClusters = Set(notes.compactMap(\.clusterId))
+        let me = Handle.normalize(userHandle)
+        let seen = Set(UserDefaults.standard.stringArray(forKey: seenNotesKey) ?? [])
+        forYouUnread = notes.filter { $0.mentions.contains(me) && !seen.contains($0.id) }.count
+        var clusters: [MentionCluster] = []
+        var seenCluster = Set<String>()
+        for note in notes where note.mentions.contains(me) {
+            guard let board = note.board, let id = note.clusterId, seenCluster.insert(id).inserted else { continue }
+            let title = sectionClusters.first { $0.id == id }?.title ?? canvasClusters.first { $0.id == id }?.title ?? ""
+            clusters.append(MentionCluster(board: board, id: id, title: title))
+        }
+        mentionClusters = clusters
+    }
     func focusGridTick_bump() { focusGridTick += 1 }
 
     func originalURL(for s: ItemSummary) -> URL? {

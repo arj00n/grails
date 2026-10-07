@@ -9,7 +9,8 @@ public struct ExternalChangeSummary: Sendable, Equatable {
     /// Canvas boards (by key) that changed on disk
     public var canvasBoards: Set<String> = []
     public var failures: [ScanFailure] = []
-    public var isEmpty: Bool { added + updated + removed + conflictsMerged == 0 && !collectionsChanged && canvasBoards.isEmpty }
+    public var notesChanged = false
+    public var isEmpty: Bool { added + updated + removed + conflictsMerged == 0 && !collectionsChanged && canvasBoards.isEmpty && !notesChanged }
 }
 
 extension LibraryStore {
@@ -21,6 +22,7 @@ extension LibraryStore {
         let itemsPrefix = layout.itemsDir.path + "/"
         let collectionsPrefix = layout.collectionsDir.path + "/"
         let canvasPrefix = layout.canvasDir.path + "/"
+        let notesPrefix = layout.notesDir.path + "/"
         var ids = Set<String>()
         var collectionsTouched = false
         for path in paths {
@@ -30,6 +32,8 @@ extension LibraryStore {
                 if let first, !first.hasPrefix(".") { ids.insert(first) }
             } else if path.hasPrefix(collectionsPrefix) || path == layout.collectionsDir.path {
                 collectionsTouched = true
+            } else if path.hasPrefix(notesPrefix) || path == layout.notesDir.path {
+                summary.notesChanged = true
             } else if path.hasPrefix(canvasPrefix) {
                 let file = String(path.dropFirst(canvasPrefix.count))
                 if file.hasSuffix(".json") { summary.canvasBoards.insert(String(file.prefix { $0 != " " && $0 != "." })) }
@@ -53,10 +57,15 @@ extension LibraryStore {
         let scan = await ItemScanner.scan(folders: toRead)
         summary.failures = scan.failures
         for e in scan.items { if known[e.item.id] == nil { summary.added += 1 } else { summary.updated += 1 } }
-        try await index.upsert(scan.items)
+        try await index.upsert(scan.items.map { (forSearch($0.item), $0.mtime) })
         try await index.remove(ids: gone)
         summary.removed = gone.count
 
+        if summary.notesChanged {
+            summary.conflictsMerged += LibraryNotes.foldConflicts(in: layout)
+            _ = try await reindexNoteSearch()
+            notesStamp = FileStat.mtime(layout.notesDir) ?? 0
+        }
         if collectionsTouched {
             summary.conflictsMerged += (try? ConflictMerger.mergeCollectionConflicts(in: layout.collectionsDir)) ?? 0
             let before = try await index.collections().map { "\($0.id)|\($0.name)|\($0.parentId ?? "")|\($0.order)|\($0.archived)" }

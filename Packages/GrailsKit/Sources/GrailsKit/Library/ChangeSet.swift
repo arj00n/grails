@@ -11,11 +11,16 @@ public struct ChangeSet: Sendable {
     public var canvases: [String: [String: CanvasPlacement?]]
     /// board key → the board's clusters before the action
     public var clusters: [String: [CanvasCluster]]
+    /// note id → the note before the action (nil = it did not exist)
+    public var notes: [String: GrailsNote?]
 
-    public var isEmpty: Bool { items.isEmpty && collections.isEmpty && smartFolders.isEmpty && canvases.isEmpty && clusters.isEmpty }
+    public var isEmpty: Bool {
+        items.isEmpty && collections.isEmpty && smartFolders.isEmpty && canvases.isEmpty && clusters.isEmpty && notes.isEmpty
+    }
 
-    public init(label: String, items: [String: Item?] = [:], collections: [String: GrailsCollection?] = [:], smartFolders: [String: SmartFolder?] = [:], canvases: [String: [String: CanvasPlacement?]] = [:], clusters: [String: [CanvasCluster]] = [:]) {
-        self.label = label; self.items = items; self.collections = collections; self.smartFolders = smartFolders; self.canvases = canvases; self.clusters = clusters
+    public init(label: String, items: [String: Item?] = [:], collections: [String: GrailsCollection?] = [:], smartFolders: [String: SmartFolder?] = [:], canvases: [String: [String: CanvasPlacement?]] = [:], clusters: [String: [CanvasCluster]] = [:], notes: [String: GrailsNote?] = [:]) {
+        self.label = label; self.items = items; self.collections = collections; self.smartFolders = smartFolders
+        self.canvases = canvases; self.clusters = clusters; self.notes = notes
     }
 }
 
@@ -25,4 +30,5 @@ struct ChangeRecorder {
     var smartFolders: [String: SmartFolder?] = [:]
     var canvases: [String: [String: CanvasPlacement?]] = [:]
     var clusters: [String: [CanvasCluster]] = [:]
+    var notes: [String: GrailsNote?] = [:]
 }

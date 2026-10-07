@@ -36,6 +36,7 @@ struct SidebarView: View {
                 SidebarRow(model: model, title: "Inbox", symbol: "tray", source: .inbox)
                 SidebarRow(model: model, title: "All", symbol: "square.grid.2x2", count: model.totalCount, source: .all)
                 SidebarRow(model: model, title: "Liked", symbol: "heart", source: .liked)
+                SidebarRow(model: model, title: "For you", symbol: "at", count: model.forYouUnread > 0 ? model.forYouUnread : nil, source: .mentions)
                 SidebarRow(model: model, title: "Untagged", symbol: "tag.slash", source: .untagged)
                 SidebarRow(model: model, title: "Trash", symbol: "trash", source: .trash)
                     .dropTarget(model: model, id: "trash", targeted: $targeted, target: .trash)

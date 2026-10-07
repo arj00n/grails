@@ -72,6 +72,7 @@ struct GridView: NSViewRepresentable {
             container.addSubview(probe)
         }
         c.hitch?.start(on: cv)
+        c.watchScroll(scroll)
         return container
     }
 
@@ -101,8 +102,16 @@ struct GridView: NSViewRepresentable {
         private var lastZoomTick = 0
         private var lastSettleTick = 0
         private var settleUntil = Date.distantPast
-        /// Landing on a board: fade the visible rows from the top. Cleared once they have been laid out.
+        /// Landing on a board: the visible rows load and fade in from the top. Cleared once that sweep has been armed.
         private var landUntil = Date.distantPast
+        /// While set, a reload keeps pictures off the cells so the sweep can reveal them row by row.
+        private var holdLoads = false
+        /// Prefetch stays quiet until the visible rows have been asked to load.
+        private var prefetchAfter = Date.distantPast
+        /// Bumped whenever the grid reloads, so a sweep that was already scheduled can't reveal the new cells.
+        private var sweepGeneration = 0
+        private var scrollObserver: NSObjectProtocol?
+        private var trimQueued = false
         private var mode: GridLayoutMode = .square
         private var cornerRadius: CGFloat = 8
         private var focusTick = 0
@@ -118,6 +127,21 @@ struct GridView: NSViewRepresentable {
 
         private var scale: CGFloat { collectionView?.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2 }
         private var activeLayout: TileLayout { useSections ? sectionedLayout : (mode == .square ? squareLayout : masonryLayout) }
+
+        isolated deinit {
+            if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }
+            ThumbnailLoader.shared.setResident(nil)
+        }
+
+        /// One row past the viewport stays decoded, so a small scroll doesn't flash back to placeholders.
+        func watchScroll(_ scroll: NSScrollView) {
+            scroll.contentView.postsBoundsChangedNotifications = true
+            scrollObserver = NotificationCenter.default.addObserver(
+                forName: NSView.boundsDidChangeNotification, object: scroll.contentView, queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.scheduleTrim() }
+            }
+        }
 
         // MARK: SwiftUI → AppKit
 
@@ -171,6 +195,8 @@ struct GridView: NSViewRepresentable {
                     && incoming.prefix(items.count).map(\.id) == items.map(\.id)
                 let start = items.count
                 let arriving = resetScroll || items.isEmpty
+                let wantSweep = arriving && Date() >= settleUntil && zoomBase == nil
+                    && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
                 install(incoming)
                 if extend {
                     NSAnimationContext.runAnimationGroup { context in
@@ -178,9 +204,12 @@ struct GridView: NSViewRepresentable {
                         cv.insertItems(at: Set((start..<items.count).map { IndexPath(item: $0, section: 0) }))
                     }
                 } else {
+                    // A new view, not the rest of a list catching up. The visible rows sweep in; later pages just append.
+                    sweepGeneration &+= 1
+                    holdLoads = wantSweep
+                    prefetchAfter = wantSweep ? Date().addingTimeInterval(0.5) : .distantPast
+                    landUntil = wantSweep ? Date().addingTimeInterval(0.5) : .distantPast
                     cv.reloadData()
-                    // A new view, not the rest of a list catching up, and not the onboarding settle (that one has its own entrance).
-                    if arriving, Date() >= settleUntil { landUntil = Date().addingTimeInterval(0.5) }
                 }
                 applySelection()
                 // A refresh (a teammate's save arriving, an edit) keeps you where you were; a new view starts at the top.
@@ -192,12 +221,13 @@ struct GridView: NSViewRepresentable {
                     scroll.reflectScrolledClipView(scroll.contentView)
                 }
             } else if avatarsChanged {
+                sweepGeneration &+= 1
                 cv.reloadData()
                 applySelection()
             } else if spacingChanged || modeChanged || radiusChanged {
                 activeLayout.invalidateLayout()
                 if radiusChanged { cv.visibleItems().forEach { ($0 as? ThumbCell)?.view.layer?.cornerRadius = self.cornerRadius } }
-                if modeChanged { cv.reloadData() }
+                if modeChanged { sweepGeneration &+= 1; cv.reloadData() }
             }
             if !needsData { applySelection() }
             restoreAnchor()
@@ -218,38 +248,67 @@ struct GridView: NSViewRepresentable {
                 cv.window?.makeFirstResponder(cv)
             }
             runSettleIfDue(cv)
-            runLandIfDue(cv)
+            runLoadSweep(cv)
+            trimToViewport()
         }
 
-        /// The visible rows fade in from the top. Each row waits a moment on the one above it; the whole cascade stays short.
-        /// Cells further down the board, and anything scrolled into view afterwards, just appear.
-        private func runLandIfDue(_ cv: NSCollectionView) {
-            guard Date() < landUntil, zoomBase == nil else { return }
+        /// The visible rows load and fade in from the top, one line at a time. The first line starts immediately.
+        /// Cells further down the board, and anything scrolled into view afterwards, just appear — this does not run again.
+        private func runLoadSweep(_ cv: NSCollectionView) {
+            guard holdLoads || Date() < landUntil else { return }
+            if zoomBase != nil || Date() >= landUntil {
+                cancelLoadSweep(cv)
+                return
+            }
             cv.layoutSubtreeIfNeeded()
-            let cells = cv.visibleItems().compactMap { $0 as? ThumbCell }.filter { !$0.view.frame.isEmpty }
-            guard !cells.isEmpty else { return }
+            let visible = cv.visibleItems().compactMap { $0 as? ThumbCell }
+            let cells = visible.filter { !$0.view.frame.isEmpty }
+            // Layout hasn't given the rows their frames yet: try again on the next update, still inside `landUntil`.
+            guard !cells.isEmpty, cells.count == visible.count else { return }
             landUntil = .distantPast
-            guard !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+            holdLoads = false
+            let generation = sweepGeneration
             let ordered = cells.sorted { ($0.view.frame.minY, $0.view.frame.minX) < ($1.view.frame.minY, $1.view.frame.minX) }
-            let now = CACurrentMediaTime()
-            let curve = CAMediaTimingFunction(controlPoints: Float(Motion.standardCurve.x1), Float(Motion.standardCurve.y1), Float(Motion.standardCurve.x2), Float(Motion.standardCurve.y2))
+            let rowGap = max(shownTile * 0.45, 12)
             var band = 0
             var bandY = ordered[0].view.frame.minY
+            var lastDelay: TimeInterval = 0
             for cell in ordered {
-                guard let layer = cell.view.layer else { continue }
-                if cell.view.frame.minY > bandY + 12 { band += 1; bandY = cell.view.frame.minY }
-                let fade = CABasicAnimation(keyPath: "opacity")
-                fade.fromValue = 0
-                fade.toValue = 1
-                fade.duration = Motion.standard
-                fade.beginTime = now + min(Double(band) * 0.028, 0.11)
-                fade.fillMode = .backwards
-                fade.timingFunction = curve
-                CATransaction.begin()
-                CATransaction.setDisableActions(true)
-                layer.opacity = 1
-                layer.add(fade, forKey: "land")
-                CATransaction.commit()
+                if cell.view.frame.minY > bandY + rowGap { band += 1; bandY = cell.view.frame.minY }
+                let delay = min(Double(band) * 0.03, Motion.standard)
+                lastDelay = max(lastDelay, delay)
+                let priority: Operation.QueuePriority = band == 0 ? .veryHigh : band < 3 ? .high : .normal
+                cell.armSweep()
+                let index = cv.indexPath(for: cell)?.item
+                let expectedID = cell.itemID
+                if delay <= 0 || index == nil {
+                    cell.revealSweep(priority: priority, fade: true)
+                } else if let index {
+                    let work = DispatchWorkItem { [weak self] in
+                        MainActor.assumeIsolated {
+                            guard let self, self.sweepGeneration == generation, let cv = self.collectionView else { return }
+                            guard let live = cv.item(at: IndexPath(item: index, section: 0)) as? ThumbCell, live.itemID == expectedID else { return }
+                            live.revealSweep(priority: priority, fade: true)
+                        }
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+                }
+            }
+            prefetchAfter = Date().addingTimeInterval(lastDelay)
+            let followUp = lastDelay
+            DispatchQueue.main.asyncAfter(deadline: .now() + followUp + 0.02) { [weak self] in
+                MainActor.assumeIsolated { self?.scheduleTrim() }
+            }
+        }
+
+        /// A pinch started before the rows revealed: show the pictures without a second animation.
+        private func cancelLoadSweep(_ cv: NSCollectionView) {
+            sweepGeneration &+= 1
+            landUntil = .distantPast
+            holdLoads = false
+            prefetchAfter = .distantPast
+            for case let cell as ThumbCell in cv.visibleItems() {
+                cell.revealSweep(priority: .high, fade: false)
             }
         }
 
@@ -618,7 +677,8 @@ struct GridView: NSViewRepresentable {
             guard let layout, let s = items[safe: indexPath.item] else { return cell }
             if s.kind == .section {
                 cell.view.frame.size = activeLayout.layoutAttributesForItem(at: indexPath)?.frame.size ?? cell.view.frame.size
-                cell.configureSection(s)
+                let clusterId = s.id.hasPrefix("section:") ? String(s.id.dropFirst("section:".count)) : s.id
+                cell.configureSection(s, noted: model.notedClusters.contains(clusterId))
                 return cell
             }
             cell.view.frame.size = activeLayout.layoutAttributesForItem(at: indexPath)?.frame.size ?? cell.view.frame.size
@@ -627,15 +687,84 @@ struct GridView: NSViewRepresentable {
             let cloudOnly = s.kind != .link && original.map { FileAvailability.of($0) == .cloudOnly } ?? false
             cell.configure(
                 s, loader: .shared, layout: layout, original: cloudOnly ? nil : original, cornerRadius: cornerRadius,
-                gravity: mode == .square ? .resizeAspect : .resizeAspectFill, scale: scale, cloudOnly: cloudOnly, showAddedBy: showAddedBy
+                gravity: mode == .square ? .resizeAspect : .resizeAspectFill, scale: scale, cloudOnly: cloudOnly, showAddedBy: showAddedBy,
+                holdPicture: holdLoads
             )
             return cell
         }
 
         func collectionView(_ cv: NSCollectionView, prefetchItemsAt indexPaths: [IndexPath]) {
-            guard zoomBase == nil, let layout else { return }
+            guard zoomBase == nil, Date() >= prefetchAfter, let layout else { return }
+            let keep = residentIDs(in: cv)
+            guard !keep.isEmpty else { return }
             let px = shownTile * scale
-            for ip in indexPaths { if let s = items[safe: ip.item], s.kind != .section { ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px) } }
+            for ip in indexPaths {
+                guard let s = items[safe: ip.item], s.kind != .section, keep.contains(s.id) else { continue }
+                ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px)
+            }
+        }
+
+        func collectionView(_ cv: NSCollectionView, cancelPrefetchingForItemsAt indexPaths: [IndexPath]) {
+            let keep = residentIDs(in: cv)
+            guard !keep.isEmpty else { return }
+            var drop = Set<String>()
+            for ip in indexPaths {
+                guard let s = items[safe: ip.item], s.kind != .section, !keep.contains(s.id) else { continue }
+                drop.insert(s.id)
+            }
+            ThumbnailLoader.shared.cancelPrefetches(drop)
+        }
+
+        /// Ids whose pictures may stay decoded: what's on screen, plus about one row above and below.
+        private func residentIDs(in cv: NSCollectionView) -> Set<String> {
+            guard let scroll = cv.enclosingScrollView else { return [] }
+            let clip = scroll.contentView.bounds
+            guard clip.width > 1, clip.height > 1 else { return [] }
+            var rect = clip
+            rect.origin.y -= overscan
+            rect.size.height += overscan * 2
+            activeLayout.prepare()
+            var keep = Set<String>()
+            for a in activeLayout.layoutAttributesForElements(in: rect) {
+                guard let item = a.indexPath?.item, let s = items[safe: item], s.kind != .section else { continue }
+                keep.insert(s.id)
+            }
+            for case let cell as ThumbCell in cv.visibleItems() {
+                if let id = cell.itemID { keep.insert(id) }
+            }
+            return keep
+        }
+
+        private var overscan: CGFloat {
+            let tile = max(shownTile, 1)
+            return (mode == .square ? tile : tile * 2) + activeLayout.spacing
+        }
+
+        private func scheduleTrim() {
+            guard !trimQueued else { return }
+            trimQueued = true
+            DispatchQueue.main.async { [weak self] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.trimQueued = false
+                    self.trimToViewport()
+                }
+            }
+        }
+
+        /// Drop decoded pictures and prefetches that have left the window, and start the next row only.
+        private func trimToViewport() {
+            guard let cv = collectionView, cv.window != nil else { return }
+            let keep = residentIDs(in: cv)
+            guard !keep.isEmpty else { return }
+            ThumbnailLoader.shared.setResident(keep)
+            guard Date() >= prefetchAfter, zoomBase == nil, let layout else { return }
+            let visible = Set(cv.visibleItems().compactMap { ($0 as? ThumbCell)?.itemID })
+            let px = shownTile * scale
+            for id in keep where !visible.contains(id) {
+                guard let i = indexByID[id], let s = items[safe: i], s.kind != .section else { continue }
+                ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px, priority: .low)
+            }
         }
 
         // MARK: Selection
@@ -743,7 +872,20 @@ struct GridView: NSViewRepresentable {
         // MARK: Context menu
 
         func contextMenu(forItemAt index: Int) -> NSMenu? {
-            guard let s = items[safe: index], s.kind != .section, let cv = collectionView else { return nil }
+            guard let s = items[safe: index] else { return nil }
+            if s.kind == .section {
+                let clusterId = s.id.hasPrefix("section:") ? String(s.id.dropFirst("section:".count)) : s.id
+                let menu = NSMenu()
+                let title = s.name
+                let item = ClosureMenuItem(title: "Notes") { [weak model] in
+                    guard let model, let board = model.canvasBoardKey else { return }
+                    model.showClusterNotes(board: board, id: clusterId, title: title)
+                }
+                item.image = NSImage(systemSymbolName: "note.text", accessibilityDescription: nil)
+                menu.addItem(item)
+                return menu
+            }
+            guard let cv = collectionView else { return nil }
             if !model.selection.contains(s.id) {
                 applying = true
                 cv.selectionIndexPaths = [IndexPath(item: index, section: 0)]
