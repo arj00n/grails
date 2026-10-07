@@ -15,14 +15,20 @@ struct TileArrangement {
     }
 }
 
-/// Shared geometry for the grid layouts. At rest the tiles fill each row exactly. While zooming, the column count is
-/// fractional: tiles glide between the arrangement for the column count below and the one above, like iOS Photos.
+/// Shared geometry for the grid layouts. At rest the tiles fill each row exactly. A pinch scales that arrangement
+/// in place (tiles keep their neighbours, like Photos). Letting go eases into the column count that fits.
 class TileLayout: NSCollectionViewLayout {
     var targetWidth: CGFloat = 190 { didSet { if oldValue != targetWidth { invalidateLayout() } } }
     var spacing: CGFloat = 8 { didSet { if oldValue != spacing { invalidateLayout() } } }
     var inset: CGFloat = 12
-    /// Fractional column count during a zoom; nil at rest.
-    var liveColumns: CGFloat? { didSet { if oldValue != liveColumns { invalidateLayout() } } }
+    /// Arrangement being scaled. Nil at rest.
+    var zoomBase: Int? { didSet { if oldValue != zoomBase, collectionView != nil { invalidateLayout() } } }
+    /// Uniform scale of `zoomBase`. 1 at rest.
+    var zoomScale: CGFloat = 1 { didSet { if oldValue != zoomScale, collectionView != nil { invalidateLayout() } } }
+    /// Whole column count the pinch is easing into. Nil while the fingers are down.
+    var settleTo: Int? { didSet { if oldValue != settleTo, collectionView != nil { invalidateLayout() } } }
+    /// 0 = the scaled pinch, 1 = `settleTo` filling the row.
+    var settleMix: CGFloat = 0 { didSet { if oldValue != settleMix, collectionView != nil { invalidateLayout() } } }
     /// Bump when the item set or aspect ratios change.
     var dataVersion = 0 { didSet { cache.removeAll() } }
     var itemCount: Int { collectionView?.numberOfItems(inSection: 0) ?? 0 }
@@ -32,7 +38,7 @@ class TileLayout: NSCollectionViewLayout {
     private var cache: [Int: TileArrangement] = [:]
     private var cacheOrder: [Int] = []
     private var cacheSignature: [CGFloat] = []
-    private var lower = 1, upper = 1
+    private var scale: CGFloat = 1
     private var blend: CGFloat = 0
 
     override func shouldInvalidateLayout(forBoundsChange newBounds: NSRect) -> Bool {
@@ -77,34 +83,34 @@ class TileLayout: NSCollectionViewLayout {
     override func prepare() {
         let sig = [availableWidth, spacing, inset, CGFloat(itemCount), CGFloat(dataVersion)] + extraSignature
         if sig != cacheSignature { cacheSignature = sig; cache.removeAll(); cacheOrder.removeAll() }
-        let live = liveColumns.map { min(max($0, 1), 400) }
-        let u = live ?? CGFloat(restColumns)
-        lower = max(1, Int(u + 1e-6))
-        blend = u - CGFloat(lower)
-        if blend < 0.002 { blend = 0 }
-        arrangementA = arrangement(lower)
-        arrangementB = blend > 0 ? arrangement(lower + 1) : nil
+        let base = zoomBase ?? restColumns
+        scale = zoomBase == nil ? 1 : zoomScale
+        blend = (settleTo != nil && zoomBase != nil) ? min(max(settleMix, 0), 1) : 0
+        arrangementA = arrangement(max(1, base))
+        arrangementB = blend > 0.001 ? settleTo.map { arrangement(max(1, $0)) } : nil
     }
 
     private func frame(_ i: Int) -> CGRect? {
         guard let a = arrangementA.frames[safe: i] else { return nil }
-        guard let b = arrangementB?.frames[safe: i] else { return a }
+        let s = CGRect(x: a.minX * scale, y: a.minY * scale, width: a.width * scale, height: a.height * scale)
+        guard let b = arrangementB?.frames[safe: i], blend > 0 else { return s }
         let p = blend
-        return CGRect(x: a.minX + (b.minX - a.minX) * p, y: a.minY + (b.minY - a.minY) * p,
-                      width: a.width + (b.width - a.width) * p, height: a.height + (b.height - a.height) * p)
+        return CGRect(x: s.minX + (b.minX - s.minX) * p, y: s.minY + (b.minY - s.minY) * p,
+                      width: s.width + (b.width - s.width) * p, height: s.height + (b.height - s.height) * p)
     }
 
     override var collectionViewContentSize: NSSize {
-        let h = arrangementA.height + ((arrangementB?.height ?? arrangementA.height) - arrangementA.height) * blend
+        let ha = arrangementA.height * scale
+        let h = ha + ((arrangementB?.height ?? ha) - ha) * blend
         return NSSize(width: collectionView?.bounds.width ?? 0, height: max(h, 0))
     }
 
     override func layoutAttributesForElements(in rect: NSRect) -> [NSCollectionViewLayoutAttributes] {
         let n = arrangementA.frames.count
         guard n > 0 else { return [] }
-        // Tops are non-decreasing in index (also after blending two such arrangements), so find the first tile that
-        // could still reach the rect, then walk until tops pass its bottom.
-        let tallest = max(arrangementA.maxTileHeight, arrangementB?.maxTileHeight ?? 0)
+        // Tops are non-decreasing in index (a uniform scale, and a blend of two such arrangements, keep that), so
+        // find the first tile that could still reach the rect, then walk until tops pass its bottom.
+        let tallest = max(arrangementA.maxTileHeight * scale, arrangementB?.maxTileHeight ?? 0)
         let reach = rect.minY - tallest
         var lo = 0, hi = n
         while lo < hi {

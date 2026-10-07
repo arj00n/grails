@@ -116,7 +116,14 @@ struct InfoBlock: View {
                 TextField("Add tag", text: $newTag)
                     .textFieldStyle(.plain)
                     .font(.grailsBody(12))
-                    .frame(width: 70)
+                    .foregroundStyle(Ink.text)
+                    .frame(width: draftWidth(newTag), alignment: .leading)
+                    .padding(.horizontal, 8)
+                    .frame(height: 22)
+                    .background {
+                        RoundedRectangle(cornerRadius: Ink.chipRadius, style: .continuous).fill(Ink.fill)
+                    }
+                    .clipped()
                     .focused($focus, equals: .tag)
                     .onSubmit { addTag() }
             }
@@ -184,6 +191,13 @@ struct InfoBlock: View {
         Task { await model.perform("Edit Note") { try await $0.setNote(text, ids: [item.id]) } }
     }
 
+    /// Width of the words being typed, so the chip grows with them and stays the same height as the tags beside it.
+    private func draftWidth(_ text: String) -> CGFloat {
+        let shown = text.isEmpty ? "Add tag" : text
+        let w = (shown as NSString).size(withAttributes: [.font: NSFont.grailsBody(12)]).width
+        return min(148, max(36, ceil(w) + 4))
+    }
+
     private func addTag() {
         let t = newTag.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "#"))
         newTag = ""
@@ -207,10 +221,16 @@ struct TagToken: View {
 
     var body: some View {
         Button(action: action) {
-            Text(label)
-                .font(.grailsBody(12))
-                .foregroundStyle(automatic && !hovering ? Ink.secondary : Ink.text)
-                .padding(.horizontal, 8).frame(height: 22)
+            HStack(spacing: 3) {
+                if automatic {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8))
+                        .accessibilityHidden(true)
+                }
+                Text(label).font(.grailsBody(12))
+            }
+            .foregroundStyle(automatic && !hovering ? Ink.secondary : Ink.text)
+            .padding(.horizontal, 8).frame(height: 22)
                 .background {
                     let shape = RoundedRectangle(cornerRadius: Ink.chipRadius, style: .continuous)
                     if automatic { shape.strokeBorder(hovering ? Ink.secondary : Ink.hairline, lineWidth: 1) }

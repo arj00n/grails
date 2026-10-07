@@ -137,6 +137,15 @@ import Testing
         #expect(HoverPreview.posterTime(duration: 60) == 1.0)
     }
 
+    @Test func sampleTimesSpreadThroughTheClip() {
+        #expect(HoverPreview.sampleTimes(duration: 0) == [0])
+        #expect(HoverPreview.sampleTimes(duration: 0.2, count: 3) == [HoverPreview.posterTime(duration: 0.2)])
+        let times = HoverPreview.sampleTimes(duration: 10, count: 3)
+        #expect(times.count == 3)
+        #expect(times[0] < times[1] && times[1] < times[2])
+        #expect(times[0] >= 0.4 && times[2] <= 9.6)
+    }
+
     @Test func fadesStayWithinTheMotionBudget() {
         #expect(HoverPreview.fadeIn <= 0.12)
         #expect(HoverPreview.fadeOut <= 0.12)

@@ -72,6 +72,28 @@ public enum ImageTagger {
         return kept
     }
 
+    /// Several frames of one video, already filtered. A tag that shows up in more frames wins; then the more confident one.
+    public static func merge(_ lists: [[TagSuggestion]], options: ImageTaggerOptions) -> [TagSuggestion] {
+        struct Acc { var tag: String; var confidence: Float; var hits: Int }
+        var best: [String: Acc] = [:]
+        for s in lists.flatMap(\.self) {
+            let key = s.tag.lowercased()
+            if var old = best[key] {
+                old.hits += 1
+                if s.confidence > old.confidence { old.confidence = s.confidence; old.tag = s.tag }
+                best[key] = old
+            } else {
+                best[key] = Acc(tag: s.tag, confidence: s.confidence, hits: 1)
+            }
+        }
+        let ranked = best.values.sorted { a, b in
+            if a.hits != b.hits { return a.hits > b.hits }
+            if a.confidence != b.confidence { return a.confidence > b.confidence }
+            return a.tag < b.tag
+        }
+        return ranked.prefix(max(0, options.maxTags)).map { TagSuggestion(tag: $0.tag, confidence: $0.confidence) }
+    }
+
     /// "blue_sky" → "blue sky": lowercase, words separated by spaces.
     public static func normalize(_ identifier: String) -> String {
         identifier.replacingOccurrences(of: "_", with: " ").trimmingCharacters(in: .whitespaces).lowercased()

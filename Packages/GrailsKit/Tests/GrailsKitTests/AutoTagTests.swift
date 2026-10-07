@@ -47,6 +47,15 @@ import Testing
         #expect(ImageTaggerOptions.sensitivity(-4) == few && ImageTaggerOptions.sensitivity(9) == many)
         #expect(ImageTagger.select(aerial, options: few).count <= ImageTagger.select(aerial, options: many).count)
     }
+
+    @Test func framesThatAgreeOutrankAOneOff() {
+        let opts = ImageTaggerOptions(maxTags: 5)
+        let a = [TagSuggestion(tag: "poster", confidence: 0.9), TagSuggestion(tag: "street", confidence: 0.6)]
+        let b = [TagSuggestion(tag: "poster", confidence: 0.7), TagSuggestion(tag: "night", confidence: 0.95)]
+        #expect(ImageTagger.merge([a, b], options: opts).map(\.tag) == ["poster", "night", "street"])
+        #expect(ImageTagger.merge([], options: opts).isEmpty)
+        #expect(ImageTagger.merge([a], options: ImageTaggerOptions(maxTags: 0)).isEmpty)
+    }
 }
 
 @Suite struct AutoTaggerTests {

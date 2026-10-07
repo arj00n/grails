@@ -39,6 +39,7 @@ final class BadgePill: NSView {
         self.text = text; self.play = play; fill = color
         invalidateIntrinsicContentSize()
         needsDisplay = true
+        superview?.needsLayout = true
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -69,6 +70,16 @@ final class TileView: NSView {
     override func updateLayer() {}
     /// A light/dark switch: layer colours don't follow by themselves.
     var onAppearanceChange: (() -> Void)?
+    /// Positions the tile's chrome. Called from `layout` so a zoom doesn't run a constraint solve per tile.
+    var place: (() -> Void)?
+    private var placing = false
+    override func layout() {
+        super.layout()
+        guard !placing else { return }
+        placing = true
+        place?()
+        placing = false
+    }
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); onAppearanceChange?() }
 
     /// A right-click lands on the tile first; let the grid build the context menu.
@@ -102,6 +113,8 @@ final class ThumbCell: NSCollectionViewItem {
     override func loadView() {
         let v = TileView()
         v.wantsLayer = true
+        v.autoresizesSubviews = false
+        v.place = { [weak self] in self?.placeChrome() }
         v.layer?.masksToBounds = true
         v.layer?.backgroundColor = NSColor.ink(.surface).cgColor
         v.layer?.contentsGravity = .resizeAspect
@@ -109,38 +122,22 @@ final class ThumbCell: NSCollectionViewItem {
         v.layer?.minificationFilter = .trilinear
         placeholder.imageScaling = .scaleProportionallyDown
         placeholder.contentTintColor = .ink(.tertiary)
-        placeholder.translatesAutoresizingMaskIntoConstraints = false
         v.addSubview(placeholder)
-        NSLayoutConstraint.activate([
-            placeholder.centerXAnchor.constraint(equalTo: v.centerXAnchor),
-            placeholder.centerYAnchor.constraint(equalTo: v.centerYAnchor),
-            placeholder.widthAnchor.constraint(equalToConstant: 28),
-            placeholder.heightAnchor.constraint(equalToConstant: 28),
-        ])
         heart.image = NSImage(systemSymbolName: "heart.fill", accessibilityDescription: "Liked")
         heart.contentTintColor = .onImage
         heart.shadow = {
             let sh = NSShadow(); sh.shadowColor = NSColor.black.withAlphaComponent(0.55); sh.shadowBlurRadius = 3; sh.shadowOffset = .zero
             return sh
         }()
-        heart.translatesAutoresizingMaskIntoConstraints = false
         heart.isHidden = true
         v.addSubview(heart)
-        NSLayoutConstraint.activate([
-            heart.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
-            heart.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
-            heart.widthAnchor.constraint(equalToConstant: 16),
-            heart.heightAnchor.constraint(equalToConstant: 16),
-        ])
         // Link cards: caption over the picture, or a big title when there's no picture
         captionBar.wantsLayer = true
         captionBar.layer?.backgroundColor = NSColor.onImageScrim.cgColor
-        captionBar.translatesAutoresizingMaskIntoConstraints = false
         captionBar.isHidden = true
         caption.font = .grailsBody(11)
         caption.textColor = .onImage
         caption.lineBreakMode = .byTruncatingTail
-        caption.translatesAutoresizingMaskIntoConstraints = false
         captionBar.addSubview(caption)
         v.addSubview(captionBar)
         titleLabel.font = .grailsDisplay(14)
@@ -148,50 +145,23 @@ final class ThumbCell: NSCollectionViewItem {
         titleLabel.alignment = .center
         titleLabel.maximumNumberOfLines = 4
         titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
         titleLabel.isHidden = true
         siteLabel.font = .grailsBody(10)
         siteLabel.textColor = .ink(.secondary)
         siteLabel.alignment = .center
-        siteLabel.translatesAutoresizingMaskIntoConstraints = false
         siteLabel.isHidden = true
         v.addSubview(titleLabel)
         v.addSubview(siteLabel)
-        badge.translatesAutoresizingMaskIntoConstraints = false
         badge.isHidden = true
         v.addSubview(badge)
         sectionLabel.font = .grailsDisplay(26)
         sectionLabel.textColor = .ink(.text)
         sectionLabel.lineBreakMode = .byTruncatingTail
-        sectionLabel.translatesAutoresizingMaskIntoConstraints = false
         sectionLabel.isHidden = true
         v.addSubview(sectionLabel)
-        NSLayoutConstraint.activate([
-            sectionLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 2),
-            sectionLabel.trailingAnchor.constraint(lessThanOrEqualTo: v.trailingAnchor),
-            sectionLabel.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -6),
-        ])
-        NSLayoutConstraint.activate([
-            captionBar.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            captionBar.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            captionBar.bottomAnchor.constraint(equalTo: v.bottomAnchor),
-            captionBar.heightAnchor.constraint(equalToConstant: 24),
-            caption.leadingAnchor.constraint(equalTo: captionBar.leadingAnchor, constant: 8),
-            caption.trailingAnchor.constraint(equalTo: captionBar.trailingAnchor, constant: -8),
-            caption.centerYAnchor.constraint(equalTo: captionBar.centerYAnchor),
-            titleLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 10),
-            titleLabel.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -10),
-            titleLabel.centerYAnchor.constraint(equalTo: v.centerYAnchor, constant: -8),
-            siteLabel.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 10),
-            siteLabel.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -10),
-            siteLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 6),
-            badge.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
-            badge.topAnchor.constraint(equalTo: v.topAnchor, constant: 8),
-        ])
         cloud.image = NSImage(systemSymbolName: "icloud.and.arrow.down", accessibilityDescription: "Not downloaded yet")
         cloud.contentTintColor = .onImage
         cloud.shadow = heart.shadow
-        cloud.translatesAutoresizingMaskIntoConstraints = false
         cloud.isHidden = true
         v.addSubview(cloud)
         avatar.font = .grailsBody(9)
@@ -199,21 +169,40 @@ final class ThumbCell: NSCollectionViewItem {
         avatar.alignment = .center
         avatar.wantsLayer = true
         avatar.layer?.cornerRadius = 9
-        avatar.translatesAutoresizingMaskIntoConstraints = false
         avatar.isHidden = true
         v.addSubview(avatar)
-        NSLayoutConstraint.activate([
-            cloud.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -8),
-            cloud.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
-            cloud.widthAnchor.constraint(equalToConstant: 16),
-            cloud.heightAnchor.constraint(equalToConstant: 16),
-            avatar.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 8),
-            avatar.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -8),
-            avatar.widthAnchor.constraint(equalToConstant: 20),
-            avatar.heightAnchor.constraint(equalToConstant: 18),
-        ])
         v.onAppearanceChange = { [weak self] in self?.restyle() }
         view = v
+    }
+
+    /// Same insets the constraints used to pin. The tile is flipped; the caption bar is not.
+    private func placeChrome() {
+        let b = view.bounds
+        placeholder.frame = NSRect(x: (b.width - 28) / 2, y: (b.height - 28) / 2, width: 28, height: 28)
+        heart.frame = NSRect(x: b.width - 24, y: 8, width: 16, height: 16)
+        if !badge.isHidden {
+            let badgeSize = badge.intrinsicContentSize
+            badge.frame = NSRect(x: 8, y: 8, width: badgeSize.width, height: badgeSize.height)
+        }
+        cloud.frame = NSRect(x: b.width - 24, y: b.height - 24, width: 16, height: 16)
+        avatar.frame = NSRect(x: 8, y: b.height - 26, width: 20, height: 18)
+        if !captionBar.isHidden {
+            captionBar.frame = NSRect(x: 0, y: b.height - 24, width: b.width, height: 24)
+            let capH = caption.intrinsicContentSize.height
+            caption.frame = NSRect(x: 8, y: (24 - capH) / 2, width: max(0, captionBar.bounds.width - 16), height: capH)
+        }
+        if !titleLabel.isHidden {
+            let w = max(0, b.width - 20)
+            let h = titleLabel.sizeThatFits(NSSize(width: w, height: 800)).height
+            titleLabel.frame = NSRect(x: 10, y: b.midY - 8 - h / 2, width: w, height: h)
+            let sh = siteLabel.intrinsicContentSize.height
+            siteLabel.frame = NSRect(x: 10, y: titleLabel.frame.maxY + 6, width: w, height: sh)
+        }
+        if !sectionLabel.isHidden {
+            let s = sectionLabel.intrinsicContentSize
+            let w = min(max(s.width, 0), max(0, b.width - 2))
+            sectionLabel.frame = NSRect(x: 2, y: b.height - 6 - s.height, width: w, height: s.height)
+        }
     }
 
     private func restyle() {
@@ -265,6 +254,7 @@ final class ThumbCell: NSCollectionViewItem {
         sectionLabel.attributedStringValue = text
         sectionLabel.isHidden = false
         (view as? TileView)?.axLabel = "Cluster: \(untitled ? "Untitled" : s.name)"
+        view.needsLayout = true
     }
 
     func configure(_ s: ItemSummary, loader: ThumbnailLoader, layout: LibraryLayout, original: URL?, cornerRadius: CGFloat, gravity: CALayerContentsGravity, scale: CGFloat, cloudOnly: Bool = false, showAddedBy: Bool = false) {
@@ -308,6 +298,7 @@ final class ThumbCell: NSCollectionViewItem {
             view.layer?.contents = nil
             placeholder.isHidden = true
             applySelection()
+            view.needsLayout = true
             return
         }
         let variant = isLink ? mode : ""
@@ -325,6 +316,7 @@ final class ThumbCell: NSCollectionViewItem {
             self.show(image)
         }
         applySelection()
+        view.needsLayout = true
     }
 
     /// After the tile changed size: fetch a sharper picture and swap it in, leaving the current one up until it arrives.

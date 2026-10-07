@@ -39,6 +39,18 @@ public enum HoverPreview {
         guard duration.isFinite, duration > 0 else { return 0 }
         return min(duration * 0.2, 1.0)
     }
+
+    /// A few frames spread through a clip, clear of the fade at each end. A very short clip is just the poster.
+    public static func sampleTimes(duration: Double, count: Int = 3) -> [Double] {
+        guard count > 0 else { return [] }
+        guard duration.isFinite, duration > 0.4 else { return [posterTime(duration: duration)] }
+        if count == 1 { return [posterTime(duration: duration)] }
+        let inset = min(duration * 0.12, 0.5)
+        let start = inset
+        let end = duration - inset
+        guard end > start else { return [posterTime(duration: duration)] }
+        return (0..<count).map { i in start + (end - start) * Double(i) / Double(count - 1) }
+    }
 }
 
 /// The dwell and cancel rules for one pointer over many tiles. Feed it pointer moves, ticks and cancels; it answers with what

@@ -44,15 +44,31 @@ struct FlowLayout: Layout {
     }
 
     private func arrange(width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
-        var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0, maxX: CGFloat = 0
-        var origins: [CGPoint] = []
+        var rows: [[CGSize]] = []
+        var row: [CGSize] = []
+        var x: CGFloat = 0
         for s in subviews {
             let sz = s.sizeThatFits(.unspecified)
-            if x > 0, x + sz.width > width { x = 0; y += rowH + spacing; rowH = 0 }
-            origins.append(CGPoint(x: x, y: y))
-            x += sz.width + spacing; rowH = max(rowH, sz.height); maxX = max(maxX, x - spacing)
+            if !row.isEmpty, x + sz.width > width { rows.append(row); row = []; x = 0 }
+            row.append(sz)
+            x += sz.width + spacing
         }
-        return (CGSize(width: maxX, height: y + rowH), origins)
+        if !row.isEmpty { rows.append(row) }
+        var origins: [CGPoint] = []
+        var y: CGFloat = 0
+        var maxX: CGFloat = 0
+        for (r, row) in rows.enumerated() {
+            let rowH = row.map(\.height).max() ?? 0
+            var x: CGFloat = 0
+            for sz in row {
+                origins.append(CGPoint(x: x, y: y + (rowH - sz.height) / 2))
+                x += sz.width + spacing
+            }
+            maxX = max(maxX, x - spacing)
+            y += rowH
+            if r < rows.count - 1 { y += spacing }
+        }
+        return (CGSize(width: max(0, maxX), height: y), origins)
     }
 }
 

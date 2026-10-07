@@ -66,6 +66,28 @@ public enum Thumbnailer {
         return VideoInfo(width: w, height: h, durationSec: duration, poster: frame.flatMap { encodeJPEG(flattened($0)) })
     }
 
+    /// A few JPEGs through a video, so tagging sees more than the poster. Empty when the file has no video track.
+    /// Runs synchronously: call it off the main thread.
+    @available(macOS, deprecated: 15.0, message: "synchronous AVFoundation reads are fine here: this runs on a background task")
+    public static func stillJPEGs(at url: URL, count: Int = 3, maxPixel: Int = Thumbnailer.maxPixel) -> [Data] {
+        let asset = AVURLAsset(url: url)
+        guard asset.tracks(withMediaType: .video).first != nil else { return [] }
+        let seconds = CMTimeGetSeconds(asset.duration)
+        let times = HoverPreview.sampleTimes(duration: seconds.isFinite ? seconds : 0, count: count)
+        let gen = AVAssetImageGenerator(asset: asset)
+        gen.appliesPreferredTrackTransform = true
+        gen.maximumSize = CGSize(width: maxPixel, height: maxPixel)
+        gen.requestedTimeToleranceBefore = CMTime(seconds: 0.2, preferredTimescale: 600)
+        gen.requestedTimeToleranceAfter = CMTime(seconds: 0.2, preferredTimescale: 600)
+        var out: [Data] = []
+        for t in times {
+            guard let frame = try? gen.copyCGImage(at: CMTime(seconds: t, preferredTimescale: 600), actualTime: nil),
+                  let jpeg = encodeJPEG(flattened(frame)) else { continue }
+            out.append(jpeg)
+        }
+        return out
+    }
+
     /// JPEG thumbnail (long edge `maxPixel`). Transparent images are flattened onto white.
     public static func jpegThumbnail(for url: URL, maxPixel: Int = Thumbnailer.maxPixel, quality: Double = 0.8) -> Data? {
         guard let src = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }

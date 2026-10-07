@@ -145,13 +145,25 @@ public actor AutoTagger {
     func tagOne(_ id: String, force: Bool) async -> Outcome {
         guard let item = try? await store.item(id: id), item.deletedAt == nil else { return .skipped }
         if !force, item.isAutoTagged, item.autoTagModel == modelName || upgradeTarget == nil { return .nothingFound }
-        guard let source = pictureURL(for: item) else { return .skipped }
+        let sources = await frameURLs(for: item)
+        guard !sources.urls.isEmpty else { return .skipped }
+        defer { if let dir = sources.cleanup { try? FileManager.default.removeItem(at: dir) } }
         var options = self.options
         options.denylist.formUnion(ignored)          // learned noise doesn't take up one of the tag slots
         let classify = self.classify
         // Vision work happens off the actor so reads and writes on the library stay responsive.
         let result: Result<[TagSuggestion], Error> = await Task.detached(priority: .utility) {
-            do { return .success(try await classify(source, options)) } catch { return .failure(error) }
+            var lists: [[TagSuggestion]] = []
+            var lastError: Error?
+            for url in sources.urls {
+                do {
+                    let tags = try await classify(url, options)
+                    if !tags.isEmpty { lists.append(tags) }
+                } catch { lastError = error }
+            }
+            if lists.isEmpty { return lastError.map { .failure($0) } ?? .success([]) }
+            if lists.count == 1 { return .success(lists[0]) }
+            return .success(ImageTagger.merge(lists, options: options))
         }.value
         guard case .success(let raw) = result else { return .failed }
         // "posters" when the library already says "poster": write it the way the library does
@@ -165,6 +177,37 @@ public actor AutoTagger {
             for s in suggestions { vocabulary.add(s.tag) }
             return added > 0 ? .tagged(added) : .nothingFound
         } catch { return .failed }
+    }
+
+    /// A video with a local original is tagged from a few frames. Everything else is the one thumbnail (or the original).
+    private func frameURLs(for item: Item) async -> (urls: [URL], cleanup: URL?) {
+        if item.kind == .video, let original = localOriginal(item) {
+            let jpegs = await Task.detached(priority: .utility) { Thumbnailer.stillJPEGs(at: original) }.value
+            if !jpegs.isEmpty, let written = writeFrames(jpegs) { return written }
+        }
+        if let one = pictureURL(for: item) { return ([one], nil) }
+        return ([], nil)
+    }
+
+    private func localOriginal(_ item: Item) -> URL? {
+        guard let file = item.file else { return nil }
+        let original = store.layout.itemDir(item.id).appendingPathComponent(file)
+        guard FileManager.default.fileExists(atPath: original.path), FileAvailability.of(original) == .local else { return nil }
+        return original
+    }
+
+    private func writeFrames(_ jpegs: [Data]) -> (urls: [URL], cleanup: URL)? {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("grails-frames-\(UUID().uuidString)", isDirectory: true)
+        guard (try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)) != nil else { return nil }
+        let urls = jpegs.enumerated().compactMap { i, data -> URL? in
+            let url = dir.appendingPathComponent("\(i).jpg")
+            return (try? data.write(to: url, options: .atomic)) == nil ? nil : url
+        }
+        guard !urls.isEmpty else {
+            try? FileManager.default.removeItem(at: dir)
+            return nil
+        }
+        return (urls, dir)
     }
 
     /// The small shared thumbnail is plenty for classification and is always local, even when originals are streamed.
