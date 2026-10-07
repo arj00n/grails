@@ -261,6 +261,8 @@ final class AppModel {
 
     // Team: libraries, watching, who added what
     var needsLibrary = false
+    /// An invite that arrived on Hello. Get Started opens it; until then the painting stays up.
+    var pendingInvite: GrailsLink?
     /// First-run onboarding, while it is on screen.
     var onboarding: OnboardingModel?
     /// Team libraries: set-up, the invite checklist, and the screen for an invite whose library isn't on this Mac (Collab/).

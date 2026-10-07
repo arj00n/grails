@@ -76,18 +76,26 @@ extension AppModel {
         }
     }
 
-    func openLink(_ link: GrailsLink) async {
+    func openLink(_ link: GrailsLink, fromHello: Bool = false) async {
         // a link can arrive while the app is still opening its library
         for _ in 0..<50 where store == nil && !needsLibrary { try? await Task.sleep(for: .milliseconds(100)) }
+        if !fromHello, onboarding?.step == .hello {
+            pendingInvite = link
+            return
+        }
         if link.library != libraryID {
             if let w = workspaces.first(where: { $0.id == link.library }), w.exists {
                 await openOrCreate(at: w.url)
             } else {
                 // looks in every synced folder, then says why it can't find it (Collab/JoinFlow.swift); the folder picker is its way out
-                guard await findOrExplain(link) else { return }
+                guard await findOrExplain(link) else {
+                    if fromHello { pendingInvite = link }
+                    return
+                }
             }
         }
         navigate(to: link)
+        if fromHello { onboarding?.finish() }
     }
 
     func switchWorkspace(_ w: Workspace) {

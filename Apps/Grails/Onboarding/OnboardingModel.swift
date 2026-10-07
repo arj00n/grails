@@ -118,8 +118,14 @@ final class OnboardingModel {
     /// The folder a library was just made in by this run (nil if it was already there).
     @ObservationIgnored private var freshRoot: URL?
 
-    /// Hello → Choose: 240 ms, the painting fades out and the two options fade in, with the name staying where it is.
-    func start() { scan(); go(.choose, duration: 0.24) }
+    /// Hello → Choose, unless an invite is waiting: then Get Started opens that library's setup and skips Choose.
+    func start() {
+        guard let app, let link = app.pendingInvite else { scan(); go(.choose, duration: 0.24); return }
+        app.pendingInvite = nil
+        defaults.set(Handle.normalize(handle), forKey: "userHandle")
+        state.handle = Handle.normalize(handle)
+        Task { await app.openLink(link, fromHello: true) }
+    }
 
     /// What the person picks on Choose.
     func importBoards(paste: String? = nil) {
