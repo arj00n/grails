@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="popup.css"><title>Grails</title></head>
+<body>
+  <header>
+    <h1>GRAILS</h1>
+    <span id="status"><span id="dot" class="dot warn"></span><span id="statusText">Checking</span></span>
+  </header>
+
+  <section id="connect" hidden>
+    <p id="connectText"></p>
+    <button id="connectButton" class="primary">Connect</button>
+  </section>
+
+  <section id="actions" hidden>
+    <button id="savePage" class="primary">Save this page</button>
+    <label class="row"><span>to</span><select id="collection"><option value="">Inbox</option></select></label>
+    <div id="board" hidden>
+      <button id="importBoard">Import this Pinterest board</button>
+    </div>
+    <h2>RECENTLY SAVED</h2>
+    <ul id="recent"></ul>
+  </section>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

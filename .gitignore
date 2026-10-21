@@ -1,0 +1,24 @@
+*.xcodeproj
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+.DS_Store
+*.dmg
+/build/
+dist/
+
+# website: the downloads are deployed, not committed
+site/download/*.dmg
+site/download/*.zip
+.build-collab/
+.claude/worktrees/
+
+# Sparkle's private EdDSA key lives in ~/Library/Application Support/Grails-release/, never here
+*.key
+sparkle_ed25519_private*
+icon-preview/
+node_modules/
+
+# per-machine build settings for forks (see Config/Local.xcconfig.example)
+Config/Local.xcconfig

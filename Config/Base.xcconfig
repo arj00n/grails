@@ -1,0 +1,22 @@
+// Build settings that say whose Grails this is. The values here are the official build's.
+// A fork copies Local.xcconfig.example to Local.xcconfig (gitignored) and overrides what it needs there.
+// In an xcconfig `//` starts a comment, so URLs are written `https:/$()/host`.
+
+// Bundle ids, type ids, the URL type and the keychain service all start with this.
+GRAILS_BUNDLE_PREFIX = xyz.arjoon
+
+// The site: the short-invite relay (/api/invite, /i/<id>), the link page (/open) and the install link in invites.
+// Empty: no relay, invites stay long grails:// links, copied links stay grails://.
+GRAILS_SITE_URL = https:/$()/grails.arjoon.xyz
+
+// Sparkle. An empty feed URL or key leaves the updater off.
+GRAILS_SPARKLE_FEED_URL = $(GRAILS_SITE_URL)/appcast.xml
+GRAILS_SPARKLE_PUBLIC_KEY = /4dorZV2EzPZZOFitvANmGhVsMO+SjyjXjt563um8P0=
+
+// Where Send Feedback… addresses its mail. Empty: the mail opens with no recipient.
+GRAILS_FEEDBACK_EMAIL = hi@arjoon.xyz
+
+// Signing. Builds are ad-hoc signed by default; set your team in Local.xcconfig to sign with your own certificate.
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

@@ -1,0 +1,8 @@
+---
+description: Grails design system. Read it before UI work.
+alwaysApply: true
+---
+
+Read `docs/DESIGN_SYSTEM.md` before adding or changing UI.
+
+Use GrailsDesign. Do not add a one-off button style, a raw `Button` or `TextField`, a system font, or a colour literal in `Apps/Grails`. `Scripts/check-design-rules.sh` fails the build when those show up. A system alert is the exception. SwiftUI only accepts `Button` there, and the line is marked `// system dialog`.

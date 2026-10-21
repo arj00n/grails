@@ -1,0 +1,127 @@
+name: Grails
+options:
+  bundleIdPrefix: $(GRAILS_BUNDLE_PREFIX)
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  fileTypes:
+    icon: folder.iconcomposer.icon
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+settings:
+  base:
+    MARKETING_VERSION: "0.3.11"
+    CURRENT_PROJECT_VERSION: "14"
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+packages:
+  GrailsKit:
+    path: Packages/GrailsKit
+  GrailsSync:
+    path: Packages/GrailsSync
+  GrailsEndpoints:
+    path: Packages/GrailsEndpoints
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    from: 2.10.0
+targets:
+  Grails:
+    type: application
+    platform: macOS
+    sources:
+      - path: Apps/Grails
+        excludes:
+          - Resources/Paintings/**
+      - path: Extensions/chrome
+        type: folder
+        buildPhase: resources
+      - path: Apps/Grails/Resources/Paintings
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: GrailsKit
+      - package: GrailsKit
+        product: GrailsDesign
+      - package: GrailsSync
+      - package: GrailsEndpoints
+      - package: Sparkle
+    info:
+      path: Config/Grails-Info.plist
+      properties:
+        CFBundleDisplayName: Grails
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        LSApplicationCategoryType: public.app-category.graphics-design
+        NSHumanReadableCopyright: MIT licensed
+        NSMicrophoneUsageDescription: Grails uses the microphone for a spoken note.
+        NSSpeechRecognitionUsageDescription: Grails transcribes a voice note on this Mac.
+        LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        GrailsSiteURL: $(GRAILS_SITE_URL)
+        GrailsFeedbackEmail: $(GRAILS_FEEDBACK_EMAIL)
+        SUFeedURL: $(GRAILS_SPARKLE_FEED_URL)
+        SUPublicEDKey: $(GRAILS_SPARKLE_PUBLIC_KEY)
+        SUEnableAutomaticChecks: true
+        SUScheduledCheckInterval: 86400
+        SUAllowsAutomaticUpdates: false
+        CFBundleURLTypes:
+          - CFBundleURLName: $(GRAILS_BUNDLE_PREFIX).grails
+            CFBundleURLSchemes: [grails, stash]
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Grails Library
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Owner
+            LSTypeIsPackage: true
+            LSItemContentTypes: [$(GRAILS_BUNDLE_PREFIX).grails.library]
+        UTExportedTypeDeclarations:
+          - UTTypeIdentifier: $(GRAILS_BUNDLE_PREFIX).grails.library
+            UTTypeDescription: Grails Library
+            UTTypeConformsTo: [com.apple.package]
+            UTTypeTagSpecification:
+              public.filename-extension: [grails, stash]
+          - UTTypeIdentifier: $(GRAILS_BUNDLE_PREFIX).grails.items
+            UTTypeDescription: Grails Items
+            UTTypeConformsTo: [public.data]
+          - UTTypeIdentifier: $(GRAILS_BUNDLE_PREFIX).grails.collection
+            UTTypeDescription: Grails Collection
+            UTTypeConformsTo: [public.data]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(GRAILS_BUNDLE_PREFIX).grails
+        PRODUCT_NAME: Grails
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ENABLE_HARDENED_RUNTIME: YES
+  GrailsCLI:
+    type: tool
+    platform: macOS
+    sources: [Apps/GrailsCLI]
+    dependencies:
+      - package: GrailsKit
+    settings:
+      base:
+        PRODUCT_NAME: grails
+        CODE_SIGN_IDENTITY: "-"
+  GrailsUITests:
+    type: bundle.ui-testing
+    platform: macOS
+    sources: [Apps/GrailsUITests]
+    dependencies:
+      - target: Grails
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_IDENTITY: "-"
+schemes:
+  Grails:
+    build:
+      targets:
+        Grails: all
+        GrailsCLI: all
+    test:
+      targets: [GrailsUITests]

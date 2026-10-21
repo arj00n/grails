@@ -1,0 +1,1521 @@
+import AppKit
+import Observation
+import GrailsDesign
+import GrailsKit
+import GrailsSync
+import UniformTypeIdentifiers
+
+enum Source: Hashable {
+    case inbox, all, liked, untagged, trash, mentions
+    case collection(String)
+    case smart(String)
+    case tag(String)
+}
+
+/// A cluster note that names you. Shown above For you.
+struct MentionCluster: Identifiable, Equatable {
+    var board: String
+    var id: String
+    var title: String
+}
+
+enum GridLayoutMode: String, CaseIterable, Identifiable {
+    case square, masonry
+    var id: String { rawValue }
+    var label: String { self == .square ? "Square" : "Masonry" }
+    var symbol: String { self == .square ? "square.grid.2x2" : "rectangle.3.group" }
+}
+
+/// Tile size is continuous: pinch or ⌘-scroll scales it smoothly, then it settles so tiles fill each row.
+enum Zoom {
+    static let minWidth: CGFloat = 56
+    static let maxWidth: CGFloat = 720
+    static let defaultWidth: CGFloat = 190
+    static func clamp(_ w: CGFloat) -> CGFloat { min(max(w, minWidth), maxWidth) }
+}
+
+enum ViewMode: String, CaseIterable, Identifiable {
+    case grid, canvas
+    var id: String { rawValue }
+    var label: String { self == .grid ? "Grid" : "Canvas" }
+    var symbol: String { self == .grid ? "square.grid.2x2" : "rectangle.on.rectangle.angled" }
+}
+
+enum SortChoice: String, CaseIterable, Identifiable {
+    case newest, oldest, nameAZ, nameZA, largest, random
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .newest: "Newest first"
+        case .oldest: "Oldest first"
+        case .nameAZ: "Name (A–Z)"
+        case .nameZA: "Name (Z–A)"
+        case .largest: "Largest first"
+        case .random: "Random"
+        }
+    }
+    var itemSort: ItemSort {
+        switch self {
+        case .newest, .random: .addedDesc
+        case .oldest: .addedAsc
+        case .nameAZ: .nameAsc
+        case .nameZA: .nameDesc
+        case .largest: .sizeDesc
+        }
+    }
+}
+
+struct ViewFilters: Equatable {
+    var images = false, videos = false, gifs = false, square = false, liked = false
+    var color: NamedColor?
+    var isActive: Bool { images || videos || gifs || square || liked || color != nil }
+    var kinds: Set<ItemKind> {
+        var k: Set<ItemKind> = []
+        if images { k.formUnion([.image, .raw, .svg, .vector]) }
+        if videos { k.insert(.video) }
+        if gifs { k.insert(.gif) }
+        return k
+    }
+}
+
+struct CanvasRequest: Equatable {
+    enum Kind: Equatable { case fit, fitSelection, zoom(CGFloat), reveal([String]), groupSelection, tidyClusters }
+    let id = UUID()
+    var kind: Kind
+}
+
+enum Panel: Equatable { case commandK, tags, move, note }
+
+struct PromptRequest: Identifiable {
+    let id = UUID()
+    var title: String
+    var message: String = ""
+    var placeholder: String = ""
+    var initial: String = ""
+    var confirmTitle: String = "OK"
+    var onSubmit: @MainActor (String) -> Void
+}
+
+struct ConfirmRequest: Identifiable {
+    let id = UUID()
+    var title: String
+    var message: String
+    var confirmTitle: String
+    var destructive = true
+    var onConfirm: @MainActor () -> Void
+}
+
+struct SmartEditorState: Identifiable {
+    let id = UUID()
+    var existingId: String?
+    var name = "Untitled smart folder"
+    var match = "all"
+    var rules: [SmartRule] = [SmartRule(field: "kind", op: "is", value: "image")]
+}
+
+@MainActor @Observable
+final class AppModel {
+    var store: LibraryStore?
+    var layout: LibraryLayout?
+    var libraryName = "Grails"
+
+    var source: Source = .all {
+        didSet {
+            guard oldValue != source else { return }
+            similarOrder = nil
+            if !restoringHistory { pushHistory(ViewSnapshot(source: oldValue, addedBy: addedByFilter)) }
+            scrollResetTick += 1
+            selection = []
+            if !searchText.isEmpty { searchText = "" } else { reloadSoon() }
+        }
+    }
+    private(set) var items: [ItemSummary] = []
+    /// False while the items on screen still belong to the previous view. An empty screen waits for this, so switching
+    /// off an empty board doesn't flash "Empty" before All's pictures arrive.
+    private(set) var itemsReady = false
+    /// Views you came from, newest last, for Back.
+    @ObservationIgnored var viewHistory: [ViewSnapshot] = []
+    @ObservationIgnored var restoringHistory = false
+    var canGoBack: Bool { !viewHistory.isEmpty }
+    /// Bumped on every reload so the grid can skip O(n) diffing.
+    private(set) var itemsVersion = 0
+    var selection: Set<String> = [] {
+        didSet {
+            guard oldValue != selection, !contextMenuSelection else { return }
+            infoPanel.selectionChanged(wasShown: showInfo, contextMenu: false, inFullscreen: previewClosing || previewID != nil)
+        }
+    }
+    /// True while a context menu is writing the selection, so that write does not open the info panel.
+    @ObservationIgnored private var contextMenuSelection = false
+    @ObservationIgnored private var contextMenuGeneration = 0
+    private(set) var collections: [GrailsCollection] = []
+    private(set) var smartFolders: [SmartFolder] = []
+    private(set) var tags: [(tag: String, count: Int)] = []
+    /// Tags on the items in the current view, with how many of them have each: what the tab strip offers.
+    private(set) var viewTags: [(tag: String, count: Int)] = []
+    /// How many items that view has before the strip narrows it.
+    private(set) var viewBaseCount = 0
+    /// lowercased tag → "#RRGGBB"
+    private(set) var tagColors: [String: String] = [:]
+    private(set) var totalCount = 0
+
+    var searchText = "" {
+        didSet {
+            guard oldValue != searchText else { return }
+            if !searchText.isEmpty { similarOrder = nil }
+            scrollResetTick += 1
+            reloadSoon()
+        }
+    }
+    var similarOrder: [String]?
+    var filters = ViewFilters() { didSet { if oldValue != filters { scrollResetTick += 1; reloadSoon() } } }
+    /// Tags narrowing the current view (the tab strip): a view of "poster" inside the open collection, say.
+    var stripTags: [String] = [] { didSet { if oldValue != stripTags { scrollResetTick += 1; reloadSoon() } } }
+    /// Tags pinned to the strip, per library.
+    var pinnedTags: [String] = []
+    var sort: SortChoice = .newest { didSet { if oldValue != sort { scrollResetTick += 1; reloadSoon() } } }
+    private var shuffleSeed: UInt64 = 1
+
+    /// Which surface would show the info panel: never the grid (it only moves the highlight), the canvas while something is
+    /// selected, fullscreen by its own remembered choice. See `InfoPanelState`.
+    var infoPanel = InfoPanelState()
+    /// The library's panel. Hiding the sidebar hides every panel with it.
+    var showInfo: Bool {
+        previewID == nil && infoPanel.isOpen(on: viewMode == .canvas ? .canvas : .grid, hasSelection: !selection.isEmpty, sidebarVisible: sidebarVisible)
+    }
+    /// Fullscreen's details column.
+    var showPreviewInfo: Bool { infoPanel.isOpen(on: .fullscreen, hasSelection: previewID != nil, sidebarVisible: sidebarVisible) }
+    /// True from the start of the flight back to a tile until the grid has applied that close.
+    var previewClosing = false
+    var previewCloseGeneration = 0
+
+    /// Selects `ids` as the context menu's target. The info panel stays as it was: a closed panel stays closed, an open panel stays open.
+    func selectForContextMenu(_ ids: Set<String>) {
+        let wasShown = showInfo
+        contextMenuSelection = true
+        selection = ids
+        contextMenuSelection = false
+        infoPanel.selectionChanged(wasShown: wasShown, contextMenu: true, inFullscreen: false)
+        contextMenuGeneration += 1
+        let generation = contextMenuGeneration
+        Task { @MainActor [weak self] in
+            guard let self, contextMenuGeneration == generation else { return }
+            infoPanel.endContextMenuGesture()
+        }
+    }
+    /// One-shot commands for the canvas (fit, arrange, zoom); the canvas runs each request once.
+    var canvasRequest: CanvasRequest?
+    /// ⌘+ / ⌘− in the grid: one column fewer or more, animated.
+    var gridZoomTick = 0
+    @ObservationIgnored private var pendingColumnDelta = 0
+    /// Total column steps requested since the last call (rapid presses arrive in one update).
+    func takeColumnDelta() -> Int { defer { pendingColumnDelta = 0 }; return pendingColumnDelta }
+    var previewID: String?
+    /// The items the preview pages through (see PreviewSet): fixed when it opens.
+    var previewSet: PreviewSet?
+    var previewSetVersion = 0
+    var workspaceMenuOpen = false
+    var importPanelOpen = false
+    var feedbackOpen = false
+    var designGallery = false
+    /// Right out of onboarding: the tiles settle in, then this welcome card.
+    var welcome: WelcomeRequest?
+    var settleTick = 0
+    /// A browser extension asking to be paired (answered with Allow).
+    var pairRequest: PairingBroker.Request?
+    @ObservationIgnored var lastImportReload = Date.distantPast
+    /// The library has been reloaded onto the first board's collection after an import (onboarding fades into it only then).
+    var importLandingReady = true
+    /// How a page is opened in the browser; the demo swaps it for a recorder.
+    @ObservationIgnored var browserOpener: (String) -> Void = { if let u = URL(string: $0) { NSWorkspace.shared.open(u) } }
+    /// The "Add the extension" sheet, and the floating guide that lists the exact steps while the person is in the browser.
+    let extensionSetup = ExtensionSetup()
+    let guide = GuideModel()
+    @ObservationIgnored lazy var guidePanel = GuidePanelController(model: guide)
+    var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")
+    let importModel = ImportModel()
+    @ObservationIgnored var hiddenPanels: Bool?
+    /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
+    /// flies to or from the preview. Set by whichever of the grid and canvas is showing.
+    @ObservationIgnored var tileGeometry: TileGeometry?
+    var panel: Panel?
+    var prompt: PromptRequest?
+    var confirm: ConfirmRequest?
+    var smartEditor: SmartEditorState?
+    var workspaceDraft: WorkspaceDraft?
+    var showTeamHome = false
+    var showBucketInvite = false
+    var showMigrateSheet = false
+    var showReconnect = false
+    var teamHomeNext: TeamHomeNext?
+
+    var libraryPlace: LibraryPlace { collab.libraryPlace }
+    var toast: String?
+    /// Grid asks for keyboard focus whenever this changes.
+    private(set) var focusGridTick = 0
+    var searchFocusTick = 0
+    var errorMessage: String?
+    var importProgress: (done: Int, total: Int)?
+    var autoTagProgress: (done: Int, total: Int)?
+    var focusSearchTick = 0
+    /// Remembers a UI preference, except in dev and test runs (GRAILS_LIBRARY): those share this app's preferences with the
+    /// installed copy, and a test that switches to the canvas must not leave the real app opening on the canvas.
+    static func remember(_ value: Any, _ key: String) {
+        guard ProcessInfo.processInfo.environment["GRAILS_LIBRARY"] == nil else { return }
+        UserDefaults.standard.set(value, forKey: key)
+    }
+    var sidebarVisible: Bool = UserDefaults.standard.object(forKey: "sidebar.visible") == nil || UserDefaults.standard.bool(forKey: "sidebar.visible") {
+        didSet { Self.remember(sidebarVisible, "sidebar.visible") }
+    }
+    /// A board import in progress: what it's doing, and how far (total 0 = still reading the board).
+    var boardImport: (label: String, done: Int, total: Int)?
+    @ObservationIgnored var boardImportTask: Task<Void, Never>?
+    /// Tags auto-tagging has learned not to suggest in this library (too common to be useful).
+    var autoTagSkipped: [String] = []
+    @ObservationIgnored var autoTagTask: Task<Void, Never>?
+    @ObservationIgnored var visionTask: Task<Void, Never>?
+    @ObservationIgnored var autoTagGeneration = 0
+    @ObservationIgnored var autoTagSeenTotal = -1
+    var renameProgress: (done: Int, total: Int)?
+
+    private(set) var undoStack: [ChangeSet] = []
+    private(set) var redoStack: [ChangeSet] = []
+    var undoTitle: String? { undoStack.last.map { "Undo \($0.label)" } }
+    var redoTitle: String? { redoStack.last.map { "Redo \($0.label)" } }
+
+    /// Persisted tile width for the grid (the grid writes it back after a zoom gesture settles).
+    var tileWidth: CGFloat { didSet { Self.remember(Double(tileWidth), "tileWidth") } }
+    /// Grid tile shape: squares, or each image's own proportions.
+    var layoutMode: GridLayoutMode { didSet { Self.remember(layoutMode.rawValue, "layoutMode") } }
+    var viewMode: ViewMode { didSet { Self.remember(viewMode.rawValue, "viewMode"); if viewMode == .canvas { Task { await syncCanvas() } } } }
+
+    private var reloadTask: Task<Void, Never>?
+    /// Reloads can overlap (an undoable action's reload vs one triggered by typing in search); only the newest may apply.
+    private var reloadGeneration = 0
+    /// `scrollResetTick` last applied: the page the items on screen belong to. A view change (not a refresh of the view you're
+    /// already on) reveals the first screen early, and the grid swaps pages when this changes with the items.
+    private(set) var shownScrollTick = -1
+    /// The source the items on screen came from. Chrome that changes the content's inset (the tag strip, the mention bar)
+    /// follows this, not `source`, so it changes in the same pass as the page instead of moving the previous page first.
+    private(set) var shownSource: Source = .all
+    private var toastTask: Task<Void, Never>?
+    // Canvas: free-form boards (see CanvasModel.swift)
+    @ObservationIgnored var canvasClusters: [CanvasCluster] = []
+    /// Set by the canvas: starts editing a cluster's name in place.
+    @ObservationIgnored var beginClusterRename: ((String) -> Void)?
+    /// The grid's titled sections (one per canvas cluster), or nil when the view shows a plain flat grid.
+    var gridSections: [GridSection]?
+    var sectionsVersion = 0
+    @ObservationIgnored var sectionClusters: [CanvasCluster] = []
+    @ObservationIgnored var sectionKey: String?
+    /// Bumped when the grid-of-record for the canvas changes from outside the canvas (board loaded, undo, teammate, arrange).
+    private(set) var canvasVersion = 0
+    @ObservationIgnored var canvasLoadedKey: String?
+
+    // Team: libraries, watching, who added what
+    var needsLibrary = false
+    /// An invite that arrived on Hello. Get Started opens it; until then the painting stays up.
+    var pendingInvite: GrailsLink?
+    /// True until `openInitialLibrary` has opened a library or put first-run onboarding on screen.
+    var libraryChoicePending = true
+    /// A bucket invite that arrived before that choice. Cold launch must not drop it.
+    var heldLaunchJoin: JoinLink?
+    /// The person opened the app to join. Choose leads with that card.
+    var launchedToJoin = false
+    /// First-run onboarding, while it is on screen.
+    var onboarding: OnboardingModel?
+    /// Team libraries: set-up, the invite checklist, and the screen for an invite whose library isn't on this Mac (Collab/).
+    @ObservationIgnored lazy var collab = CollabModel(app: self)
+    @ObservationIgnored private var repairingIndex = false
+    @ObservationIgnored var activationObserver: NSObjectProtocol?
+    @ObservationIgnored var lastActivationScan = Date.distantPast
+    private(set) var workspaces: [Workspace] = Workspaces.load()
+    /// The open library's own id (the same on every Mac), used in `grails://` links.
+    private(set) var libraryID = ""
+    private(set) var contributors: [(who: String, count: Int)] = []
+    /// Stable member id for this Mac. New items, notes, and edits store this, not the display name.
+    var memberId = ""
+    /// The name to show for a member id, an email, or an old handle.
+    func personName(_ token: String) -> String {
+        guard let layout else { return token }
+        if let team = bucket.team, TeamEmail.normalize(token) == TeamEmail.normalize(team.ownerEmail),
+           let profile = Members.profiles(in: layout).first(where: { $0.id == team.ownerPublicKey }) {
+            let stored = profile.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !stored.isEmpty { return stored }
+        }
+        return Members.displayName(for: token, in: layout)
+    }
+
+    /// Points new writes at the stable member id and shows the profile name. Items and notes stay as they are.
+    func bindIdentity() async {
+        guard let store, let layout else { return }
+        let profiles = Members.profiles(in: layout)
+        let ownerKey = bucket.team?.ownerPublicKey
+        let mine = profiles.first { !$0.id.isEmpty && ownerKey != nil && $0.id == ownerKey }
+            ?? Members.profile(matching: userHandle, in: layout)
+            ?? (profiles.count == 1 ? profiles[0] : nil)
+        guard let mine, !mine.id.isEmpty else { return }
+        memberId = mine.id
+        if let name = DisplayName.normalized(mine.name) { rememberUserHandle(name) }
+        await store.setUserHandle(mine.id)
+    }
+    /// Clusters that have a note, so the section title can show it.
+    private(set) var notedClusters: Set<String> = []
+    /// Notes that mention you and that you have not opened.
+    private(set) var forYouUnread = 0
+    /// Cluster notes that mention you.
+    private(set) var mentionClusters: [MentionCluster] = []
+    /// What the note panel is about. Nil follows the current selection.
+    var noteTarget: NoteTarget?
+    enum NoteTarget: Equatable {
+        case selection
+        case cluster(board: String, id: String, title: String)
+    }
+    var addedByFilter: String? { didSet { if oldValue != addedByFilter { scrollResetTick += 1; reloadSoon() } } }
+    /// Bumped when the visible set changes meaning (new view, filter, search) so the grid jumps to the top; plain data
+    /// refreshes (a teammate's save arriving) keep the scroll position.
+    private(set) var scrollResetTick = 0
+    var bucket = BucketController()
+    @ObservationIgnored var watcher: LibraryWatcher?
+    @ObservationIgnored var pendingPaths = Set<String>()
+    @ObservationIgnored var watchTask: Task<Void, Never>?
+    @ObservationIgnored var rescanLoop: Task<Void, Never>?
+
+    // Capture: paste, menu bar, browser extension
+    @ObservationIgnored var captureService: LibraryCaptureService?
+    @ObservationIgnored var apiServer: LocalAPIServer?
+    @ObservationIgnored var menuBar: MenuBarController?
+    /// GRAILS_API_TOKEN lets UI tests use a known token; otherwise the pairing token lives in a private file (never the Keychain: it makes
+    /// macOS ask for the login password).
+    static let tokenFile = supportURL.appendingPathComponent("api-token")
+    @ObservationIgnored let tokens: TokenStorage = ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"].map { InMemoryTokenStorage($0) as TokenStorage } ?? FileTokenStorage(url: AppModel.tokenFile)
+    var apiStatus = "Starting…"
+    var apiPort: UInt16 = 0
+
+    init() {
+        let d = UserDefaults.standard
+        if let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+            let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+            URLCacheSweep.clearOnce(cachesDirectory: caches, version: version, build: build, defaults: d)
+        }
+        // `double(forKey:)` also reads values passed as launch arguments, which arrive as strings.
+        tileWidth = d.object(forKey: "tileWidth") == nil ? Zoom.defaultWidth : Zoom.clamp(CGFloat(d.double(forKey: "tileWidth")))
+        viewMode = ViewMode(rawValue: d.string(forKey: "viewMode") ?? "") ?? .grid
+        layoutMode = GridLayoutMode(rawValue: d.string(forKey: "layoutMode") ?? "") ?? .square
+        importModel.app = self
+        // a new token (first run, or the Keychain's gone) means a browser extension paired before has to ask again
+        if ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"] == nil, !FileManager.default.fileExists(atPath: Self.tokenFile.path) {
+            extensionPaired = false
+            d.set(false, forKey: "extensionPaired")
+        }
+    }
+
+    // MARK: Library lifecycle
+
+    /// Opens the library named by GRAILS_LIBRARY (tests), the last used one, or creates the default.
+    func openInitialLibrary() async {
+        await prepareKeychainAccess()
+        bucket.onJoined = { @MainActor [weak self] url in
+            await self?.openOrCreate(at: url)
+        }
+        defer { settleLaunchJoin() }
+        let env = ProcessInfo.processInfo.environment
+        refreshExtensionCopy()
+        if let dir = env["GRAILS_ONBOARDING_DEMO"] { await startOnboardingDemo(dir); return }
+        if let dir = env["GRAILS_COLLAB_DEMO"] { await startCollabDemo(dir); return }
+        if env["GRAILS_SCREEN"] == "onboarding" {
+            needsLibrary = true
+            onboarding = OnboardingModel(app: self)
+            await startCapture()
+            return
+        }
+        let url: URL
+        if let p = env["GRAILS_LIBRARY"] {
+            url = URL(fileURLWithPath: p)
+        } else if let saved = UserDefaults.standard.string(forKey: "libraryPath"), FileManager.default.fileExists(atPath: saved) {
+            url = URL(fileURLWithPath: saved)
+        } else {
+            // First run (or the last library's folder is gone, e.g. a drive that isn't mounted): never create anything
+            // silently; let the person choose between the team's shared library and a new one.
+            needsLibrary = true
+            onboarding = OnboardingModel(app: self)
+            await startCapture()
+            return
+        }
+        // Dev/UI tests: GRAILS_SEED=<n> fills a library that doesn't exist yet with n synthetic items.
+        if let seed = env["GRAILS_SEED"].flatMap(Int.init), !FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path) {
+            // GRAILS_SEED_PLAIN=1: no collections and no liked items, for predictable UI tests
+            let plain = env["GRAILS_SEED_PLAIN"] != nil
+            let people = env["GRAILS_SEED_PEOPLE"].map { $0.split(separator: ",").map(String.init) } ?? ["fixture"]
+            _ = try? FixtureLibrary.generate(at: url, count: seed, collections: plain ? 0 : 20, likedOneIn: plain ? 0 : 10, contributors: people)
+        }
+        // Dev: GRAILS_HOVER_DEMO=<dir> (with GRAILS_LIBRARY set) seeds a library of short clips and drives hover playback.
+        let hoverDemo = env["GRAILS_LIBRARY"] == nil ? nil : env["GRAILS_HOVER_DEMO"]
+        if hoverDemo != nil, !FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path) {
+            await HoverVideoDemo.seed(library: url)
+        }
+        await openOrCreate(at: url, remember: env["GRAILS_LIBRARY"] == nil)
+        if let hoverDemo { Task { await HoverVideoDemo(app: self, dir: hoverDemo).run() } }
+        // quit halfway through first-run import: pick up where it was
+        let saved = OnboardingState.load()
+        if env["GRAILS_LIBRARY"] == nil, !saved.done, saved.step == .paste || saved.step == .arriving, store != nil {
+            let o = OnboardingModel(app: self, resuming: true)
+            if saved.step == .arriving, !importModel.isRunning { o.finish() } else { onboarding = o }
+        }
+    }
+
+    static var defaultLibraryURL: URL {
+        FileManager.default.urls(for: .picturesDirectory, in: .userDomainMask)[0].appendingPathComponent("Grails Library.grails")
+    }
+
+    var userHandle = UserDefaults.standard.string(forKey: "userHandle") ?? GrailsPaths.defaultUserHandle
+    var syncProgress: (done: Int, total: Int)?
+    /// Settings is a page of the main window. It covers the library while open and gives it back untouched.
+    var settings = SettingsNavigation(section: ProcessInfo.processInfo.environment["GRAILS_SETTINGS_TAB"].flatMap(SettingsSection.init(name:)) ?? .general)
+    /// What had the keys when Settings opened, so closing it hands them back.
+    @ObservationIgnored weak var settingsReturnFocus: NSResponder?
+    /// Profiles for the open library. Avatar views read this, so a look or a synced profile shows up without a reload.
+    var memberDirectory = MemberDirectory()
+    /// Resolved faces keyed by member id and look revision. A tile never reads `.members` while scrolling.
+    @ObservationIgnored var avatarCache = MemberAvatarCache()
+    @ObservationIgnored var facePictures: [String: (revision: String, face: MemberFace)] = [:]
+    /// Bumps when a display-name edit rewrites comments, so an open thread reloads.
+    var notesRevision = 0
+
+    /// Onboarding went back before anything was imported: a library it just made, still empty, goes to the Trash, and the app has no library
+    /// again (as at the very start). Returns false, leaving everything as it was, if the library has anything in it.
+    @discardableResult
+    func discardFreshLibrary(forget: Bool = true) async -> Bool {
+        guard let store, let root = layout?.root else { return false }
+        guard ((try? await store.index.count(ItemQuery())) ?? 1) == 0 else { return false }
+        let id = libraryID
+        watcher?.stop(); watcher = nil
+        rescanLoop?.cancel(); rescanLoop = nil
+        self.store = nil
+        layout = nil
+        refreshMemberDirectory()
+        libraryID = ""
+        items = []; itemsVersion += 1; collections = []; totalCount = 0
+        needsLibrary = true
+        LibraryIndex.discard(libraryId: id)
+        if forget {
+            workspaces = Workspaces.remove(id: id)
+            UserDefaults.standard.removeObject(forKey: "libraryPath")
+        }
+        // moving a folder to the Trash can be slow (or wait on a macOS prompt): not on the main thread
+        await Task.detached { try? FileManager.default.trashItem(at: root, resultingItemURL: nil) }.value
+        return true
+    }
+
+    func openOrCreate(at url: URL, remember: Bool = true) async {
+        do {
+            let index = ProcessInfo.processInfo.environment["GRAILS_INDEX_PATH"].map { try? LibraryIndex(path: URL(fileURLWithPath: $0)) } ?? nil
+            let store: LibraryStore
+            if FileManager.default.fileExists(atPath: url.appendingPathComponent("library.json").path) {
+                store = try await LibraryStore.open(at: url, index: index, userHandle: userHandle, rescan: false)
+            } else {
+                store = try LibraryStore.create(at: url, name: url.deletingPathExtension().lastPathComponent, index: index, userHandle: userHandle)
+            }
+            cancelAutoTag()
+            autoTagSeenTotal = -1
+            self.store = store
+            needsLibrary = false
+            layout = store.layout
+            libraryName = await store.manifest.name
+            libraryID = await store.manifest.id
+            let storedPath = WorkspaceList.standardize(url.path, home: NSHomeDirectory(), resolve: Workspaces.resolve)
+            if remember { UserDefaults.standard.set(storedPath, forKey: "libraryPath") }
+            if let migrated = try? await store.migrateIdentity(backupRoot: GrailsPaths.appSupport.appendingPathComponent("migration-backups", isDirectory: true)), migrated.changed {
+                print("IDENTITY items=\(migrated.items) notes=\(migrated.notes) collections=\(migrated.collections) canvases=\(migrated.canvases) smart=\(migrated.smartFolders) invites=\(migrated.invites) profiles=\(migrated.profiles) backup=\(migrated.backup ?? "")")
+            }
+            await bindIdentity()
+            collab.recordPresence()
+            pinnedTags = UserDefaults.standard.stringArray(forKey: "pinnedTags.\(libraryID)") ?? []
+            stripTags = []
+            if remember { workspaces = Workspaces.remember(id: libraryID, path: storedPath, name: libraryName) }
+            addedByFilter = nil
+            startWatching()
+            bucket.collectionNames = { [weak self] in self?.collections.map(\.name) ?? [] }
+            bucket.onSynced = { [weak self] in
+                guard let self else { return }
+                if self.bucket.showJoin || self.bucket.landWhenReady {
+                    self.bucket.finishJoinSync(role: self.bucket.role)
+                    self.landAfterJoin()
+                    self.bucket.landWhenReady = false
+                    self.bucket.showJoin = false
+                }
+                Task { await self.refreshLibrary(announce: false) }
+            }
+            bucket.onSyncProgress = { [weak self] done, total in
+                guard let self else { return }
+                if total <= 0 { self.syncProgress = nil }
+                else { self.syncProgress = (done, total) }
+            }
+            bucket.onSyncFeedback = { [weak self] feedback in
+                self?.syncProgress = nil
+                self?.showSyncFeedback(feedback)
+            }
+            bucket.onDisplayName = { [weak self] name in
+                self?.rememberUserHandle(name)
+            }
+            if let root = layout?.root { await bucket.attach(libraryID: libraryID, root: root) }
+            selection = []
+            undoStack = []
+            redoStack = []
+            await reload()
+            kickAutoTag()
+            kickVision()
+            resumeInterruptedImport()
+            Self.logLaunchTime()
+            await startCapture()
+            if let delay = ProcessInfo.processInfo.environment["GRAILS_SIMULATE_REMOTE"].flatMap(Double.init), let layout {
+                // Dev/UI tests: write an item straight into the folder, like another Mac's sync client would.
+                Task {
+                    try? await Task.sleep(for: .seconds(delay))
+                    try? FixtureLibrary.writeRemoteItem(into: layout, name: "Remote item", addedBy: "ben")
+                }
+            }
+            if let dir = ProcessInfo.processInfo.environment["GRAILS_IMPORT_DEMO"] { importModel.opensFirstCollection = true; importModel.runDemo(into: dir) }
+            if ProcessInfo.processInfo.environment["GRAILS_PREVIEW_DEMO"] != nil, let first = items.first { openPreview(first.id) }
+            if ProcessInfo.processInfo.environment["GRAILS_AUTOLIKE"] != nil, let first = items.first {
+                toggleLike(ids: [first.id])
+            }
+            // Dev/UI tests: GRAILS_PANEL=note|tags|move|commandK opens that panel right away (with the first item selected).
+            if let name = ProcessInfo.processInfo.environment["GRAILS_PANEL"] {
+                if let first = items.first { selection = [first.id] }
+                panel = ["note": .note, "tags": .tags, "move": .move, "commandK": .commandK][name]
+            }
+            if let text = ProcessInfo.processInfo.environment["GRAILS_AUTONOTE"], let first = items.first {
+                // mirrors NotePanel.save(): close the panel, then record a note edit
+                Task {
+                    try? await Task.sleep(for: .seconds(2))
+                    closePanel()
+                    await perform("Edit Note") { try await $0.setNote(text, ids: [first.id]) }
+                }
+            }
+            // The grid is already showing the index; pick up changes made on disk (other Macs) afterwards.
+            Task {
+                if let r = try? await store.rescan(), r.added + r.updated + r.removed + r.conflictsMerged > 0 { await reload() }
+                _ = try? await store.snapshotIfNeeded()
+            }
+        } catch {
+            errorMessage = "Couldn't open the library: \(error.localizedDescription)"
+        }
+    }
+
+    /// A new R2 library. The cache is created under Application Support. This Mac is the owner.
+    func createBucketLibrary(endpoint: String, region: String, bucketName: String, accessKeyId: String, secret: String, email: String, accountID: String, apiToken: String) async -> String? {
+        let endpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        let bucketName = bucketName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let email = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let region = FieldRules.regionOrDefault(region)
+        guard FieldRules.canCreateBucket(endpoint: endpoint, bucket: bucketName, accessKey: accessKeyId, secret: secret, email: email) else {
+            return "Enter the endpoint, bucket, key, secret, and email."
+        }
+        let scratch = GrailsPaths.appSupport.appendingPathComponent("bucket/\(UUID().uuidString).grails", isDirectory: true)
+        var root = scratch
+        do {
+            let created = try LibraryStore.create(at: scratch, name: bucketName, userHandle: userHandle)
+            let id = await created.manifest.id
+            let cache = GrailsPaths.appSupport.appendingPathComponent("bucket/\(id).grails", isDirectory: true)
+            if cache.path != scratch.path, !FileManager.default.fileExists(atPath: cache.path) {
+                try FileManager.default.moveItem(at: scratch, to: cache)
+                root = cache
+            }
+            if !accountID.isEmpty, !apiToken.isEmpty {
+                try bucket.saveCloudflare(accountID: accountID, token: apiToken)
+            }
+            try await bucket.connectExisting(
+                endpoint: endpoint, region: region, bucket: bucketName,
+                accessKeyId: accessKeyId, secret: secret, email: email, libraryID: id, root: root
+            )
+            workspaceDraft = nil
+            await openOrCreate(at: root)
+            if libraryID == id { onboarding?.finish() }
+            return nil
+        } catch {
+            try? FileManager.default.removeItem(at: root)
+            if root.path != scratch.path { try? FileManager.default.removeItem(at: scratch) }
+            return "Couldn't create the library"
+        }
+    }
+
+    var canRenameLibrary: Bool {
+        guard store != nil else { return false }
+        if bucket.connected { return bucket.seesControls }
+        return true
+    }
+
+    func promptRenameLibrary() {
+        guard canRenameLibrary else { return }
+        prompt = PromptRequest(title: "Rename", placeholder: "Library name", initial: libraryName, confirmTitle: "Rename") { [weak self] name in
+            guard let self else { return }
+            Task { await self.renameLibrary(to: name) }
+        }
+    }
+
+    var keychainNotice = false
+    private var keychainWait: CheckedContinuation<Void, Never>?
+
+    /// One heads-up after each install or update, then one keychain read for the whole launch.
+    func prepareKeychainAccess() async {
+        let env = ProcessInfo.processInfo.environment
+        let headless = env["GRAILS_LIBRARY"] != nil
+            || env["GRAILS_DESIGN_GALLERY"] != nil
+            || env.keys.contains { $0.hasPrefix("GRAILS_") && $0.hasSuffix("_DEMO") }
+        if !headless {
+            let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+            let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+            let stored = UserDefaults.standard.string(forKey: KeychainPromptGate.defaultsKey)
+            if KeychainPromptGate.needsHeadsUp(stored: stored, version: version, build: build) {
+                keychainNotice = true
+                await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                    keychainWait = cont
+                }
+            }
+        }
+        BucketKeychain.warm()
+    }
+
+    func acknowledgeKeychainNotice() {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "0"
+        UserDefaults.standard.set(KeychainPromptGate.token(version: version, build: build), forKey: KeychainPromptGate.defaultsKey)
+        keychainNotice = false
+        keychainWait?.resume()
+        keychainWait = nil
+    }
+
+    func rememberUserHandle(_ raw: String) {
+        guard let name = DisplayName.normalized(raw) else { return }
+        userHandle = name
+        UserDefaults.standard.set(name, forKey: "userHandle")
+    }
+
+    /// Saves the name used on comments and @mentions. A blank value is refused. The footer updates before the files are written.
+    @discardableResult
+    func commitDisplayName(_ raw: String) async -> Bool {
+        guard let name = DisplayName.normalized(raw) else { return false }
+        let previous = userHandle
+        guard name != previous else { return true }
+        let email = bucket.email
+        if let store {
+            let layout = store.layout
+            let kept: String
+            do {
+                kept = try Members.adopt(name: name, previous: previous, email: email.isEmpty ? nil : email, memberId: memberId.isEmpty ? nil : memberId, in: layout)
+            } catch {
+                return false
+            }
+            if !kept.isEmpty {
+                memberId = kept
+                await store.setUserHandle(kept)
+            }
+            notesRevision += 1
+        }
+        rememberUserHandle(name)
+        if bucket.connected { bucket.nudge() }
+        refreshMemberDirectory()
+        return true
+    }
+
+    var libraryNameTicket = 0
+    var pendingLibraryName: String?
+
+    func renameLibrary(to raw: String) async {
+        guard let name = LibraryName.normalized(raw), name != libraryName, let store else { return }
+        if bucket.connected, !bucket.seesControls {
+            errorMessage = RenameProblem.message(for: SyncFailure.notAllowed)
+            return
+        }
+        guard canRenameLibrary else { return }
+        let previous = libraryName
+        libraryNameTicket += 1
+        let ticket = libraryNameTicket
+        pendingLibraryName = name
+        libraryName = name
+        rememberWorkspaceName(name)
+        do {
+            let current = try await store.manifestBytes()
+            let next = try LibraryName.apply(current, name: name)
+            let published = bucket.connected ? try await bucket.publishLibraryManifest(next) : next
+            let written = try await store.replaceManifest(published)
+            guard ticket == libraryNameTicket else { return }
+            pendingLibraryName = nil
+            libraryName = written
+            rememberWorkspaceName(written)
+        } catch {
+            guard ticket == libraryNameTicket else { return }
+            pendingLibraryName = nil
+            libraryName = previous
+            rememberWorkspaceName(previous)
+            errorMessage = RenameProblem.message(for: error)
+        }
+    }
+
+    func beginInviteJoin(text: String, code: String) -> String? {
+        guard let join = Self.inviteLink(in: text) else { return "That doesn't look like an invite link" }
+        guard InviteCode.normalize(code) != nil else { return "Enter the join code" }
+        workspaceDraft = nil
+        bucket.beginJoin(join)
+        bucket.joinCode = code
+        bucket.submitCode()
+        return nil
+    }
+
+    private static func inviteLink(in text: String) -> JoinLink? {
+        JoinLink.find(in: text)
+    }
+
+    private static var logged = false
+    /// Dev: GRAILS_LAUNCH_LOG=1 prints process-start → first populated grid, in ms.
+    private static func logLaunchTime() {
+        guard !logged, ProcessInfo.processInfo.environment["GRAILS_LAUNCH_LOG"] != nil else { return }
+        logged = true
+        var info = kinfo_proc()
+        var size = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()]
+        guard sysctl(&mib, 4, &info, &size, nil, 0) == 0 else { return }
+        let start = Double(info.kp_proc.p_un.__p_starttime.tv_sec) + Double(info.kp_proc.p_un.__p_starttime.tv_usec) / 1e6
+        print("launchToItemsMs=\(Int((Date().timeIntervalSince1970 - start) * 1000))")
+        fflush(stdout)
+    }
+
+    // MARK: Data
+
+    func reloadSoon() {
+        itemsReady = false
+        reloadTask?.cancel()
+        reloadTask = Task { await reload() }
+    }
+
+    var isSearching: Bool { !searchText.trimmingCharacters(in: .whitespaces).isEmpty }
+
+    private func makeQuery(store: LibraryStore, smartFolders: [SmartFolder]) async throws -> ItemQuery {
+        var q = ItemQuery()
+        q.limit = Int.max
+        if let order = similarOrder {
+            q.onlyIds = Set(order)
+            q.limit = max(order.count, 1)
+        } else if isSearching {
+            let parts = SearchText.parse(searchText)
+            if !parts.text.isEmpty { q.text = parts.text }
+            q.colorNames = parts.colorNames
+            q.nearHexes = parts.nearHexes
+        } else {
+            switch source {
+            case .inbox: q.unfiled = true
+            case .all: break
+            case .liked: q.likedOnly = true
+            case .untagged: q.untagged = true
+            case .trash: q.deleted = true
+            case .mentions: q.onlyIds = LibraryNotes.itemIds(mentioning: Handle.normalize(userHandle), in: store.layout)
+            case .collection(let id): q.collectionIds = try await store.collectionTree(rootedAt: id)
+            case .smart(let id): q.smart = smartFolders.first { $0.id == id }
+            case .tag(let t): q.tag = t
+            }
+        }
+        q.kinds = filters.kinds
+        if filters.liked { q.likedOnly = true }
+        q.squareOnly = filters.square
+        if let color = filters.color { q.colorNames.append(color.rawValue) }
+        q.extraTags = stripTags
+        q.addedBy = addedByFilter
+        if sort != .newest || !isSearching { q.sort = sort.itemSort }
+        return q
+    }
+
+    /// The grid shows titled clusters only for a real board, in its natural order, with two or more clusters.
+    private var gridIsSectioned: Bool {
+        !canvasIsDerived && sort == .newest && canvasBoardKey != nil && sectionKey == canvasBoardKey && sectionClusters.count >= 2
+    }
+
+    /// Puts items on screen and starts the first pictures decoding. Sections are rebuilt in the same turn, so the grid
+    /// never paints a new list under the previous board's clusters.
+    private func showItems(_ result: [ItemSummary]) {
+        items = result
+        itemsReady = true
+        itemsVersion += 1
+        selection.formIntersection(Set(result.map(\.id)))
+        if canvasBoardKey == nil {
+            sectionClusters = []
+            sectionKey = nil
+        }
+        rebuildSections()
+        warmFirstPictures(result)
+        shownScrollTick = scrollResetTick
+        if shownSource != source { shownSource = source }
+    }
+
+    /// The first row of pictures, ahead of the cells, so that line is decoding while the rest of the library is read.
+    /// Rows below the fold load as the grid's cells ask for them.
+    private func warmFirstPictures(_ rows: [ItemSummary]) {
+        guard let layout else { return }
+        let windowWidth = NSApp.keyWindow?.contentView?.bounds.width ?? 1100
+        let gridWidth = max(320, windowWidth - (sidebarVisible ? 240 : 0) - 24)
+        let tile = max(tileWidth, Zoom.minWidth)
+        let spacing: CGFloat = 8
+        let columns = max(1, Int((gridWidth + spacing) / (tile + spacing)))
+        var left = columns
+        for s in rows {
+            guard left > 0 else { return }
+            guard s.kind != .section, s.kind != .link else { continue }
+            ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: 512, priority: .veryHigh)
+            left -= 1
+        }
+    }
+
+    /// One turn of the main queue, so the grid can paint the items already published before the next read.
+    private func letTheGridPaint() async {
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            DispatchQueue.main.async { cont.resume() }
+        }
+    }
+
+    /// Reads everything the window shows. The pictures go up as soon as the query returns; tags and counts follow.
+    /// A new view shows its first screen before the rest of the list, so the board is not blank while the library is read.
+    func reload() async {
+        guard let store else { return }
+        refreshMemberDirectory()
+        reloadGeneration += 1
+        let generation = reloadGeneration
+        let switchingView = scrollResetTick != shownScrollTick
+        do {
+            let smart = await store.smartFolders()
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            if let key = canvasBoardKey, sectionKey != key {
+                let board = await store.canvasBoard(key: key)
+                guard !Task.isCancelled, generation == reloadGeneration else { return }
+                sectionClusters = board?.clusters ?? []
+                sectionKey = key
+            } else if canvasBoardKey == nil {
+                sectionClusters = []
+                sectionKey = nil
+            }
+            let q = try await makeQuery(store: store, smartFolders: smart)
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            let reveal = switchingView && viewMode != .canvas && sort != .random
+            _ = try await loadItems(query: q, generation: generation, revealFirstScreen: reveal && !gridIsSectioned, primeFirstScreen: reveal && gridIsSectioned)
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            if viewMode == .canvas { await syncCanvas() }
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            let colls = try await store.index.collections()
+            let tagList = try await store.index.tagCounts().map { (tag: $0.tag, count: $0.count) }
+            let colors = await store.tagMetadata().compactMapValues(\.color)
+            let total = try await store.index.count(ItemQuery())
+            let people = try await store.index.addedByCounts()
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            smartFolders = smart
+            collections = colls
+            tags = tagList
+            tagColors = colors
+            totalCount = total
+            if autoTagSeenTotal >= 0, total > autoTagSeenTotal { kickAutoTag(); kickVision() }
+            contributors = people.map { (who: $0.who, count: $0.count) }
+            await refreshSections()
+            refreshNoteMarks(in: store.layout)
+        } catch {
+            // typing quickly cancels the reload before it: that is not an error
+            if error is CancellationError || Task.isCancelled || generation != reloadGeneration { return }
+            if LibraryIndex.isDamaged(error), await repairIndex() { return }
+            errorMessage = "Couldn't load items: \(error.localizedDescription)"
+        }
+    }
+
+    /// The items for `query`. The tag bar is read alongside them and published in the same turn as the first pictures,
+    /// so a filled board lands with its tabs instead of the bar arriving later and pushing the grid down.
+    /// A new flat view then paints that first screen before the rest of the list. A new sectioned view keeps one layout,
+    /// and starts the first pictures while the full list is still being read.
+    private func loadItems(query q: ItemQuery, generation: Int, revealFirstScreen: Bool, primeFirstScreen: Bool) async throws -> [ItemSummary] {
+        guard let store else { return [] }
+        if let order = similarOrder {
+            let stripTask = Task { try await store.index.viewTagCounts(q) }
+            defer { stripTask.cancel() }
+            var result = try await store.index.query(q)
+            guard !Task.isCancelled, generation == reloadGeneration else { return result }
+            let rank = Dictionary(uniqueKeysWithValues: order.enumerated().map { ($1, $0) })
+            result.sort { (rank[$0.id] ?? Int.max) < (rank[$1.id] ?? Int.max) }
+            let strip = try await stripTask.value
+            guard !Task.isCancelled, generation == reloadGeneration else { return result }
+            viewTags = strip.tags
+            viewBaseCount = strip.items
+            showItems(result)
+            return result
+        }
+        let stripTask = Task { try await store.index.viewTagCounts(q) }
+        defer { stripTask.cancel() }
+        let firstScreen = 80
+
+        /// Tags and the first pictures, then one turn so the window lays them out together.
+        func land(_ rows: [ItemSummary]) async throws {
+            let strip = try await stripTask.value
+            guard !Task.isCancelled, generation == reloadGeneration else { return }
+            let sameTags = viewTags.count == strip.tags.count && zip(viewTags, strip.tags).allSatisfy { $0.tag == $1.tag && $0.count == $1.count }
+            if !sameTags { viewTags = strip.tags }
+            if viewBaseCount != strip.items { viewBaseCount = strip.items }
+            showItems(rows)
+            await letTheGridPaint()
+        }
+
+        if revealFirstScreen {
+            var page = q
+            page.limit = firstScreen
+            page.offset = 0
+            let head = try await store.index.query(page)
+            guard !Task.isCancelled, generation == reloadGeneration else { return head }
+            if head.count < firstScreen {
+                try await land(head)
+                return head
+            }
+            async let rest = store.index.query(q)
+            try await land(head)
+            let full = try await rest
+            guard !Task.isCancelled, generation == reloadGeneration else { return full }
+            if full.count != head.count || full.prefix(head.count).map(\.id) != head.map(\.id) { showItems(full) }
+            return full
+        }
+        if primeFirstScreen {
+            var page = q
+            page.limit = firstScreen
+            page.offset = 0
+            async let rest = store.index.query(q)
+            let head = try await store.index.query(page)
+            if generation == reloadGeneration, !Task.isCancelled { warmFirstPictures(head) }
+            var result = try await rest
+            guard !Task.isCancelled, generation == reloadGeneration else { return result }
+            if sort == .random { result = Self.shuffled(result, seed: shuffleSeed) }
+            try await land(result)
+            return result
+        }
+        var result = try await store.index.query(q)
+        guard !Task.isCancelled, generation == reloadGeneration else { return result }
+        if sort == .random { result = Self.shuffled(result, seed: shuffleSeed) }
+        try await land(result)
+        return result
+    }
+
+    /// The index file went missing or bad: throw it away and read the library again, once, without bothering the person.
+    private func repairIndex() async -> Bool {
+        guard !repairingIndex, let store, let root = layout?.root else { return false }
+        repairingIndex = true
+        defer { repairingIndex = false }
+        LibraryIndex.discard(libraryId: await store.manifest.id)
+        await openOrCreate(at: root, remember: false)
+        return self.store != nil && errorMessage == nil
+    }
+
+    private static func shuffled(_ items: [ItemSummary], seed: UInt64) -> [ItemSummary] {
+        struct RNG: RandomNumberGenerator {
+            var s: UInt64
+            mutating func next() -> UInt64 {
+                s &+= 0x9E37_79B9_7F4A_7C15
+                var z = s
+                z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+                z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+                return z ^ (z >> 31)
+            }
+        }
+        var rng = RNG(s: seed)
+        return items.shuffled(using: &rng)
+    }
+
+    var countLabel: String { "\(items.count.formatted()) \(items.count == 1 ? "item" : "items")" }
+
+    var title: String {
+        if similarOrder != nil { return "Similar" }
+        if isSearching { return "Search: \(searchText)" }
+        if let who = addedByFilter, source == .all { return "Added by \(personName(who))" }
+        switch source {
+        case .inbox: return "Inbox"
+        case .all: return "All"
+        case .liked: return "Liked"
+        case .untagged: return "Untagged"
+        case .trash: return "Trash"
+        case .mentions: return "For you"
+        case .collection(let id): return collections.first { $0.id == id }?.displayName ?? "Collection"
+        case .smart(let id): return smartFolders.first { $0.id == id }?.name ?? "Smart folder"
+        case .tag(let t): return "#\(t)"
+        }
+    }
+
+    func summary(_ id: String) -> ItemSummary? { items.first { $0.id == id } }
+    func bumpCanvasVersion() { canvasVersion += 1 }
+    var selectedSummaries: [ItemSummary] { items.filter { selection.contains($0.id) } }
+
+    // MARK: Undoable operations
+
+    /// Runs `body` while the store notes the state it overwrites; returns the result and the undo change set.
+    func recorded<T>(_ label: String, in store: LibraryStore, _ body: () async throws -> T) async throws -> (T, ChangeSet) {
+        await store.beginRecording()
+        do {
+            let value = try await body()
+            return (value, await store.endRecording(label: label))
+        } catch {
+            _ = await store.endRecording(label: label)
+            throw error
+        }
+    }
+
+    /// Runs a library mutation, records what it changed for undo, and refreshes the grid.
+    @discardableResult
+    func perform<T: Sendable>(_ label: String, _ body: @escaping @Sendable (LibraryStore) async throws -> T) async -> T? {
+        guard let store else { return nil }
+        do {
+            let (value, undo) = try await recorded(label, in: store) { try await body(store) }
+            if !undo.isEmpty {
+                undoStack.append(undo)
+                if undoStack.count > 100 { undoStack.removeFirst() }
+                redoStack = []
+            }
+            await reload()
+            return value
+        } catch {
+            if error is CancellationError { return nil }
+            errorMessage = "\(label) failed: \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    /// Records an undoable action's change set (used by files that extend AppModel).
+    func pushUndo(_ cs: ChangeSet) {
+        guard !cs.isEmpty else { return }
+        undoStack.append(cs)
+        if undoStack.count > 100 { undoStack.removeFirst() }
+        redoStack = []
+    }
+
+    func undo() async {
+        guard let store, let cs = undoStack.popLast() else { return }
+        do {
+            let inverse = try await store.apply(cs)
+            redoStack.append(inverse)
+            await reload()
+            if viewMode == .canvas { await loadBoard() }
+            await refreshSections(forceRead: true)
+            showToast(cs.label.isEmpty ? "Undone" : "Undid \(cs.label.lowercased())")
+        } catch { errorMessage = "Undo failed: \(error.localizedDescription)" }
+    }
+
+    func redo() async {
+        guard let store, let cs = redoStack.popLast() else { return }
+        do {
+            let inverse = try await store.apply(cs)
+            undoStack.append(inverse)
+            await reload()
+            if viewMode == .canvas { await loadBoard() }
+            await refreshSections(forceRead: true)
+            showToast("Redid \(cs.label.lowercased())")
+        } catch { errorMessage = "Redo failed: \(error.localizedDescription)" }
+    }
+
+    func showToast(_ text: String, seconds: Double = 2.2) {
+        toast = text
+        toastTask?.cancel()
+        toastTask = Task {
+            try? await Task.sleep(for: .seconds(seconds))
+            if !Task.isCancelled { toast = nil }
+        }
+    }
+
+    // MARK: Import
+
+    /// Imports files or folders. `recordUndo: false` is for callers that already wrap the work in their own recording.
+    func importFiles(_ urls: [URL], collectionId: String? = nil, tag: String? = nil, recordUndo: Bool = true) async {
+        guard let store else { return }
+        let files = FolderScanner.expandFiles(urls)
+        guard !files.isEmpty else { return }
+        var collectionIds: [String] = []
+        if let collectionId { collectionIds = [collectionId] } else if case .collection(let id) = source { collectionIds = [id] }
+        var tagList: [String] = []
+        if let tag { tagList = [tag] } else if case .tag(let t) = source { tagList = [t] }
+        let finalCollections = collectionIds, finalTags = tagList
+        importProgress = (0, files.count)
+        var done = 0
+
+        func addAll() async {
+            for chunk in stride(from: 0, to: files.count, by: 4).map({ Array(files[$0..<min($0 + 4, files.count)]) }) {
+                await withTaskGroup(of: Void.self) { group in
+                    for file in chunk {
+                        group.addTask { _ = try? await store.addItem(fileAt: file, tags: finalTags, collectionIds: finalCollections) }
+                    }
+                }
+                done += chunk.count
+                importProgress = (done, files.count)
+            }
+        }
+
+        do {
+            if recordUndo {
+                let (_, undo) = try await recorded("Add \(files.count) \(files.count == 1 ? "Item" : "Items")", in: store) { await addAll() }
+                if !undo.isEmpty { undoStack.append(undo); redoStack = [] }
+            } else {
+                await addAll()
+            }
+        } catch { errorMessage = "Import failed: \(error.localizedDescription)" }
+        importProgress = nil
+        if recordUndo { await reload() }
+        kickAutoTag()
+        kickVision()
+    }
+
+    // MARK: Actions (menu items, grid shortcuts, ⌘K)
+
+    func run(_ action: ShortcutAction) {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["GRAILS_TRACE"] != nil {
+            let line = "\(Date()) run(\(action.rawValue)) panel=\(String(describing: panel)) event=\(String(describing: NSApp.currentEvent))\n"
+            if let h = FileHandle(forWritingAtPath: "/private/tmp/grails-actions.log") { h.seekToEndOfFile(); h.write(Data(line.utf8)); try? h.close() }
+            else { try? line.write(toFile: "/private/tmp/grails-actions.log", atomically: true, encoding: .utf8) }
+        }
+        #endif
+        if bucket.readOnly { showToast("Update Grails"); return }
+        switch action {
+        case .like: toggleLike(ids: Array(selection))
+        case .note: if !selection.isEmpty { showItemNotes() }
+        case .move: if !selection.isEmpty { panel = .move }
+        case .tag: if !selection.isEmpty { panel = .tags }
+        case .copyURL: copySourceURL()
+        case .shuffle:
+            shuffleSeed = UInt64.random(in: 1...UInt64.max)
+            if sort == .random { reloadSoon() } else { sort = .random }
+        case .trash: trashSelection()
+        case .commandPalette: panel = .commandK
+        case .zoomIn: zoom(by: 1.25)
+        case .zoomOut: zoom(by: 1 / 1.25)
+        case .newCollection: promptNewCollection(kind: "collection", parent: nil)
+        case .newSmartFolder: smartEditor = SmartEditorState()
+        }
+    }
+
+    /// ⌘+ / ⌘−: the grid animates to the new size; the canvas zooms about its centre.
+    func zoom(by factor: CGFloat) {
+        if viewMode == .canvas { canvasRequest = CanvasRequest(kind: .zoom(factor)) }
+        else { pendingColumnDelta += factor > 1 ? -1 : 1; gridZoomTick += 1 }   // bigger tiles = fewer columns
+    }
+
+    func toggleLike(ids: [String]) {
+        guard !ids.isEmpty else { return }
+        let all = ids.allSatisfy { summary($0)?.liked == true }
+        let like = !all
+        Task {
+            guard await perform(like ? "Like" : "Unlike", { try await $0.setLiked(like, ids: ids) }) != nil else { return }
+            let word = like ? "Liked" : "Unliked"
+            showToast(ids.count == 1 ? word : "\(word) \(ids.count) items")
+        }
+    }
+
+    func landAfterJoin() {
+        switch bucket.join.landing {
+        case .canon:
+            if let collection = Canon.collection(in: collections) {
+                source = .collection(collection.id)
+            } else { source = .all }
+        case .all:
+            source = .all
+        }
+    }
+
+    func promoteSelectionToCanon() {
+        guard bucket.connected, TeamPermissions.canPromoteToCanon(bucket.role), let store else { return }
+        let ids = Array(selection)
+        guard !ids.isEmpty else { return }
+        Task {
+            do {
+                let id: String
+                if let existing = Canon.collection(in: collections) { id = existing.id }
+                else { id = try await store.createCollection(name: Canon.name).id }
+                try await store.add(ids: ids, toCollection: id)
+                bucket.nudge()
+                await reload()
+            } catch {
+                errorMessage = "Couldn't promote to Canon"
+            }
+        }
+    }
+
+    func trashSelection() {
+        if bucket.readOnly { showToast("Update Grails"); return }
+        let ids = Array(selection)
+        guard !ids.isEmpty, source != .trash else { return }
+        Task {
+            await perform("Move to Trash") { try await $0.softDelete(ids: ids) }
+            showToast("Moved \(ids.count) \(ids.count == 1 ? "item" : "items") to Trash")
+        }
+    }
+
+    func restoreSelection() {
+        let ids = Array(selection)
+        guard !ids.isEmpty else { return }
+        Task { await perform("Restore") { try await $0.restore(ids: ids) } }
+    }
+
+    func confirmEmptyTrash() {
+        confirm = ConfirmRequest(
+            title: "Empty Trash?",
+            message: "A copy stays in the library folder for 30 days, just in case.",
+            confirmTitle: "Empty Trash"
+        ) { [weak self] in
+            guard let self, let store = self.store else { return }
+            Task {
+                _ = try? await store.emptyTrash()
+                await self.reload()
+            }
+        }
+    }
+
+    func copySourceURL() {
+        guard let first = selectedSummaries.first, let store else { return }
+        Task {
+            guard let item = try? await store.item(id: first.id), let s = item.source?.pageUrl ?? item.source?.url else {
+                showToast("This item has no source link")
+                return
+            }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(s, forType: .string)
+            showToast("Source link copied")
+        }
+    }
+
+    // MARK: Collections
+
+    func promptNewCollection(kind: String, parent: String?, thenAdd ids: [String] = []) {
+        prompt = PromptRequest(
+            title: kind == "folder" ? "New Folder" : "New Collection", placeholder: kind == "folder" ? "Folder name" : "Collection name", confirmTitle: "Create"
+        ) { [weak self] name in
+            guard let self, !name.isEmpty else { return }
+            Task {
+                let created = await self.perform(kind == "folder" ? "New Folder" : "New Collection") { store in
+                    let c = try await store.createCollection(name: name, kind: kind, parentId: parent)
+                    if !ids.isEmpty { try await store.add(ids: ids, toCollection: c.id) }
+                    return c.id
+                }
+                if let created { self.source = .collection(created) }
+            }
+        }
+    }
+
+    func promptRenameCollection(_ c: GrailsCollection) {
+        let shown = c.displayName
+        prompt = PromptRequest(title: "Rename", placeholder: c.kind == "folder" ? "Folder name" : "Collection name", initial: shown, confirmTitle: "Rename") { [weak self] name in
+            guard let self, !name.isEmpty, name != c.name, name.caseInsensitiveCompare(shown) != .orderedSame else { return }
+            Task { await self.perform("Rename Collection") { try await $0.renameCollection(id: c.id, to: name) } }
+        }
+    }
+
+    func confirmDeleteCollection(_ c: GrailsCollection) {
+        confirm = ConfirmRequest(
+            title: "Delete “\(c.displayName)”?",
+            message: "The items stay in your library.",
+            confirmTitle: "Delete"
+        ) { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.perform("Delete Collection") { try await $0.deleteCollection(id: c.id) }
+                if self.source == .collection(c.id) { self.source = .all }
+            }
+        }
+    }
+
+    func duplicateCollection(_ c: GrailsCollection) {
+        Task { await perform("Duplicate Collection") { try await $0.duplicateCollection(id: c.id).id } }
+    }
+
+    func archiveCollection(_ c: GrailsCollection, _ archived: Bool) {
+        Task {
+            await perform(archived ? "Archive Collection" : "Unarchive Collection") { try await $0.archiveCollection(id: c.id, archived) }
+            if archived, source == .collection(c.id) { source = .all }
+        }
+    }
+
+    func setCoverFromSelection(_ c: GrailsCollection) {
+        guard let id = selection.first else { showToast("Select an item first"); return }
+        Task { await perform("Set Cover") { try await $0.setCover(itemId: id, for: c.id) } }
+    }
+
+    func moveCollection(_ id: String, intoFolder folder: String) {
+        Task { await perform("Move Collection") { try await $0.moveCollection(id: id, toParent: folder) } }
+    }
+
+    func moveCollection(_ id: String, after target: GrailsCollection) {
+        Task { await perform("Reorder Collections") { try await $0.moveCollection(id: id, toParent: target.parentId, after: target.id) } }
+    }
+
+    // MARK: Tags
+
+    func toggleTag(_ tag: String, on ids: [String]) {
+        let present = ids.allSatisfy { id in tagsOf(id).contains { $0.caseInsensitiveCompare(tag) == .orderedSame } }
+        Task {
+            await perform(present ? "Remove Tag" : "Add Tag") { store in
+                if present { try await store.removeTags([tag], from: ids) } else { try await store.addTags([tag], to: ids) }
+            }
+        }
+    }
+
+    /// Tags for an item in the current grid, read lazily from the tag index (cheap enough for a handful of ids).
+    private var tagCache: [String: [String]] = [:]
+    func tagsOf(_ id: String) -> [String] { tagCache[id] ?? [] }
+
+    func loadTags(for ids: [String]) async -> [String: [String]] {
+        guard let store else { return [:] }
+        var out: [String: [String]] = [:]
+        for id in ids { out[id] = (try? await store.item(id: id))?.tags ?? [] }
+        tagCache.merge(out) { _, new in new }
+        return out
+    }
+
+    func promptRenameTag(_ tag: String) {
+        prompt = PromptRequest(title: "Rename Tag", placeholder: "Tag", initial: tag, confirmTitle: "Rename") { [weak self] name in
+            guard let self, !name.isEmpty, name != tag, let store = self.store else { return }
+            Task {
+                self.renameProgress = (0, 1)
+                do {
+                    let (_, undo) = try await self.recorded("Rename Tag", in: store) {
+                        try await store.renameTag(tag, to: name) { done, total in
+                            Task { @MainActor in self.renameProgress = (done, total) }
+                        }
+                    }
+                    if !undo.isEmpty { self.undoStack.append(undo); self.redoStack = [] }
+                } catch { self.errorMessage = "Rename failed: \(error.localizedDescription)" }
+                self.renameProgress = nil
+                if self.source == .tag(tag) { self.source = .tag(name) }
+                await self.reload()
+            }
+        }
+    }
+
+    /// Folds tags that mean the same ("poster", "posters"; "minimal", "minimalist") into the most used one.
+    func mergeSimilarTags() {
+        Task {
+            guard let merged = await perform("Merge Similar Tags", { try await $0.mergeSimilarTags() }) else { return }
+            if case .tag(let current) = source, let m = merged.first(where: { $0.from.lowercased() == current.lowercased() }) { source = .tag(m.into) }
+            showToast(merged.isEmpty ? "No similar tags" : "Merged \(merged.count) similar tag\(merged.count == 1 ? "" : "s")")
+        }
+    }
+
+    func confirmDeleteTag(_ tag: String) {
+        confirm = ConfirmRequest(title: "Delete tag “\(tag)”?", message: "It will be removed from every item.", confirmTitle: "Delete Tag") { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.perform("Delete Tag") { try await $0.deleteTag(tag) }
+                if self.source == .tag(tag) { self.source = .all }
+            }
+        }
+    }
+
+    func setTagColor(_ hex: String?, for tag: String) {
+        guard let store else { return }
+        Task {
+            try? await store.setTagColor(hex, for: tag)
+            await reload()
+        }
+    }
+
+    // MARK: Smart folders
+
+    func editSmartFolder(_ f: SmartFolder) {
+        smartEditor = SmartEditorState(existingId: f.id, name: f.name, match: f.match, rules: f.rules)
+    }
+
+    func saveSmartFolder(_ s: SmartEditorState) {
+        Task {
+            let id = await perform(s.existingId == nil ? "New Smart Folder" : "Edit Smart Folder") { store -> String in
+                if let id = s.existingId {
+                    try await store.updateSmartFolder(id: id) { $0.name = s.name; $0.match = s.match; $0.rules = s.rules }
+                    return id
+                }
+                return try await store.createSmartFolder(name: s.name, match: s.match, rules: s.rules).id
+            }
+            if let id { source = .smart(id) }
+        }
+    }
+
+    func deleteSmartFolder(_ f: SmartFolder) {
+        Task {
+            await perform("Delete Smart Folder") { try await $0.deleteSmartFolder(id: f.id) }
+            if source == .smart(f.id) { source = .all }
+        }
+    }
+
+    // MARK: Drops
+
+    enum DropTarget { case collection(String), tag(String), trash }
+
+    func dropItems(ids: [String], onto target: DropTarget) {
+        guard !ids.isEmpty else { return }
+        switch target {
+        case .collection(let cid):
+            let name = collections.first { $0.id == cid }?.displayName ?? "collection"
+            Task {
+                await perform("Add to Collection") { try await $0.add(ids: ids, toCollection: cid) }
+                showToast("Added \(ids.count) \(ids.count == 1 ? "item" : "items") to \(name)")
+            }
+        case .tag(let t):
+            Task {
+                await perform("Add Tag") { try await $0.addTags([t], to: ids) }
+                showToast("Tagged \(ids.count) \(ids.count == 1 ? "item" : "items") #\(t)")
+            }
+        case .trash:
+            Task { await perform("Move to Trash") { try await $0.softDelete(ids: ids) } }
+        }
+    }
+
+    // MARK: Preview / focus
+
+    func closePanel() { panel = nil; noteTarget = nil; focusGridTick += 1 }
+
+    func showItemNotes() {
+        noteTarget = .selection
+        panel = .note
+    }
+
+    func showClusterNotes(board: String, id: String, title: String) {
+        noteTarget = .cluster(board: board, id: id, title: title)
+        panel = .note
+    }
+
+    /// Notes that name you count as unread until their thread is opened.
+    func markNotesSeen(_ ids: [String]) {
+        guard !ids.isEmpty else { return }
+        var seen = Set(UserDefaults.standard.stringArray(forKey: seenNotesKey) ?? [])
+        let before = seen.count
+        seen.formUnion(ids)
+        guard seen.count != before else { return }
+        UserDefaults.standard.set(Array(seen), forKey: seenNotesKey)
+        if let layout { refreshNoteMarks(in: layout) }
+    }
+
+    private var seenNotesKey: String { "seenNotes.\(libraryID)" }
+
+    private func refreshNoteMarks(in layout: LibraryLayout) {
+        let notes = LibraryNotes.live(in: layout)
+        notedClusters = Set(notes.compactMap(\.clusterId))
+        let me = Handle.normalize(userHandle)
+        let seen = Set(UserDefaults.standard.stringArray(forKey: seenNotesKey) ?? [])
+        forYouUnread = notes.filter { $0.mentions.contains(me) && !seen.contains($0.id) }.count
+        var clusters: [MentionCluster] = []
+        var seenCluster = Set<String>()
+        for note in notes where note.mentions.contains(me) {
+            guard let board = note.board, let id = note.clusterId, seenCluster.insert(id).inserted else { continue }
+            let title = sectionClusters.first { $0.id == id }?.title ?? canvasClusters.first { $0.id == id }?.title ?? ""
+            clusters.append(MentionCluster(board: board, id: id, title: title))
+        }
+        mentionClusters = clusters
+    }
+    func focusGridTick_bump() { focusGridTick += 1 }
+
+    func originalURL(for s: ItemSummary) -> URL? {
+        guard let layout else { return nil }
+        return layout.itemDir(s.id).appendingPathComponent(s.ext.map { "original.\($0)" } ?? "original")
+    }
+}
+
+extension AppModel {
+    func rememberWorkspaceName(_ name: String) {
+        guard let path = layout?.root.path else { return }
+        workspaces = Workspaces.remember(id: libraryID, path: path, name: name)
+    }
+
+    func removeWorkspace(_ w: Workspace) { workspaces = Workspaces.remove(id: w.id) }
+    func setWorkspaceColor(_ hex: String?, for w: Workspace) { workspaces = Workspaces.setColor(hex, id: w.id) }
+}

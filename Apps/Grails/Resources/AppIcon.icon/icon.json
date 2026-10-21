@@ -1,0 +1,41 @@
+{
+  "fill-specializations": [
+    {
+      "value": {
+        "solid": "extended-srgb:0,0,0,1"
+      }
+    },
+    {
+      "appearance": "dark",
+      "value": {
+        "solid": "extended-srgb:0,0,0,1"
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "Mark",
+      "layers": [
+        {
+          "name": "Art",
+          "image-name": "mark.png",
+          "glass": false
+        }
+      ],
+      "shadow": {
+        "kind": "none",
+        "opacity": 0
+      },
+      "specular": false,
+      "translucency": {
+        "enabled": false,
+        "value": 0
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

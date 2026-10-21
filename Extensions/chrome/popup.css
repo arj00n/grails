@@ -1,0 +1,114 @@
+/* Popup chrome. Tokens match docs/design/mockups/tokens.md. Light and dark follow the system. */
+@font-face { font-family: "Geist"; src: url("fonts/Geist-Regular.ttf"); font-weight: 400; font-style: normal; }
+@font-face { font-family: "Geist"; src: url("fonts/Geist-Bold.ttf"); font-weight: 700; font-style: normal; }
+@font-face { font-family: "Geist Mono"; src: url("fonts/GeistMono-Regular.ttf"); font-weight: 400; font-style: normal; }
+
+:root {
+  color-scheme: light;
+  --background: #FFFFFF;
+  --text: #1A1A1A;
+  --secondary: #6B6B68;
+  --tertiary: #9C9C98;
+  --field: #FFFFFF;
+  --field-border: #DCDCD8;
+  --focus: #A8A8A4;
+  --ring: rgba(26, 26, 26, 0.08);
+  --primary: #1A1A1A;
+  --primary-fg: #FFFFFF;
+  --secondary-fill: #FFFFFF;
+  --secondary-border: #DCDCD8;
+  --hover: #F2F2EF;
+  --status-ok: #2DA44E;
+  --status-warn: #BF8700;
+  --status-error: #CF222E;
+  --status-offline: #9C9C98;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: #1C1D20;
+    --text: #F3F4F6;
+    --secondary: #9A9CA2;
+    --tertiary: #6C6E75;
+    --field: #222326;
+    --field-border: #323338;
+    --focus: #5E6067;
+    --ring: rgba(243, 244, 246, 0.08);
+    --primary: #F3F4F6;
+    --primary-fg: #1C1D20;
+    --secondary-fill: #26272B;
+    --secondary-border: #34353A;
+    --hover: #232427;
+    --status-ok: #3FB950;
+    --status-warn: #D29922;
+    --status-error: #F85149;
+    --status-offline: #6C6E75;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  width: 300px;
+  margin: 0;
+  padding: 20px 20px 24px;
+  background: var(--background);
+  color: var(--text);
+  font: 13px/1.5 Geist, -apple-system, system-ui, sans-serif;
+  accent-color: var(--text);
+}
+
+header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+h1 { margin: 0; font: 400 15px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: -0.15px; color: var(--text); }
+h2 { margin: 20px 0 12px; font: 400 13px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: 0; color: var(--text); }
+#status { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--secondary); }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-offline); flex: none; }
+.dot.ok { background: var(--status-ok); }
+.dot.warn { background: var(--status-warn); }
+.dot.error { background: var(--status-error); }
+.dot.offline { background: var(--status-offline); }
+
+p { margin: 0 0 12px; color: var(--secondary); font-size: 13px; line-height: 1.5; }
+
+button {
+  display: block;
+  width: 100%;
+  height: 28px;
+  padding: 0 14px;
+  border: 1px solid var(--secondary-border);
+  border-radius: 8px;
+  background: var(--secondary-fill);
+  color: var(--text);
+  font: 13px/1 Geist, sans-serif;
+  cursor: pointer;
+}
+button:hover { background: var(--hover); }
+button.primary { background: var(--primary); color: var(--primary-fg); border-color: transparent; }
+button.primary:hover { background: var(--primary); opacity: 0.92; }
+button:disabled { opacity: 0.35; cursor: default; }
+button:focus-visible, select:focus-visible { outline: none; }
+button:focus-visible { border-color: var(--focus); box-shadow: 0 0 0 3px var(--ring); }
+
+.row { display: flex; align-items: center; gap: 8px; margin: 12px 0 0; color: var(--secondary); font-size: 12px; line-height: 1.5; }
+select {
+  flex: 1;
+  height: 32px;
+  padding: 0 28px 0 10px;
+  border: 1px solid var(--field-border);
+  border-radius: 8px;
+  background-color: var(--field);
+  background-image: linear-gradient(45deg, transparent 50%, var(--tertiary) 50%), linear-gradient(135deg, var(--tertiary) 50%, transparent 50%);
+  background-position: calc(100% - 16px) center, calc(100% - 11px) center;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  color: var(--text);
+  font: 13px/1 Geist, sans-serif;
+  appearance: none;
+}
+select:focus-visible { border-color: var(--focus); box-shadow: 0 0 0 3px var(--ring); }
+#board { margin-top: 12px; }
+
+ul { list-style: none; margin: 0; padding: 0; }
+li { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; font-size: 13px; }
+li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+li span:last-child { color: var(--secondary); font-size: 12px; flex: none; }
+.empty { color: var(--tertiary); font-size: 13px; }

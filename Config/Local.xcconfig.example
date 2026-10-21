@@ -1,0 +1,19 @@
+// Copy to Config/Local.xcconfig (gitignored), edit, then run `xcodegen`. Everything here overrides Config/Base.xcconfig.
+// In an xcconfig `//` starts a comment, so URLs are written `https:/$()/host`.
+
+// Your own reverse-DNS prefix, so your build never shares keychain items, defaults or type ids with the official app.
+GRAILS_BUNDLE_PREFIX = com.example
+
+// Your own invite server (a deploy of the grails-site repo), or empty to skip short invites and use long grails:// links.
+GRAILS_SITE_URL =
+// GRAILS_SITE_URL = https:/$()/grails.example.com
+
+// Your own appcast and EdDSA public key (Sparkle's generate_keys), or leave them empty to turn updates off.
+GRAILS_SPARKLE_FEED_URL =
+GRAILS_SPARKLE_PUBLIC_KEY =
+
+// Where feedback mail goes. Empty opens the mail with no recipient.
+GRAILS_FEEDBACK_EMAIL =
+
+// Your Apple team id, to sign with your own certificate. Leave empty for ad-hoc signing.
+// DEVELOPMENT_TEAM = ABCDE12345

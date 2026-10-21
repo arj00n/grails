@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>Grails</string>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Grails Library</string>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>$(GRAILS_BUNDLE_PREFIX).grails.library</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
+		</dict>
+	</array>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>$(GRAILS_BUNDLE_PREFIX).grails</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>grails</string>
+				<string>stash</string>
+			</array>
+		</dict>
+	</array>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GrailsFeedbackEmail</key>
+	<string>$(GRAILS_FEEDBACK_EMAIL)</string>
+	<key>GrailsSiteURL</key>
+	<string>$(GRAILS_SITE_URL)</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.graphics-design</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSHumanReadableCopyright</key>
+	<string>MIT licensed</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Grails uses the microphone for a spoken note.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Grails transcribes a voice note on this Mac.</string>
+	<key>SUAllowsAutomaticUpdates</key>
+	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>$(GRAILS_SPARKLE_FEED_URL)</string>
+	<key>SUPublicEDKey</key>
+	<string>$(GRAILS_SPARKLE_PUBLIC_KEY)</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Grails Library</string>
+			<key>UTTypeIdentifier</key>
+			<string>$(GRAILS_BUNDLE_PREFIX).grails.library</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>grails</string>
+					<string>stash</string>
+				</array>
+			</dict>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Grails Items</string>
+			<key>UTTypeIdentifier</key>
+			<string>$(GRAILS_BUNDLE_PREFIX).grails.items</string>
+		</dict>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>Grails Collection</string>
+			<key>UTTypeIdentifier</key>
+			<string>$(GRAILS_BUNDLE_PREFIX).grails.collection</string>
+		</dict>
+	</array>
+</dict>
+</plist>
