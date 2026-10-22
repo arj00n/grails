@@ -38,12 +38,19 @@ public enum Canon {
 
     public struct Offer: Equatable, Sendable {
         public let adding: [String]
+        public let removing: [String]
         public var shown: Bool { !adding.isEmpty }
-        init(adding: [String]) { self.adding = adding }
+        init(adding: [String], removing: [String]) {
+            self.adding = adding
+            self.removing = removing
+        }
     }
 
     public static func offer(selected: [String], alreadyIn: Set<String>) -> Offer {
-        Offer(adding: selected.filter { !alreadyIn.contains($0) })
+        Offer(
+            adding: selected.filter { !alreadyIn.contains($0) },
+            removing: selected.filter { alreadyIn.contains($0) }
+        )
     }
 
     /// A `baseline` JSON value that marks the collection. Absent, false, and empty do not.

@@ -201,18 +201,49 @@ import Testing
     @Test func offerHidesASelectionAlreadyInTheSet() {
         let offer = Canon.offer(selected: ["a"], alreadyIn: ["a"])
         #expect(offer.adding == [])
+        #expect(offer.removing == ["a"])
         #expect(offer.shown == false)
     }
 
     @Test func offerShowsASelectionWhenTheSetIsEmpty() {
         let offer = Canon.offer(selected: ["a"], alreadyIn: [])
         #expect(offer.adding == ["a"])
+        #expect(offer.removing == [])
         #expect(offer.shown == true)
     }
 
     @Test func offerKeepsSelectedOrderWithoutIdsAlreadyIn() {
         let offer = Canon.offer(selected: ["a", "b", "c"], alreadyIn: ["b"])
         #expect(offer.adding == ["a", "c"])
+        #expect(offer.removing == ["b"])
         #expect(offer.shown == true)
+    }
+
+    @Test func removingFromHolyGrailLeavesTheItemAndUndoRestoresItsOrder() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let holyGrail = try await store.createCollection(name: Canon.name)
+        let inside = TestSupport.item("inside")
+        let outside = TestSupport.item("outside")
+        try await TestSupport.seed(store, [inside, outside])
+        try await store.add(ids: [inside.id], toCollection: holyGrail.id)
+        let orderKey = try await store.item(id: inside.id)?.collections[holyGrail.id]
+        #expect(orderKey != nil)
+
+        let (_, undo) = try await store.recording(label: "Remove from Holy Grail") {
+            try await store.remove(ids: [inside.id], fromCollection: holyGrail.id)
+        }
+        let removed = try await store.item(id: inside.id)
+        #expect(removed?.deletedAt == nil)
+        #expect(removed?.collections[holyGrail.id] == nil)
+        let untouched = try await store.item(id: outside.id)
+        #expect(untouched?.deletedAt == nil)
+        #expect(untouched?.collections[holyGrail.id] == nil)
+        #expect(try await store.index.itemIds(inCollection: holyGrail.id).isEmpty)
+
+        _ = try await store.apply(undo)
+        let restored = try await store.item(id: inside.id)
+        #expect(restored?.deletedAt == nil)
+        #expect(restored?.collections[holyGrail.id] == orderKey)
+        #expect(try await store.index.itemIds(inCollection: holyGrail.id) == [inside.id])
     }
 }
