@@ -19,4 +19,8 @@ GRAILS_FEEDBACK_EMAIL = hi@arjoon.xyz
 // Signing. Builds are ad-hoc signed by default; set your team in Local.xcconfig to sign with your own certificate.
 DEVELOPMENT_TEAM =
 
+// Safari web extension. NO hides the Settings row and leaves the appex out of Grails.app.
+// Set YES once DEVELOPMENT_TEAM is a paid Developer ID. See docs/SAFARI_EXTENSION.md.
+GRAILS_SAFARI_EXTENSION = NO
+
 #include? "Local.xcconfig"

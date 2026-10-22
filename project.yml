@@ -48,7 +48,7 @@ targets:
       - package: GrailsEndpoints
       - package: Sparkle
       - target: GrailsSafari
-        embed: true
+        embed: false
         link: false
         codeSign: false
       - sdk: SafariServices.framework
@@ -67,6 +67,7 @@ targets:
           NSAllowsLocalNetworking: true
         GrailsSiteURL: $(GRAILS_SITE_URL)
         GrailsFeedbackEmail: $(GRAILS_FEEDBACK_EMAIL)
+        GRAILS_SAFARI_EXTENSION: $(GRAILS_SAFARI_EXTENSION)
         SUFeedURL: $(GRAILS_SPARKLE_FEED_URL)
         SUPublicEDKey: $(GRAILS_SPARKLE_PUBLIC_KEY)
         SUEnableAutomaticChecks: true
@@ -102,6 +103,15 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
+    postBuildScripts:
+      - name: Embed Safari extension when enabled
+        path: Scripts/embed-safari-extension.sh
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/Scripts/embed-safari-extension.sh
+          - $(BUILT_PRODUCTS_DIR)/GrailsSafari.appex
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/PlugIns/GrailsSafari.appex
   GrailsSafari:
     type: app-extension
     platform: macOS

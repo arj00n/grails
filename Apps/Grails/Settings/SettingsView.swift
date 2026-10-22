@@ -522,10 +522,12 @@ struct ExtensionsSettings: View {
                 if model.extensionPaired { GrailsButton("Disconnect…", kind: .secondary) { confirmDisconnect() } }
                 GrailsButton(model.extensionPaired ? "Add to another browser…" : "Install extension…", kind: .secondary, identifier: "settings-install-extension") { model.extensionSetup.open(app: model) }
             }
-            GrailsSettingsRow("Safari", detail: "Included with this app.") {
-                GrailsButton("Open Safari Extensions…", kind: .secondary, identifier: "settings-safari-extension") {
-                    let id = (Bundle.main.bundleIdentifier ?? "") + ".safari"
-                    SFSafariApplication.showPreferencesForExtension(withIdentifier: id) { _ in }
+            if SafariExtension.isAvailable {
+                GrailsSettingsRow("Safari", detail: "Included with this app.") {
+                    GrailsButton("Open Safari Extensions…", kind: .secondary, identifier: "settings-safari-extension") {
+                        let id = (Bundle.main.bundleIdentifier ?? "") + ".safari"
+                        SFSafariApplication.showPreferencesForExtension(withIdentifier: id) { _ in }
+                    }
                 }
             }
         }

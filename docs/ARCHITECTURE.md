@@ -20,7 +20,7 @@ Apps/
   Grails/            SwiftUI and AppKit app: App, Grid, Canvas, Preview, Info, Sidebar, Panels,
                      Import, Collab (shared folders), Bucket (cloud bucket), Onboarding, Settings, Updates
   GrailsCLI/         the `grails` command-line tool
-  GrailsSafari/      Safari appex embedded in Grails.app, same Extensions/chrome tree
+  GrailsSafari/      Safari appex. Built with the app. Inside Grails.app only when GRAILS_SAFARI_EXTENSION is YES
   GrailsUITests/     XCUITest target
 Packages/
   GrailsKit/         library format, index, capture, importers, vision, local API (no UI)
@@ -163,7 +163,7 @@ Similarity, OCR and colour run on the Mac. Nothing they produce is written into 
 ## Capture and import
 
 - **Paste, drop, menu bar.** Files and URLs become items through `CaptureService`.
-- **Browser extension.** `Extensions/chrome` posts to the local API (`LocalAPIServer`) on `127.0.0.1:47823`. Every request needs a bearer token from a pairing file (mode 0600). Requests from web origins are refused; only extension origins and native clients are allowed. The Safari appex is embedded in Grails.app and uses the same `Extensions/chrome` tree.
+- **Browser extension.** `Extensions/chrome` posts to the local API (`LocalAPIServer`) on `127.0.0.1:47823`. Every request needs a bearer token from a pairing file (mode 0600). Requests from web origins are refused; only extension origins and native clients are allowed. The Safari appex uses that same tree. It is copied into Grails.app only when `GRAILS_SAFARI_EXTENSION` is `YES` (see [SAFARI_EXTENSION.md](SAFARI_EXTENSION.md)).
 - **Boards.** Paste an Are.na, Pinterest or X board link and each board becomes a collection. A full Pinterest board comes from an in-app collector: a WebKit view that is never on screen loads the board and pages Pinterest's own board feed. The fallback is the public widget's latest 50 pins. The extension is only needed for secret boards and for saving from any page.
 
 ## Updates

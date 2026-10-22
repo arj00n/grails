@@ -17,3 +17,6 @@ GRAILS_FEEDBACK_EMAIL =
 
 // Your Apple team id, to sign with your own certificate. Leave empty for ad-hoc signing.
 // DEVELOPMENT_TEAM = ABCDE12345
+
+// Ship the Safari web extension inside the app. Leave this commented until that team id is a paid Developer ID.
+// GRAILS_SAFARI_EXTENSION = YES
