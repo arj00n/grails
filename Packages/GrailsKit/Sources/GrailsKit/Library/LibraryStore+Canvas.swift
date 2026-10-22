@@ -9,10 +9,10 @@ extension LibraryStore {
     }
 
     func noteBefore(canvas key: String, ids: [String], board: CanvasBoard?) {
-        guard recorder != nil else { return }
+        guard let recorder = activeRecording() else { return }
         for id in ids {
-            if recorder?.canvases[key]?.keys.contains(id) == true { continue }
-            recorder?.canvases[key, default: [:]][id] = .some(board?.placements[id])
+            if recorder.canvases[key]?.keys.contains(id) == true { continue }
+            recorder.canvases[key, default: [:]][id] = .some(board?.placements[id])
         }
     }
 
@@ -35,7 +35,7 @@ extension LibraryStore {
     @discardableResult
     public func setClusters(boardKey key: String, _ clusters: [CanvasCluster]) async throws -> CanvasBoard {
         var board = readBoard(key: key) ?? CanvasBoard(key: key)
-        if recorder != nil, recorder?.clusters[key] == nil { recorder?.clusters[key] = board.clusters }
+        if let recorder = activeRecording(), recorder.clusters[key] == nil { recorder.clusters[key] = board.clusters }
         board.clusters = clusters
         board.updatedAt = .grailsNow
         board.updatedBy = userHandle

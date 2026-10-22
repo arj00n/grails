@@ -5,27 +5,33 @@ import Foundation
 extension LibraryStore {
     // MARK: Undo
 
-    /// Starts noting the "before" state of everything subsequently changed. Pair with `endRecording(label:)`.
-    /// Use this form from the UI (a closure can't hop from the main actor into this actor under Swift 6).
+    /// Starts noting the "before" state of everything subsequently changed on this actor. Pair with `endRecording(label:)`.
+    /// Overlapping actions use `capture`, which keeps a recorder on the task instead of this field.
     public func beginRecording() { recorder = ChangeRecorder() }
 
     /// Stops recording and returns the change set that undoes everything since `beginRecording()`.
     public func endRecording(label: String) -> ChangeSet {
         let r = recorder ?? ChangeRecorder()
         recorder = nil
-        return ChangeSet(label: label, items: r.items, collections: r.collections, smartFolders: r.smartFolders, canvases: r.canvases, clusters: r.clusters, notes: r.notes)
+        return Self.changeSet(label, r)
+    }
+
+    /// Runs `body` on this task's own recorder, so a second action cannot note into it.
+    public static func capture<T>(label: String, _ body: () async throws -> T) async throws -> (value: T, undo: ChangeSet) {
+        let box = ChangeRecorder()
+        let value = try await $taskRecording.withValue(box, operation: body)
+        return (value, changeSet(label, box))
     }
 
     /// Runs `body` and returns the "before" state of everything it changed, ready to hand to `apply(_:)`.
     public func recording<T>(label: String, _ body: () async throws -> T) async throws -> (value: T, undo: ChangeSet) {
-        beginRecording()
-        do {
-            let value = try await body()
-            return (value, endRecording(label: label))
-        } catch {
-            _ = endRecording(label: label)
-            throw error
-        }
+        try await Self.capture(label: label, body)
+    }
+
+    func activeRecording() -> ChangeRecorder? { Self.taskRecording ?? recorder }
+
+    private static func changeSet(_ label: String, _ box: ChangeRecorder) -> ChangeSet {
+        ChangeSet(label: label, items: box.items, collections: box.collections, smartFolders: box.smartFolders, canvases: box.canvases, clusters: box.clusters, notes: box.notes)
     }
 
     /// Restores the states in `changes`; returns the inverse (apply that to redo).
@@ -85,23 +91,23 @@ extension LibraryStore {
     }
 
     func noteBefore(item id: String) {
-        guard recorder != nil, recorder?.items.keys.contains(id) == false else { return }
-        recorder?.items[id] = .some(try? item(id: id))
+        guard let recorder = activeRecording(), recorder.items.keys.contains(id) == false else { return }
+        recorder.items[id] = .some(try? item(id: id))
     }
 
     func noteBefore(note id: String) {
-        guard recorder != nil, recorder?.notes.keys.contains(id) == false else { return }
-        recorder?.notes[id] = LibraryNotes.read(id, in: layout)
+        guard let recorder = activeRecording(), recorder.notes.keys.contains(id) == false else { return }
+        recorder.notes[id] = LibraryNotes.read(id, in: layout)
     }
 
     func noteBefore(collection id: String) {
-        guard recorder != nil, recorder?.collections.keys.contains(id) == false else { return }
-        recorder?.collections[id] = .some(readCollection(id: id))
+        guard let recorder = activeRecording(), recorder.collections.keys.contains(id) == false else { return }
+        recorder.collections[id] = .some(readCollection(id: id))
     }
 
     func noteBefore(smart id: String) {
-        guard recorder != nil, recorder?.smartFolders.keys.contains(id) == false else { return }
-        recorder?.smartFolders[id] = .some(readSmart(id: id))
+        guard let recorder = activeRecording(), recorder.smartFolders.keys.contains(id) == false else { return }
+        recorder.smartFolders[id] = .some(readSmart(id: id))
     }
 
     // MARK: Items: bulk edits

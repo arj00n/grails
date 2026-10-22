@@ -484,6 +484,10 @@ enum ListBucketXML {
     static func parse(_ data: Data) throws -> Page {
         let text = String(data: data, encoding: .utf8) ?? ""
         var objects: [ObjectHead] = []
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
         let pattern = try NSRegularExpression(pattern: "<Contents>(.*?)</Contents>", options: [.dotMatchesLineSeparators])
         let range = NSRange(text.startIndex..., in: text)
         for match in pattern.matches(in: text, range: range) {
@@ -492,7 +496,9 @@ enum ListBucketXML {
             guard let key = tag("Key", in: block) else { continue }
             let etag = S3Client.cleanETag(tag("ETag", in: block) ?? "")
             let size = Int64(tag("Size", in: block) ?? "") ?? 0
-            objects.append(ObjectHead(key: key, etag: etag, size: size))
+            let rawDate = tag("LastModified", in: block)
+            let modified = rawDate.flatMap { fractional.date(from: $0) ?? plain.date(from: $0) }
+            objects.append(ObjectHead(key: key, etag: etag, size: size, modified: modified))
         }
         let truncated = (tag("IsTruncated", in: text) ?? "").lowercased() == "true"
         let token = tag("NextContinuationToken", in: text)

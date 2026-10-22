@@ -24,7 +24,7 @@ public struct ChangeSet: Sendable {
     }
 }
 
-struct ChangeRecorder {
+final class ChangeRecorder: @unchecked Sendable {
     var items: [String: Item?] = [:]
     var collections: [String: GrailsCollection?] = [:]
     var smartFolders: [String: SmartFolder?] = [:]

@@ -798,6 +798,14 @@ public actor BucketSyncEngine {
             await onProgress?(0, itemIDs.count)
         }
         var finishedItems = 0
+        func advance(_ key: String) -> (done: Int, total: Int)? {
+            guard let id = SyncItems.id(in: key) else { return nil }
+            remaining[id, default: 1] -= 1
+            guard remaining[id] == 0 else { return nil }
+            finishedItems += 1
+            guard SyncFeedback.showsProgress(total: itemIDs.count) else { return nil }
+            return (finishedItems, itemIDs.count)
+        }
         for key in plan.downloads where librarySettled(key) {
             try stillCurrent(epoch)
             guard let url = SyncPath.url(root: root, key: key) else { continue }
@@ -809,6 +817,18 @@ public actor BucketSyncEngine {
                 continue
             }
             guard librarySettled(key) else { continue }
+            if key != Self.libraryKey, let local = try? Data(contentsOf: url), Digests.sha256Hex(local) != manifest.entries[key]?.digest {
+                let etag = try await put(key, body: local, contentType: S3Client.contentType(key), ifMatch: got.etag, ifNoneMatch: nil)
+                guard librarySettled(key) else { continue }
+                manifest.entries[key] = ManifestEntry(etag: ETags.canonical(etag), digest: Digests.sha256Hex(local), size: Int64(local.count))
+                try saveManifest()
+                report.uploaded.append(key)
+                if let step = advance(key) {
+                    passLog?(SyncPassLog.progress(done: step.done, total: step.total))
+                    await onProgress?(step.done, step.total)
+                }
+                continue
+            }
             var payload = got.body
             if key.hasPrefix(".members/") {
                 let local = try? Data(contentsOf: url)
@@ -824,15 +844,9 @@ public actor BucketSyncEngine {
             manifest.entries[key] = ManifestEntry(etag: ETags.canonical(etag), digest: Digests.sha256Hex(payload), size: Int64(payload.count))
             try saveManifest()
             report.downloaded.append(key)
-            if let id = SyncItems.id(in: key) {
-                remaining[id, default: 1] -= 1
-                if remaining[id] == 0 {
-                    finishedItems += 1
-                    if SyncFeedback.showsProgress(total: itemIDs.count) {
-                        passLog?(SyncPassLog.progress(done: finishedItems, total: itemIDs.count))
-                        await onProgress?(finishedItems, itemIDs.count)
-                    }
-                }
+            if let step = advance(key) {
+                passLog?(SyncPassLog.progress(done: step.done, total: step.total))
+                await onProgress?(step.done, step.total)
             }
         }
         for key in plan.conflicts where librarySettled(key) {
@@ -1123,13 +1137,26 @@ public actor BucketSyncEngine {
 }
 
 public enum LibraryUploader {
+    /// Sends files the bucket does not have, and files this Mac wrote after the bucket copy.
+    /// Same bytes are skipped. A newer bucket copy, or one whose age the listing does not give, stays.
     public static func upload(root: URL, store: any ObjectStore) async throws -> [String] {
         let files = try LibraryScanner.scan(root: root)
-        let ordered = SyncRank.sort(files.map(\.key))
+        var heads: [String: ObjectHead] = [:]
+        for head in try await store.list(prefix: "") { heads[head.key] = head }
         var sent: [String] = []
-        for key in ordered {
-            let data = try Data(contentsOf: root.appendingPathComponent(key))
-            _ = try await store.put(key, body: data, contentType: S3Client.contentType(key), ifMatch: nil, ifNoneMatch: nil)
+        for key in SyncRank.sort(files.map(\.key)) {
+            let url = root.appendingPathComponent(key)
+            let data = try Data(contentsOf: url)
+            if let head = heads[key] {
+                let remote = try await store.get(key)
+                if remote.body == data { continue }
+                guard let modified = head.modified else { continue }
+                let localDate = try url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate
+                guard let localDate, modified <= localDate else { continue }
+                _ = try await store.put(key, body: data, contentType: S3Client.contentType(key), ifMatch: head.etag, ifNoneMatch: nil)
+            } else {
+                _ = try await store.put(key, body: data, contentType: S3Client.contentType(key), ifMatch: nil, ifNoneMatch: "*")
+            }
             sent.append(key)
         }
         return sent

@@ -1046,15 +1046,9 @@ final class AppModel {
     // MARK: Undoable operations
 
     /// Runs `body` while the store notes the state it overwrites; returns the result and the undo change set.
-    func recorded<T>(_ label: String, in store: LibraryStore, _ body: () async throws -> T) async throws -> (T, ChangeSet) {
-        await store.beginRecording()
-        do {
-            let value = try await body()
-            return (value, await store.endRecording(label: label))
-        } catch {
-            _ = await store.endRecording(label: label)
-            throw error
-        }
+    func recorded<T>(_ label: String, in _: LibraryStore, _ body: () async throws -> T) async throws -> (T, ChangeSet) {
+        let (value, undo) = try await LibraryStore.capture(label: label, body)
+        return (value, undo)
     }
 
     /// Runs a library mutation, records what it changed for undo, and refreshes the grid.
