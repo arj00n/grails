@@ -220,16 +220,16 @@ public final class LocalAPIServer: @unchecked Sendable {
 
     private func handle(_ req: HTTPRequest) async -> HTTPResponse {
         if req.method == "OPTIONS" { return HTTPResponse(status: 204) }
-        // pairing is the one thing that needs no token: only an extension origin may ask, and the app accepts it
+        // pairing is the one thing that needs no token: only a pairing origin may ask, and the app accepts it
         if req.path == "/api/v1/pair", req.method == "POST" {
-            guard let origin = req.header("origin"), ExtensionOrigin.isSaveToGrails(origin) else { return .error(403, "Only a browser extension can ask") }
+            guard let origin = req.header("origin"), PairingOrigin.parse(origin) != nil else { return .error(403, "Only a browser extension can ask") }
             guard let id = pairing.open(origin: origin) else { return .error(429, "Another request is waiting") }
             struct Opened: Encodable { let requestId: String }
             return .json(202, Opened(requestId: id))
         }
         if req.path.hasPrefix("/api/v1/pair/"), req.method == "GET" {
             let id = String(req.path.dropFirst("/api/v1/pair/".count))
-            guard let origin = req.header("origin"), ExtensionOrigin.isSaveToGrails(origin) else { return .error(403, "Only a browser extension can ask") }
+            guard let origin = req.header("origin"), PairingOrigin.parse(origin) != nil else { return .error(403, "Only a browser extension can ask") }
             switch pairing.state(of: id) {
             case .pending?: return .json(202, ["ok": "pending"])
             case .approved?:

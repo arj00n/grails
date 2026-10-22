@@ -28,9 +28,18 @@ public struct ListedBoard: Codable, Sendable, Equatable {
 public enum ExtensionOrigin {
     public static let chromeStoreID = "hmgnlaogphdalmkodegandmikjjijbpl"
     public static var chrome: String { "chrome-extension://\(chromeStoreID)" }
+}
 
-    public static func isSaveToGrails(_ origin: String) -> Bool {
-        origin == chrome
+public enum PairingOrigin: Equatable, Sendable {
+    case chromeStore
+    case safari(UUID)
+
+    public static func parse(_ origin: String) -> PairingOrigin? {
+        if origin == ExtensionOrigin.chrome { return .chromeStore }
+        guard let scheme = origin.range(of: "safari-web-extension://", options: [.caseInsensitive, .anchored], locale: Locale(identifier: "en_US_POSIX")) else { return nil }
+        let remainder = String(origin[scheme.upperBound...])
+        guard !remainder.contains(where: { "/?#@:".contains($0) }), let uuid = UUID(uuidString: remainder) else { return nil }
+        return .safari(uuid)
     }
 }
 

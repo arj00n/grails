@@ -377,6 +377,44 @@ actor FakeService: CaptureService {
         #expect(try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: "chrome-extension://abcdefgh").0 == 403)
     }
 
+    @Test func aSafariOriginPairsAndOnlyThatOriginCollectsTheToken() async throws {
+        let (server, _, base) = try await start()
+        defer { server.stop() }
+        let safari = "safari-web-extension://E621E1F8-C36C-495A-93FC-0C247A3E6E5F"
+        let other = "safari-web-extension://550E8400-E29B-41D4-A716-446655440000"
+        let opened = try await call(base, "POST", "/api/v1/pair", token: nil, origin: safari)
+        #expect(opened.0 == 202)
+        let id = try #require(try JSONSerialization.jsonObject(with: opened.2) as? [String: String])["requestId"]!
+        server.pairing.approve(id)
+        let got = try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: safari)
+        #expect(got.0 == 200 && String(decoding: got.2, as: UTF8.self).contains(token))
+        #expect(try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: other).0 == 403)
+        #expect(try await call(base, "POST", "/api/v1/pair", token: nil, origin: "chrome-extension://abcdefgh").0 == 403)
+        #expect(try await call(base, "POST", "/api/v1/pair", token: nil, origin: "safari-web-extension://not-a-uuid").0 == 403)
+    }
+
+    @Test func pairingOriginParsesTheStoreIdAndASafariUUID() throws {
+        #expect(PairingOrigin.parse(ExtensionOrigin.chrome) == .chromeStore)
+        #expect(PairingOrigin.parse("chrome-extension://abcdefgh") == nil)
+        #expect(PairingOrigin.parse("chrome-extension://HMGNLAOGPHDALMKODEGANDMIKJJIJBPL") == nil)
+        #expect(PairingOrigin.parse("Chrome-Extension://\(ExtensionOrigin.chromeStoreID)") == nil)
+        let id = try #require(UUID(uuidString: "E621E1F8-C36C-495A-93FC-0C247A3E6E5F"))
+        #expect(PairingOrigin.parse("safari-web-extension://E621E1F8-C36C-495A-93FC-0C247A3E6E5F") == .safari(id))
+        #expect(PairingOrigin.parse("safari-web-extension://e621e1f8-c36c-495a-93fc-0c247a3e6e5f") == .safari(id))
+        #expect(PairingOrigin.parse("Safari-Web-Extension://E621E1F8-C36C-495A-93FC-0C247A3E6E5F") == .safari(id))
+        #expect(PairingOrigin.parse("SAFARI-WEB-EXTENSION://E621E1F8-C36C-495A-93FC-0C247A3E6E5F") == .safari(id))
+        #expect(PairingOrigin.parse("safari-web-extension://not-a-uuid") == nil)
+        #expect(PairingOrigin.parse("moz-extension://\(id.uuidString)") == nil)
+        #expect(PairingOrigin.parse("https://example.com") == nil)
+        #expect(PairingOrigin.parse("") == nil)
+        #expect(PairingOrigin.parse("safari-web-extension://") == nil)
+        #expect(PairingOrigin.parse("safari-web-extension://\(id.uuidString)/extra") == nil)
+        #expect(PairingOrigin.parse("safari-web-extension://\(id.uuidString)?x=1") == nil)
+        #expect(PairingOrigin.parse("safari-web-extension://\(id.uuidString)#frag") == nil)
+        #expect(PairingOrigin.parse("safari-web-extension://user@\(id.uuidString)") == nil)
+        #expect(PairingOrigin.parse("safari-web-extension://\(id.uuidString):443") == nil)
+    }
+
     @Test func anApprovalExpiresAndAnotherOriginCannotCollectTheToken() {
         let broker = PairingBroker()
         let origin = ExtensionOrigin.chrome
