@@ -1243,6 +1243,17 @@ final class AppModel {
         }
     }
 
+    func removeFromCanon(_ ids: [String]) {
+        guard canPromoteToCanon, !ids.isEmpty, let canonID = Canon.collection(in: collections)?.id else { return }
+        let removing = ids
+        let collectionID = canonID
+        Task {
+            if await perform("Remove from \(Canon.title)", { try await $0.remove(ids: removing, fromCollection: collectionID) }) != nil {
+                bucket.nudge()
+            }
+        }
+    }
+
     func trashSelection() {
         if bucket.readOnly { showToast("Update Grails"); return }
         let ids = Array(selection)

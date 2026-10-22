@@ -204,16 +204,23 @@ struct InfoBlock: View {
                             model.promoteSelectionToCanon()
                         }
                         .padding(.bottom, CGFloat(Space.xs))
-                    } else if !offer.shown {
-                        HStack(spacing: CGFloat(Space.tight)) {
-                            CanonMark(size: 14)
-                            Text("In \(Canon.title)")
+                    } else if !offer.removing.isEmpty {
+                        VStack(alignment: .leading, spacing: CGFloat(Space.xs)) {
+                            HStack(spacing: CGFloat(Space.tight)) {
+                                CanonMark(size: 14)
+                                Text("In \(Canon.title)")
+                            }
+                            .font(.grailsBody(13))
+                            .foregroundStyle(Ink.secondary)
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("In \(Canon.title)")
+                            .accessibilityIdentifier("in-holy-grail")
+                            if model.canPromoteToCanon {
+                                GrailsButton("Remove from \(Canon.title)", kind: .quiet, identifier: "remove-from-holy-grail") {
+                                    model.removeFromCanon(offer.removing)
+                                }
+                            }
                         }
-                        .font(.grailsBody(13))
-                        .foregroundStyle(Ink.secondary)
-                        .accessibilityElement(children: .ignore)
-                        .accessibilityLabel("In \(Canon.title)")
-                        .accessibilityIdentifier("in-holy-grail")
                         .padding(.bottom, CGFloat(Space.xs))
                     }
                 }

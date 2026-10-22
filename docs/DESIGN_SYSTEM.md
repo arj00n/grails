@@ -271,7 +271,7 @@ One `NameBubbleCoordinator` owns the open bubble for the whole app. A second ava
 
 ### Holy Grail
 
-Holy Grail has its own mark, `CanonMark`: an eight-point rosette with a punched centre, drawn as a shape (`CanonGlyph`) so it is crisp at any size. `CanonMark.image()` is the same mark as a template image for AppKit menus. Rows that take an SF Symbol name use `CanonMark.symbolName`, which `GrailsSymbol` and the palette turn into the mark. It appears in the sidebar, the item inspector, "Add to Holy Grail", and the palette. The inspector shows the mark beside "In Holy Grail" when the open item is already in the set, and a secondary button "Add to Holy Grail" when it is not and the person can add it.
+Holy Grail has its own mark, `CanonMark`: an eight-point rosette with a punched centre, drawn as a shape (`CanonGlyph`) so it is crisp at any size. `CanonMark.image()` is the same mark as a template image for AppKit menus. Rows that take an SF Symbol name use `CanonMark.symbolName`, which `GrailsSymbol` and the palette turn into the mark. It appears in the sidebar, the item inspector, "Add to Holy Grail", and the palette. The inspector shows the mark beside "In Holy Grail" when the open item is already in the set, and a secondary button "Add to Holy Grail" when it is not and the person can add it. A connected owner or admin also gets a quiet "Remove from Holy Grail" under that line. Removal drops the collection membership and can be undone.
 
 In the sidebar's main section, after All, Holy Grail is one row (`GrailsCanonHighlight` behind it). It is not listed again under Collections. The row title is one line in a 240 pt sidebar. Holy Grail fits beside the mark. It has two states.
 
