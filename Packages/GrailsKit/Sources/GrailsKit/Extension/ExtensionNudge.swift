@@ -42,7 +42,7 @@ public struct ExtensionNudgeRecord: Codable, Equatable, Sendable {
     }
 
     public func save(_ defaults: UserDefaults = .standard) {
-        if let data = try? JSONEncoder().encode(self) { defaults.set(data, forKey: defaultsKey) }
+        if let data = try? JSONEncoder().encode(self) { defaults.set(data, forKey: Self.defaultsKey) }
     }
 
     /// Keeps each origin. `offer` applies the Safari switch, so a pair stored while Safari is off still counts once it is on.
