@@ -374,7 +374,7 @@ wired = [
     (app / "Settings" / "SettingsView.swift", "grailsSelectionTrack", "settings tabs do not spring"),
     (app / "App" / "RootView.swift", "grailsToastEntrance", "toast does not rise"),
 ]
-# Canon: one row in the sidebar with its own mark. Plain until selected; selected, a gold fill with a thin gold outline. No sweeping
+# Holy Grail: one row in the sidebar with its own mark. Plain until selected; selected, a gold fill with a thin gold outline. No sweeping
 # sheen, no glow. The only motion is a few dithered stars on one small timeline over the icon, which ticks only when a star steps and
 # holds still under Reduce Motion, in the background, out of sight and once nobody is touching the app. Avatars on tiles are cached images with the name bubble, not text.
 canon_src = (design / "CanonHighlight.swift").read_text()
@@ -407,7 +407,8 @@ wired += [
     (app / "Sidebar" / "SidebarView.swift", "CanonMark.symbolName", "canon row has no canon mark"),
     (app / "Sidebar" / "SidebarView.swift", "CanonSparkles(selected: selected)", "canon mark has no stars"),
     (app / "Sidebar" / "SidebarView.swift", "CanonInk(selected: selected)", "canon ink does not follow selection"),
-    (app / "App" / "ItemMenu.swift", "CanonMark.symbolName", "promote to canon has no canon mark"),
+    (app / "App" / "ItemMenu.swift", "CanonMark.symbolName", "add to holy grail has no mark"),
+    (app / "App" / "ItemMenu.swift", "Add to \\(Canon.title)", "holy grail menu title is missing"),
     (app / "Grid" / "ThumbCell.swift", "MemberAvatarView", "tile avatar is not the member avatar"),
     (app / "Info" / "InfoBlock.swift", "GrailsMemberAvatar", "item info has no adder avatar"),
     (app / "Settings" / "SettingsView.swift", "GrailsAvatarEditor(", "settings profile is not the avatar editor"),

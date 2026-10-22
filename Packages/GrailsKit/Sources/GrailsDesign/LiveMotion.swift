@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// When something that moves on its own (a spinner, Canon's stars, a clock-driven view) may run. Every TimelineView in the app goes
+/// When something that moves on its own (a spinner, Holy Grail's stars, a clock-driven view) may run. Every TimelineView in the app goes
 /// through `GrailsLiveMotion`, so nothing spends a frame where nobody can see it: the app in the background, the window minimised,
 /// hidden or covered, Reduce Motion, a snapshot. Decorative loops also rest once the person has stopped touching the app.
 public enum LiveMotion {

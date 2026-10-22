@@ -1229,7 +1229,7 @@ final class AppModel {
                 bucket.nudge()
                 await reload()
             } catch {
-                errorMessage = "Couldn't promote to Canon"
+                errorMessage = "Couldn't add to \(Canon.title)"
             }
         }
     }

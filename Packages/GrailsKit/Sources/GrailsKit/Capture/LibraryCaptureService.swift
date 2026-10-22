@@ -24,7 +24,7 @@ public final class LibraryCaptureService: CaptureService, @unchecked Sendable {
     public func collections() async -> [CollectionInfo] {
         guard let store = await storeProvider() else { return [] }
         let all = (try? await store.index.collections()) ?? []
-        return all.filter { !$0.archived }.map { CollectionInfo(id: $0.id, name: $0.name, kind: $0.kind, parentId: $0.parentId) }
+        return all.filter { !$0.archived }.map { CollectionInfo(id: $0.id, name: $0.displayName, kind: $0.kind, parentId: $0.parentId) }
     }
 
     public func importBoard(_ request: BoardImportRequest) async throws -> BoardImportAccepted {

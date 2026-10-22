@@ -269,7 +269,7 @@ import Testing
     }
 }
 
-/// Canon's sidebar row as the sidebar draws it, on the sidebar colour, for the tests and the preview.
+/// Holy Grail's sidebar row as the sidebar draws it, on the sidebar colour, for the tests and the preview.
 private struct CanonRowSample: View {
     var selected: Bool
     var hovering = false
@@ -277,7 +277,7 @@ private struct CanonRowSample: View {
         HStack(spacing: 8) {
             CanonMark(size: 12).foregroundStyle(CanonInk(selected: selected)).frame(width: 16)
                 .overlay { CanonSparkles(selected: selected) }
-            Text("Canon").font(.system(size: 13)).foregroundStyle(CanonInk(selected: selected))
+            Text("Holy Grail").font(.system(size: 13)).foregroundStyle(CanonInk(selected: selected))
             Spacer(minLength: 4)
         }
         .padding(.horizontal, 8)

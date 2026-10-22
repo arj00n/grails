@@ -41,7 +41,7 @@ extension AppModel {
         add("Edit Tags…", "tag") { [self] in run(.tag) }
         add("Move to Collection…", "rectangle.stack") { [self] in run(.move) }
         if bucket.connected, TeamPermissions.canPromoteToCanon(bucket.role) {
-            add("Promote to Canon", CanonMark.symbolName) { [self] in promoteSelectionToCanon() }
+            add("Add to \(Canon.title)", CanonMark.symbolName) { [self] in promoteSelectionToCanon() }
         }
         add("Add Note…", "note.text") { [self] in run(.note) }
         add("Auto-tag", "sparkles") { [self] in autoTagSelection() }

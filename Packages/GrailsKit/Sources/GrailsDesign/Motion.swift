@@ -52,9 +52,9 @@ public enum Motion {
     /// The painting wall's caption crossfade and the ink band's fade. Ambient, not chrome: the one place a fade runs past `longest`.
     public static let ambientCaption: TimeInterval = 0.7
     public static let ambientBand: TimeInterval = 0.4
-    /// Canon's stars: each lights once per period, in turn. Ambient like the wall; they hold with the window and under Reduce Motion.
+    /// Holy Grail's stars: each lights once per period, in turn. Ambient like the wall; they hold with the window and under Reduce Motion.
     public static let canonTwinkle: TimeInterval = 7.2
-    /// Decorative motion (Canon's stars) rests this long after the last key, click or scroll, until the next one.
+    /// Decorative motion (Holy Grail's stars) rests this long after the last key, click or scroll, until the next one.
     public static let ambientIdle: TimeInterval = 30
 
     /// Spinner angle at a moment in time: a linear turn every `spinnerPeriod`, starting at `spinnerRest`.

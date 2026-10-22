@@ -12,7 +12,7 @@ A shared picture library for a Mac team: a native app, your own storage, no Grai
 - **Find it again.** Tags, collections, smart folders, full-text search, ⌘K palette, search by colour, Find Similar.
 - **On-device smarts.** Auto-tags, text in pictures and colours are worked out on the Mac. Nothing is uploaded.
 - **Capture** by paste, drag and drop, the menu bar, or the Save to Grails browser extension.
-- **Teams.** Keep a library in your own Cloudflare R2 bucket, with owner, admin and member roles and single-use invites. Or put it in a shared Drive, Dropbox or iCloud folder. An admin promotes references into Canon, the set the team keeps.
+- **Teams.** Keep a library in your own Cloudflare R2 bucket, with owner, admin and member roles and single-use invites. Or put it in a shared Drive, Dropbox or iCloud folder. An admin adds references to Holy Grail, the set the team keeps.
 - **Plain files.** A library is a folder of your files and small JSON sidecars you can open in Finder.
 
 ## Install

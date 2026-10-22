@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Canon's colours. Warm gold, kept quiet: a pale fill in light mode, a deep one in dark, text well over 4.5:1 on both.
+/// Holy Grail's colours. Warm gold, kept quiet: a pale fill in light mode, a deep one in dark, text well over 4.5:1 on both.
 public enum CanonTokens {
     /// The selected row's fill.
     public static func fill(dark: Bool) -> (from: UInt32, to: UInt32) { dark ? (0x3A2E12, 0x55421A) : (0xFBEFCB, 0xF1D58A) }
@@ -20,7 +20,7 @@ public enum CanonTokens {
     }
 }
 
-/// The few dithered pixel stars around Canon's mark. Each is a 1 px dot or a 3 px plus on a 1 pt grid, lit through the Bayer map, so
+/// The few dithered pixel stars around Holy Grail's mark. Each is a 1 px dot or a 3 px plus on a 1 pt grid, lit through the Bayer map, so
 /// it fades in and out by whole pixels like the painting wall. They take turns: one at a time, briefly, then rest.
 public enum CanonStars {
     public struct Star: Sendable, Equatable {
@@ -106,7 +106,7 @@ public enum CanonStars {
     }
 }
 
-/// Canon's own mark: an eight-point rosette with a punched centre. A shape, so it stays crisp at any size and takes any fill.
+/// Holy Grail's own mark: an eight-point rosette with a punched centre. A shape, so it stays crisp at any size and takes any fill.
 public struct CanonGlyph: Shape {
     public init() {}
 
@@ -132,19 +132,19 @@ public struct CanonGlyph: Shape {
     }
 }
 
-/// The Canon mark, everywhere Canon appears. `CanonMark.image` is the same mark for AppKit menus.
+/// The Holy Grail mark, everywhere Holy Grail appears. `CanonMark.image` is the same mark for AppKit menus.
 public struct CanonMark: View {
     var size: CGFloat
     public init(size: CGFloat = 12) { self.size = size }
 
-    /// Rows that take an SF Symbol name (the palette) use this name to ask for the Canon mark instead.
+    /// Rows that take an SF Symbol name (the palette) use this name to ask for the Holy Grail mark instead.
     public static let symbolName = "grails.canon"
 
     public var body: some View {
         CanonGlyph()
             .fill(style: FillStyle(eoFill: true, antialiased: true))
             .frame(width: size, height: size)
-            .accessibilityLabel("Canon")
+            .accessibilityLabel("Holy Grail")
     }
 
     /// A template image of the mark, tinted like an SF Symbol in a menu.
@@ -157,12 +157,12 @@ public struct CanonMark: View {
             return true
         }
         image.isTemplate = true
-        image.accessibilityDescription = "Canon"
+        image.accessibilityDescription = "Holy Grail"
         return image
     }
 }
 
-/// An SF Symbol, or the Canon mark when the name is `CanonMark.symbolName`.
+/// An SF Symbol, or the Holy Grail mark when the name is `CanonMark.symbolName`.
 public struct GrailsSymbol: View {
     var name: String
     var size: CGFloat
@@ -180,7 +180,7 @@ public struct GrailsSymbol: View {
     }
 }
 
-/// What sits behind Canon's row in the sidebar. Not selected: nothing but the hover every row has. Selected: the gold fill and a thin
+/// What sits behind Holy Grail's row in the sidebar. Not selected: nothing but the hover every row has. Selected: the gold fill and a thin
 /// gold outline. No glow, no sweeping light.
 public struct GrailsCanonHighlight: View {
     var selected: Bool
@@ -210,7 +210,7 @@ public struct GrailsCanonHighlight: View {
     }
 }
 
-/// The stars around Canon's mark: put it over the mark (`.overlay { CanonSparkles() }`). One small canvas the size of the icon that
+/// The stars around Holy Grail's mark: put it over the mark (`.overlay { CanonSparkles() }`). One small canvas the size of the icon that
 /// redraws only when a star steps (`CanonStars.Schedule`), so the row itself never redraws. Through `GrailsLiveMotion`: still under
 /// Reduce Motion and in snapshots, paused with the app in the background, the window out of sight, or nobody touching the app.
 public struct CanonSparkles: View {
@@ -246,7 +246,7 @@ public struct CanonSparkles: View {
     }
 }
 
-/// Canon's gold ink for the mark and title: the deep gold on the selected fill, the gentle tint on the plain sidebar.
+/// Holy Grail's gold ink for the mark and title: the deep gold on the selected fill, the gentle tint on the plain sidebar.
 public struct CanonInk: ShapeStyle {
     var selected: Bool
     public init(selected: Bool = true) { self.selected = selected }
