@@ -17,7 +17,7 @@ extension LibraryStore {
     }
 
     /// Runs `body` on this task's own recorder, so a second action cannot note into it.
-    public static func capture<T>(label: String, _ body: () async throws -> T) async throws -> (value: T, undo: ChangeSet) {
+    public static func capture<T>(label: String, isolation: isolated (any Actor)? = #isolation, _ body: () async throws -> T) async throws -> (value: T, undo: ChangeSet) {
         let box = ChangeRecorder()
         let value = try await $taskRecording.withValue(box, operation: body)
         return (value, changeSet(label, box))
