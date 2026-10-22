@@ -1,3 +1,4 @@
+import AppKit
 import GrailsKit
 import GrailsDesign
 import SwiftUI
@@ -24,11 +25,22 @@ struct SidebarView: View {
         VStack(spacing: 0) {
             WorkspaceSwitcher(model: model).padding(.top, 8).padding(.bottom, 4)
             list.frame(maxHeight: .infinity)
+            if let offer = model.extensionNudgeOffer() {
+                ExtensionNudgeCard(offer: offer, addToChrome: { model.openInBrowser(ExtensionInstall.listing.absoluteString) }, enableInSafari: { SafariExtension.showPreferences() }, notNow: { model.snoozeExtensionNudge() })
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+                    .transition(.grailsReveal(reduceMotion: reduceMotion))
+            }
             if model.importModel.isRunning {
                 Rectangle().fill(Ink.hairline).frame(height: 1)
                 ImportFooter(model: model)
             }
             AccountFooter(model: model)
+        }
+        .animation(.grailsSpring(reduceMotion: reduceMotion), value: model.extensionNudgeOffer() != nil)
+        .onAppear { model.refreshExtensionNudgeContext() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            model.refreshExtensionNudgeContext()
         }
     }
 
