@@ -11,7 +11,7 @@ import GrailsKit
 /// and `scale` (screen points per world point). Items are CALayers under one content layer whose affine transform
 /// is the viewport, so panning and zooming only change a transform (GPU work) no matter how many items exist.
 @MainActor
-final class CanvasNSView: GridSurface {
+final class CanvasNSView: NSView {
     // MARK: Callbacks
     var onSelectionChange: ((Set<String>) -> Void)?
     /// A right-click retargeted the selection for its menu. This does not open the info panel.
@@ -179,6 +179,7 @@ final class CanvasNSView: GridSurface {
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { false }
+    override var mouseDownCanMoveWindow: Bool { false }
     private var backing: CGFloat { window?.backingScaleFactor ?? 2 }
 
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); refreshColors() }

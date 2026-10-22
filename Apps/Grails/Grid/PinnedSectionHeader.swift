@@ -9,7 +9,7 @@ import QuartzCore
 /// rode along for those frames and snapped back on the next layout pass, which read as the title shaking. Up here the
 /// stuck title has nothing to catch up with: only the push from the next header follows the scroll. Placement never
 /// animates.
-final class PinnedSectionHeader: GridSurface {
+final class PinnedSectionHeader: NSView {
     /// The shown section's index in the grid's items.
     private(set) var index: Int?
     private var summary: ItemSummary?
@@ -32,6 +32,7 @@ final class PinnedSectionHeader: GridSurface {
     required init?(coder: NSCoder) { nil }
 
     override var isFlipped: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     /// `frame` is in the floating container's coordinates. Called on every scroll tick, so it only touches what changed.
     func show(_ s: ItemSummary, noted: Bool, at index: Int, frame: NSRect) {

@@ -1,9 +1,8 @@
 import AppKit
 import GrailsDesign
-import GrailsKit
 
 /// NSCollectionView with the key handling, pointer-anchored zoom and dev hooks the grid needs.
-final class GrailsCollectionView: GridSurfaceCollection {
+final class GrailsCollectionView: NSCollectionView {
     var onPreview: (() -> Void)?
     var onOpen: (() -> Void)?
     /// A plain click landed on the item at this index.
@@ -38,6 +37,7 @@ final class GrailsCollectionView: GridSurfaceCollection {
     var onLayout: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     override func layout() {
         super.layout()
@@ -145,10 +145,19 @@ final class GrailsCollectionView: GridSurfaceCollection {
     override func endGesture(with event: NSEvent) { onZoomEnd?() }
 }
 
+final class GridScrollView: NSScrollView {
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
+final class GridClipView: NSClipView {
+    override var mouseDownCanMoveWindow: Bool { false }
+}
+
 /// What the grid hands SwiftUI. Its frame is the content area under the top bar and does not change with a page; the tag
 /// strip and mention bar (`chromeTop`) are taken off the scroll view inside it. A page crossfade on this layer then fades the
 /// previous page out exactly where it was.
-final class GridContainer: GridSurface {
+final class GridContainer: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
     var chromeTop: CGFloat = 0 {
         didSet { if chromeTop != oldValue { placeScroll() } }
     }

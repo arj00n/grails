@@ -59,8 +59,8 @@ struct GridView: NSViewRepresentable {
         c.installTileGeometry()
         c.installHover(on: cv)
 
-        let scroll = GridSurfaceScroll()
-        scroll.contentView = GridSurfaceClip()
+        let scroll = GridScrollView()
+        scroll.contentView = GridClipView()
         scroll.documentView = cv
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
