@@ -847,6 +847,8 @@ open class GrailsCaption: NSTextField {
 
 /// One line of a cluster title. Height is the font's line — ascender, descender, and leading — and the field does not clip, so a tail such as the "a" in "Diwali" is not cut off.
 open class GrailsClusterTitle: NSTextField {
+    open override var mouseDownCanMoveWindow: Bool { false }
+
     public override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         isEditable = false

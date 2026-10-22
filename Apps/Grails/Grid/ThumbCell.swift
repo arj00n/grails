@@ -68,7 +68,7 @@ final class BadgePill: NSView {
     }
 }
 
-final class TileView: NSView {
+final class TileView: GridSurface {
     /// What VoiceOver reads (and UI tests find): the item's name.
     var axLabel: String?
     override func isAccessibilityElement() -> Bool { true }
@@ -108,15 +108,15 @@ final class ThumbCell: NSCollectionViewItem {
     private var source: (id: String, thumb: URL, original: URL?, variant: String)?
     private(set) var itemID: String?
     private var pixelScale: CGFloat = 2
-    private let placeholder = NSImageView()
-    private let heart = NSImageView()
-    private let noteMark = NSImageView()
+    private let placeholder = GridSurfaceImage(frame: .zero)
+    private let heart = GridSurfaceImage(frame: .zero)
+    private let noteMark = GridSurfaceImage(frame: .zero)
     private let captionBar = NSView()
     private let caption = PassthroughLabel.make()
     private let titleLabel = PassthroughLabel.make(wrapping: true)
     private let siteLabel = PassthroughLabel.make()
     private let badge = BadgePill()
-    private let cloud = NSImageView()
+    private let cloud = GridSurfaceImage(frame: .zero)
     private let avatar = MemberAvatarView()
     private let sectionLabel = GrailsClusterTitle(frame: .zero)
     private(set) var isSection = false
