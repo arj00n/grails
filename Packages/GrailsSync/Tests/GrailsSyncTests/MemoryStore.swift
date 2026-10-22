@@ -19,6 +19,7 @@ actor MemoryObjectStore: ObjectStore {
     private struct Object {
         var body: Data
         var etag: String
+        var modified: Date?
     }
 
     private var objects: [String: Object] = [:]
@@ -28,8 +29,8 @@ actor MemoryObjectStore: ObjectStore {
     private var deletes = 0
     private var recorded: [RecordedPut] = []
 
-    func seed(_ key: String, body: Data, etag: String? = nil) {
-        objects[key] = Object(body: body, etag: etag ?? Digests.sha256Hex(body))
+    func seed(_ key: String, body: Data, etag: String? = nil, modified: Date? = nil) {
+        objects[key] = Object(body: body, etag: etag ?? Digests.sha256Hex(body), modified: modified)
     }
 
     func counts() -> Counts { Counts(lists: lists, gets: gets, puts: puts, deletes: deletes) }
@@ -43,7 +44,7 @@ actor MemoryObjectStore: ObjectStore {
     func list(prefix: String) async throws -> [ObjectHead] {
         lists += 1
         return objects.keys.filter { $0.hasPrefix(prefix) }.sorted().map { key in
-            ObjectHead(key: key, etag: objects[key]!.etag, size: Int64(objects[key]!.body.count))
+            ObjectHead(key: key, etag: objects[key]!.etag, size: Int64(objects[key]!.body.count), modified: objects[key]!.modified)
         }
     }
 
@@ -60,7 +61,8 @@ actor MemoryObjectStore: ObjectStore {
         if ifNoneMatch == "*", objects[key] != nil { throw S3Error.preconditionFailed }
         if let ifMatch, objects[key]?.etag != ifMatch { throw S3Error.preconditionFailed }
         let etag = Digests.sha256Hex(body)
-        objects[key] = Object(body: body, etag: etag)
+        let modified = objects[key]?.modified
+        objects[key] = Object(body: body, etag: etag, modified: modified)
         return etag
     }
 

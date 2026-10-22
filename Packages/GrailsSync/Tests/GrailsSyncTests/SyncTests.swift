@@ -424,11 +424,134 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(loaded.entries["items/a/item.json"]?.etag, stored)
     }
 
+    func testADownloadDoesNotReplaceANewerLocalEdit() async throws {
+        let root = try TestLibrary.makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let (_, signed) = try TestLibrary.owner()
+        try TestLibrary.writeLibrary(signed, root: root)
+        let key = "items/a/thumb.jpg"
+        let url = try nested(root, key)
+        let baseline = Data("baseline".utf8)
+        let remoteBody = Data("remote-bytes".utf8)
+        let edited = Data("local-edit".utf8)
+        try baseline.write(to: url)
+        let store = MemoryObjectStore()
+        await store.seed(key, body: remoteBody, etag: "remote-etag")
+        var manifest = SyncManifest()
+        manifest.entries[key] = ManifestEntry(etag: "old-etag", digest: Digests.sha256Hex(baseline), size: Int64(baseline.count))
+        let wrapped = EditOnGet(inner: store, url: url, key: key, edited: edited)
+        let engine = BucketSyncEngine(store: wrapped, root: root, merger: ClosureMerger { _, local, _ in local }, manifest: manifest, appVersion: "0.3.5")
+        _ = try await engine.syncOnce()
+        let onDisk = try Data(contentsOf: url)
+        let inBucket = await store.body(key)
+        XCTAssertEqual(onDisk, edited)
+        XCTAssertEqual(inBucket, edited)
+    }
+
+    func testUploadKeepsNewerBucketBytesAndSendsANewerLocalFile() async throws {
+        let root = try TestLibrary.makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let older = Date(timeIntervalSince1970: 1_700_000_000)
+        let newer = Date(timeIntervalSince1970: 1_700_000_100)
+        let remoteNewer = Data("remote-newer".utf8)
+        let remoteUnknown = Data("remote-unknown".utf8)
+        let remoteOlder = Data("remote-older".utf8)
+        let localFresh = Data("local-fresh".utf8)
+        let onlyLocal = Data("only-local".utf8)
+        try writeUpload(root, "items/a/remote-newer.jpg", Data("local-stale".utf8), modified: older)
+        try writeUpload(root, "items/b/remote-unknown.jpg", Data("local-guess".utf8), modified: newer)
+        try writeUpload(root, "items/c/local-newer.jpg", localFresh, modified: newer)
+        try writeUpload(root, "items/d/only-local.jpg", onlyLocal, modified: newer)
+        let store = MemoryObjectStore()
+        await store.seed("items/a/remote-newer.jpg", body: remoteNewer, etag: "etag-a", modified: newer)
+        await store.seed("items/b/remote-unknown.jpg", body: remoteUnknown, etag: "etag-b", modified: nil)
+        await store.seed("items/c/local-newer.jpg", body: remoteOlder, etag: "etag-c", modified: older)
+        let sent = try await LibraryUploader.upload(root: root, store: store)
+        let keptNewer = await store.body("items/a/remote-newer.jpg")
+        let keptUnknown = await store.body("items/b/remote-unknown.jpg")
+        let sentFresh = await store.body("items/c/local-newer.jpg")
+        let sentOnly = await store.body("items/d/only-local.jpg")
+        XCTAssertEqual(keptNewer, remoteNewer)
+        XCTAssertEqual(keptUnknown, remoteUnknown)
+        XCTAssertEqual(sentFresh, localFresh)
+        XCTAssertEqual(sentOnly, onlyLocal)
+        XCTAssertFalse(sent.contains("items/a/remote-newer.jpg"))
+        XCTAssertFalse(sent.contains("items/b/remote-unknown.jpg"))
+        XCTAssertTrue(sent.contains("items/c/local-newer.jpg"))
+        XCTAssertTrue(sent.contains("items/d/only-local.jpg"))
+    }
+
+    func testListReadsLastModified() throws {
+        let xml = """
+        <ListBucketResult>
+          <IsTruncated>false</IsTruncated>
+          <Contents>
+            <Key>items/a/original.jpg</Key>
+            <LastModified>2024-06-01T12:30:45.000Z</LastModified>
+            <ETag>&quot;abc&quot;</ETag>
+            <Size>11</Size>
+          </Contents>
+          <Contents>
+            <Key>items/b/original.jpg</Key>
+            <LastModified>2024-06-02T08:00:00Z</LastModified>
+            <ETag>"def"</ETag>
+            <Size>2</Size>
+          </Contents>
+        </ListBucketResult>
+        """
+        let page = try ListBucketXML.parse(Data(xml.utf8))
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        XCTAssertEqual(page.objects.map(\.key), ["items/a/original.jpg", "items/b/original.jpg"])
+        XCTAssertEqual(page.objects[0].modified, fractional.date(from: "2024-06-01T12:30:45.000Z"))
+        XCTAssertEqual(page.objects[1].modified, plain.date(from: "2024-06-02T08:00:00Z"))
+    }
+
+    private func writeUpload(_ root: URL, _ key: String, _ data: Data, modified: Date) throws {
+        let url = try nested(root, key)
+        try data.write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: modified], ofItemAtPath: url.path)
+    }
+
     private func nested(_ root: URL, _ key: String) throws -> URL {
         let url = root.appendingPathComponent(key)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         return url
     }
+}
+
+/// Writes a newer local copy while the download is in flight, then returns the bucket bytes.
+private actor EditOnGet: ObjectStore {
+    private let inner: MemoryObjectStore
+    private let url: URL
+    private let key: String
+    private let edited: Data
+    private var did = false
+
+    init(inner: MemoryObjectStore, url: URL, key: String, edited: Data) {
+        self.inner = inner
+        self.url = url
+        self.key = key
+        self.edited = edited
+    }
+
+    func list(prefix: String) async throws -> [ObjectHead] { try await inner.list(prefix: prefix) }
+
+    func get(_ key: String) async throws -> ObjectGet {
+        if key == self.key, !did {
+            did = true
+            try edited.write(to: url)
+        }
+        return try await inner.get(key)
+    }
+
+    func put(_ key: String, body: Data, contentType: String, ifMatch: String?, ifNoneMatch: String?) async throws -> String {
+        try await inner.put(key, body: body, contentType: contentType, ifMatch: ifMatch, ifNoneMatch: ifNoneMatch)
+    }
+
+    func delete(_ key: String) async throws { try await inner.delete(key) }
 }
 
 private final class TransferBox: @unchecked Sendable {

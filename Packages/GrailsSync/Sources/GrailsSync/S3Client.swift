@@ -7,11 +7,14 @@ public struct ObjectHead: Equatable, Sendable, Codable {
     public var key: String
     public var etag: String
     public var size: Int64
+    /// When the bucket last wrote this object. Nil when the listing did not say.
+    public var modified: Date?
 
-    public init(key: String, etag: String, size: Int64) {
+    public init(key: String, etag: String, size: Int64, modified: Date? = nil) {
         self.key = key
         self.etag = etag
         self.size = size
+        self.modified = modified
     }
 }
 
