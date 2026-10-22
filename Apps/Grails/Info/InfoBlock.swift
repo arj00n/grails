@@ -191,20 +191,47 @@ struct InfoBlock: View {
 
     @ViewBuilder private func collections(_ info: ItemInfo) -> some View {
         section("Collections") {
-            FlowLayout(spacing: 4) {
-                ForEach(info.collections, id: \.id) { c in
-                    LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
-                        .transition(.grailsChip(reduceMotion: reduceMotion))
+            VStack(alignment: .leading, spacing: 0) {
+                if let item {
+                    let canonID = Canon.collection(in: model.collections)?.id
+                    let already: Set<String> = {
+                        guard let canonID, item.collections[canonID] != nil else { return [] }
+                        return [item.id]
+                    }()
+                    let offer = Canon.offer(selected: [item.id], alreadyIn: already)
+                    if offer.shown, model.canPromoteToCanon {
+                        GrailsButton("Add to \(Canon.title)", kind: .secondary, identifier: "add-to-holy-grail") {
+                            model.promoteSelectionToCanon()
+                        }
+                        .padding(.bottom, CGFloat(Space.xs))
+                    } else if !offer.shown {
+                        HStack(spacing: CGFloat(Space.tight)) {
+                            CanonMark(size: 14)
+                            Text("In \(Canon.title)")
+                        }
+                        .font(.grailsBody(13))
+                        .foregroundStyle(Ink.secondary)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("In \(Canon.title)")
+                        .accessibilityIdentifier("in-holy-grail")
+                        .padding(.bottom, CGFloat(Space.xs))
+                    }
                 }
-                GrailsControl {
-                    if let id = itemID { model.selection = [id]; model.panel = .move }
-                } label: {
-                    Image(systemName: "plus").font(ChromeFont.symbol(10, weight: .medium)).foregroundStyle(Ink.secondary)
-                        .frame(width: 22, height: 22).chipSurface()
+                FlowLayout(spacing: 4) {
+                    ForEach(info.collections, id: \.id) { c in
+                        LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
+                            .transition(.grailsChip(reduceMotion: reduceMotion))
+                    }
+                    GrailsControl {
+                        if let id = itemID { model.selection = [id]; model.panel = .move }
+                    } label: {
+                        Image(systemName: "plus").font(ChromeFont.symbol(10, weight: .medium)).foregroundStyle(Ink.secondary)
+                            .frame(width: 22, height: 22).chipSurface()
+                    }
+                    .help("Move to collection (M)")
                 }
-                .help("Move to collection (M)")
+                .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
             }
-            .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
         }
         .id(item?.id)
     }
