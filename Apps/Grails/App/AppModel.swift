@@ -470,7 +470,9 @@ final class AppModel {
     }
 
     var userHandle = UserDefaults.standard.string(forKey: "userHandle") ?? GrailsPaths.defaultUserHandle
-    var syncProgress: (done: Int, total: Int)?
+    var syncProgress: (done: Int, total: Int, label: String)?
+    /// Held across progress callbacks so the smoothed rate is not thrown away on each redraw.
+    @ObservationIgnored var syncPace = SyncPace()
     /// Settings is a page of the main window. It covers the library while open and gives it back untouched.
     var settings = SettingsNavigation(section: ProcessInfo.processInfo.environment["GRAILS_SETTINGS_TAB"].flatMap(SettingsSection.init(name:)) ?? .general)
     /// What had the keys when Settings opened, so closing it hands them back.
@@ -547,13 +549,19 @@ final class AppModel {
                 }
                 Task { await self.refreshLibrary(announce: false) }
             }
-            bucket.onSyncProgress = { [weak self] done, total in
+            bucket.onSyncProgress = { [weak self] progress in
                 guard let self else { return }
-                if total <= 0 { self.syncProgress = nil }
-                else { self.syncProgress = (done, total) }
+                guard SyncProgressVisibility.shown(total: progress.total, reachable: self.bucket.reachable) else {
+                    self.syncProgress = nil
+                    self.syncPace = SyncPace()
+                    return
+                }
+                let label = self.syncPace.label(progress, at: Date())
+                self.syncProgress = (progress.done, progress.total, label)
             }
             bucket.onSyncFeedback = { [weak self] feedback in
                 self?.syncProgress = nil
+                self?.syncPace = SyncPace()
                 self?.showSyncFeedback(feedback)
             }
             bucket.onDisplayName = { [weak self] name in
