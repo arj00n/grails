@@ -1,8 +1,6 @@
 #!/bin/bash
 set -euo pipefail
 
-# DEST set means the Linux test. The Xcode default must be the appex Resources folder.
-
 SRC="${SRC:-$SRCROOT/Extensions/chrome}"
 
 if [ -z "${DEST:-}" ]; then
