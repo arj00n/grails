@@ -149,6 +149,8 @@ final class AppModel {
     @ObservationIgnored private var contextMenuSelection = false
     @ObservationIgnored private var contextMenuGeneration = 0
     private(set) var collections: [GrailsCollection] = []
+    private(set) var canonItemIds: Set<String> = []
+    var canPromoteToCanon: Bool { bucket.connected && TeamPermissions.canPromoteToCanon(bucket.role) }
     private(set) var smartFolders: [SmartFolder] = []
     private(set) var tags: [(tag: String, count: Int)] = []
     /// Tags on the items in the current view, with how many of them have each: what the tab strip offers.
@@ -901,6 +903,12 @@ final class AppModel {
             if viewMode == .canvas { await syncCanvas() }
             guard !Task.isCancelled, generation == reloadGeneration else { return }
             let colls = try await store.index.collections()
+            let canonMembers: Set<String>
+            if let canon = Canon.collection(in: colls) {
+                canonMembers = Set(try await store.index.itemIds(inCollection: canon.id))
+            } else {
+                canonMembers = []
+            }
             let tagList = try await store.index.tagCounts().map { (tag: $0.tag, count: $0.count) }
             let colors = await store.tagMetadata().compactMapValues(\.color)
             let total = try await store.index.count(ItemQuery())
@@ -908,6 +916,7 @@ final class AppModel {
             guard !Task.isCancelled, generation == reloadGeneration else { return }
             smartFolders = smart
             collections = colls
+            canonItemIds = canonMembers
             tags = tagList
             tagColors = colors
             totalCount = total
@@ -1217,15 +1226,15 @@ final class AppModel {
     }
 
     func promoteSelectionToCanon() {
-        guard bucket.connected, TeamPermissions.canPromoteToCanon(bucket.role), let store else { return }
-        let ids = Array(selection)
-        guard !ids.isEmpty else { return }
+        guard canPromoteToCanon, let store else { return }
+        let adding = Canon.offer(selected: Array(selection), alreadyIn: canonItemIds).adding
+        guard !adding.isEmpty else { return }
         Task {
             do {
                 let id: String
                 if let existing = Canon.collection(in: collections) { id = existing.id }
                 else { id = try await store.createCollection(name: Canon.name).id }
-                try await store.add(ids: ids, toCollection: id)
+                try await store.add(ids: adding, toCollection: id)
                 bucket.nudge()
                 await reload()
             } catch {

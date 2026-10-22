@@ -36,6 +36,19 @@ public enum Canon {
         return pool.first
     }
 
+    public struct Offer: Equatable, Sendable {
+        public let adding: [String]
+        public var shown: Bool { !adding.isEmpty }
+        init(adding: [String]) { self.adding = adding }
+    }
+
+    /// Ids from `selected` that are not in the Holy Grail set yet, in that order.
+    /// `alreadyIn` is the member snapshot for the collection `Canon.collection(in:)` returns.
+    /// An empty set offers every selected id. This writes nothing and does not know roles.
+    public static func offer(selected: [String], alreadyIn: Set<String>) -> Offer {
+        Offer(adding: selected.filter { !alreadyIn.contains($0) })
+    }
+
     /// A `baseline` JSON value that marks the collection. Absent, false, and empty do not.
     static func legacyFlag(_ value: JSONValue?) -> Bool {
         switch value {

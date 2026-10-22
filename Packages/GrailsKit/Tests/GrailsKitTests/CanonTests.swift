@@ -197,4 +197,22 @@ import Testing
         #expect(!raw.contains("Holy Grail"))
         #expect(!raw.contains("\"baseline\""))
     }
+
+    @Test func offerHidesASelectionAlreadyInTheSet() {
+        let offer = Canon.offer(selected: ["a"], alreadyIn: ["a"])
+        #expect(offer.adding == [])
+        #expect(offer.shown == false)
+    }
+
+    @Test func offerShowsASelectionWhenTheSetIsEmpty() {
+        let offer = Canon.offer(selected: ["a"], alreadyIn: [])
+        #expect(offer.adding == ["a"])
+        #expect(offer.shown == true)
+    }
+
+    @Test func offerKeepsSelectedOrderWithoutIdsAlreadyIn() {
+        let offer = Canon.offer(selected: ["a", "b", "c"], alreadyIn: ["b"])
+        #expect(offer.adding == ["a", "c"])
+        #expect(offer.shown == true)
+    }
 }

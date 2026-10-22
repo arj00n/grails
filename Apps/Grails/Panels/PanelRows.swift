@@ -152,13 +152,22 @@ extension AppModel {
         let typed = q.trimmingCharacters(in: .whitespaces)
         var rows: [PaletteRow] = []
         let verb = from == nil ? "Add to" : "Move to"
+        let canonID = Canon.collection(in: collections)?.id
         for c in FuzzyMatcher.rank(targets, query: typed, text: { $0.displayName == $0.name ? $0.name : "\($0.displayName) \($0.name)" }, limit: 40) {
+            let rowIds: [String]
+            if c.id == canonID {
+                let offer = Canon.offer(selected: ids, alreadyIn: canonItemIds)
+                if !offer.shown { continue }
+                rowIds = offer.adding
+            } else {
+                rowIds = ids
+            }
             rows.append(.init(id: "mv-\(c.id)", title: "\(verb) \(c.displayName)", subtitle: path(of: c), symbol: c.isCanon ? CanonMark.symbolName : "rectangle.stack") { [self] in
                 Task {
                     await perform("Move to Collection") { store in
-                        if let from { try await store.move(ids: ids, from: from, to: c.id) } else { try await store.add(ids: ids, toCollection: c.id) }
+                        if let from { try await store.move(ids: rowIds, from: from, to: c.id) } else { try await store.add(ids: rowIds, toCollection: c.id) }
                     }
-                    showToast("\(from == nil ? "Added" : "Moved") \(ids.count) \(ids.count == 1 ? "item" : "items") to \(c.displayName)")
+                    showToast("\(from == nil ? "Added" : "Moved") \(rowIds.count) \(rowIds.count == 1 ? "item" : "items") to \(c.displayName)")
                 }
             })
         }

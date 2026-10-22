@@ -1,7 +1,6 @@
 import AppKit
 import GrailsDesign
 import GrailsKit
-import GrailsSync
 
 extension AppModel {
     /// The right-click menu for the selected items, shared by the grid and the canvas.
@@ -40,7 +39,7 @@ extension AppModel {
         add(allLiked ? "Unlike" : "Like", allLiked ? "heart.slash" : "heart") { [self] in run(.like) }
         add("Edit Tags…", "tag") { [self] in run(.tag) }
         add("Move to Collection…", "rectangle.stack") { [self] in run(.move) }
-        if bucket.connected, TeamPermissions.canPromoteToCanon(bucket.role) {
+        if canPromoteToCanon, Canon.offer(selected: Array(selection), alreadyIn: canonItemIds).shown {
             add("Add to \(Canon.title)", CanonMark.symbolName) { [self] in promoteSelectionToCanon() }
         }
         add("Add Note…", "note.text") { [self] in run(.note) }
