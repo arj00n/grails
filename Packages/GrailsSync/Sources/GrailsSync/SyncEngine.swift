@@ -176,13 +176,29 @@ public struct SyncPlan: Equatable, Sendable {
 public enum SyncRank {
     public static func thumbnail(_ key: String) -> Bool { key.hasSuffix("/thumb.jpg") || key == "thumb.jpg" }
 
+    /// Roster files stay ahead of creatives, so a tight rate limit still sends a profile photo before an item. Within an item the thumb comes first, then the record, then the original.
     public static func sort(_ keys: [String]) -> [String] {
         keys.sorted { lhs, rhs in
-            let left = thumbnail(lhs) ? 0 : 1
-            let right = thumbnail(rhs) ? 0 : 1
-            if left != right { return left < right }
+            let left = rank(lhs)
+            let right = rank(rhs)
+            if left.group != right.group { return left.group < right.group }
+            if left.item != right.item { return left.item < right.item }
+            if left.kind != right.kind { return left.kind < right.kind }
             return lhs < rhs
         }
+    }
+
+    private static func rank(_ key: String) -> (group: Int, item: String, kind: Int) {
+        if let id = SyncItems.id(in: key) {
+            return (1, id, kind(key))
+        }
+        return (0, key, 0)
+    }
+
+    private static func kind(_ key: String) -> Int {
+        if thumbnail(key) { return 0 }
+        if key.hasSuffix("/item.json") { return 1 }
+        return 2
     }
 }
 
@@ -580,6 +596,16 @@ private enum RaceResult<T: Sendable>: Sendable {
     case failure(ErrorBox)
 }
 
+private struct FetchedObject: Sendable {
+    var key: String
+    var object: ObjectGet
+}
+
+private enum WaveOutcome: Sendable {
+    case fetched(FetchedObject)
+    case failed(ErrorBox)
+}
+
 public actor BucketSyncEngine {
     public static let poll = SyncTiming.poll
     private let store: any ObjectStore
@@ -686,7 +712,7 @@ public actor BucketSyncEngine {
         passLog = log
     }
 
-    public func syncOnce(now: Date = Date(), onProgress: (@Sendable (Int, Int) async -> Void)? = nil, onTransfers: (@Sendable (Bool) async -> Void)? = nil) async throws -> SyncReport {
+    public func syncOnce(now: Date = Date(), onProgress: (@Sendable (SyncTransferProgress) async -> Void)? = nil, onTransfers: (@Sendable (Bool) async -> Void)? = nil) async throws -> SyncReport {
         let epoch = try await beginPass()
         defer { endPass() }
         do {
@@ -732,7 +758,7 @@ public actor BucketSyncEngine {
         if passEpoch != epoch || Task.isCancelled { throw CancellationError() }
     }
 
-    private func syncPass(now: Date, epoch: Int, onProgress: (@Sendable (Int, Int) async -> Void)? = nil, onTransfers: (@Sendable (Bool) async -> Void)? = nil) async throws -> SyncReport {
+    private func syncPass(now: Date, epoch: Int, onProgress: (@Sendable (SyncTransferProgress) async -> Void)? = nil, onTransfers: (@Sendable (Bool) async -> Void)? = nil) async throws -> SyncReport {
         try stillCurrent(epoch)
         let libraryURL = root.appendingPathComponent("library.json")
         seedSigningKeys()
@@ -793,62 +819,81 @@ public actor BucketSyncEngine {
         for key in plan.downloads {
             if let id = SyncItems.id(in: key) { remaining[id, default: 0] += 1 }
         }
-        if SyncFeedback.showsProgress(total: itemIDs.count) {
-            passLog?(SyncPassLog.progress(done: 0, total: itemIDs.count))
-            await onProgress?(0, itemIDs.count)
-        }
+        var listedSize: [String: Int64] = [:]
+        for head in remote { listedSize[head.key] = head.size }
+        var bytesTotal: Int64 = 0
+        for key in plan.downloads { bytesTotal += listedSize[key] ?? 0 }
+        var bytesDone: Int64 = 0
         var finishedItems = 0
-        func advance(_ key: String) -> (done: Int, total: Int)? {
-            guard let id = SyncItems.id(in: key) else { return nil }
-            remaining[id, default: 1] -= 1
-            guard remaining[id] == 0 else { return nil }
-            finishedItems += 1
+        var pendingManifest = 0
+        var manifestMark = Date()
+        func progressNow() -> SyncTransferProgress? {
             guard SyncFeedback.showsProgress(total: itemIDs.count) else { return nil }
-            return (finishedItems, itemIDs.count)
+            return SyncTransferProgress(done: finishedItems, total: itemIDs.count, bytesDone: bytesDone, bytesTotal: bytesTotal)
         }
-        for key in plan.downloads where librarySettled(key) {
-            try stillCurrent(epoch)
-            guard let url = SyncPath.url(root: root, key: key) else { continue }
-            let got = try await get(key)
-            guard librarySettled(key) else { continue }
-            try stillCurrent(epoch)
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if key == "library.json", try await keepLocalLibraryName(diskAt: url, remote: got.body, ifMatch: got.etag, trusted: &trusted, report: &report) {
-                continue
-            }
-            guard librarySettled(key) else { continue }
-            if key != Self.libraryKey, let local = try? Data(contentsOf: url), Digests.sha256Hex(local) != manifest.entries[key]?.digest {
-                let etag = try await put(key, body: local, contentType: S3Client.contentType(key), ifMatch: got.etag, ifNoneMatch: nil)
-                guard librarySettled(key) else { continue }
-                manifest.entries[key] = ManifestEntry(etag: ETags.canonical(etag), digest: Digests.sha256Hex(local), size: Int64(local.count))
+        func advance(_ key: String) {
+            guard let id = SyncItems.id(in: key) else { return }
+            remaining[id, default: 1] -= 1
+            if remaining[id] == 0 { finishedItems += 1 }
+        }
+        func rememberDownload() throws {
+            pendingManifest += 1
+            if SyncManifestFlush.shouldFlush(pending: pendingManifest, elapsed: Date().timeIntervalSince(manifestMark), force: false) {
                 try saveManifest()
-                report.uploaded.append(key)
-                if let step = advance(key) {
-                    passLog?(SyncPassLog.progress(done: step.done, total: step.total))
-                    await onProgress?(step.done, step.total)
-                }
-                continue
-            }
-            var payload = got.body
-            if key.hasPrefix(".members/") {
-                let local = try? Data(contentsOf: url)
-                payload = MemberFile.incoming(local: local, remote: got.body, authorizedPublicKey: MemberFile.authorizedKey(for: key, team: trusted?.body))
-            }
-            let etag: String
-            if payload != got.body {
-                etag = try await put(key, body: payload, contentType: S3Client.contentType(key), ifMatch: got.etag, ifNoneMatch: nil)
-            } else {
-                etag = got.etag
-            }
-            try payload.write(to: url, options: .atomic)
-            manifest.entries[key] = ManifestEntry(etag: ETags.canonical(etag), digest: Digests.sha256Hex(payload), size: Int64(payload.count))
-            try saveManifest()
-            report.downloaded.append(key)
-            if let step = advance(key) {
-                passLog?(SyncPassLog.progress(done: step.done, total: step.total))
-                await onProgress?(step.done, step.total)
+                pendingManifest = 0
+                manifestMark = Date()
+                passLog?(SyncPassLog.manifestSaved)
             }
         }
+        if let opening = progressNow() {
+            passLog?(SyncPassLog.progress(done: opening.done, total: opening.total))
+            await onProgress?(opening)
+        }
+        // library.json and member files update the roster. They stay one at a time, ahead of the pool, so a parallel apply cannot race them.
+        let scheduled = SyncDownload.schedule(plan.downloads)
+        failureStep = .get
+        for key in scheduled.serial where librarySettled(key) {
+            try stillCurrent(epoch)
+            let got = try await get(key, recordStep: false)
+            guard librarySettled(key) else { continue }
+            let moved = try await applyDownload(key: key, got: got, revisionAtFetch: revisionAtFetch, bytes: listedSize[key] ?? 0, trusted: &trusted, report: &report)
+            if moved < 0 { continue }
+            bytesDone += moved
+            advance(key)
+            try rememberDownload()
+            if let step = progressNow() {
+                passLog?(SyncPassLog.progress(done: step.done, total: step.total))
+                await onProgress?(step)
+            }
+        }
+        var index = 0
+        let parallelKeys = scheduled.parallel
+        while index < parallelKeys.count {
+            try stillCurrent(epoch)
+            let end = min(index + SyncDownload.width, parallelKeys.count)
+            let wave = await fetchWave(Array(parallelKeys[index..<end]))
+            for fetched in wave.done {
+                try stillCurrent(epoch)
+                guard librarySettled(fetched.key) else { continue }
+                let moved = try await applyDownload(key: fetched.key, got: fetched.object, revisionAtFetch: revisionAtFetch, bytes: listedSize[fetched.key] ?? 0, trusted: &trusted, report: &report)
+                if moved < 0 { continue }
+                bytesDone += moved
+                advance(fetched.key)
+                try rememberDownload()
+                if let step = progressNow() {
+                    passLog?(SyncPassLog.progress(done: step.done, total: step.total))
+                    await onProgress?(step)
+                }
+            }
+            if let failure = wave.failure { throw failure.error }
+            index = end
+        }
+        if SyncManifestFlush.shouldFlush(pending: pendingManifest, elapsed: 0, force: true) {
+            try saveManifest()
+            pendingManifest = 0
+            passLog?(SyncPassLog.manifestSaved)
+        }
+        failureStep = .sync
         for key in plan.conflicts where librarySettled(key) {
             try stillCurrent(epoch)
             guard let url = SyncPath.url(root: root, key: key) else { continue }
@@ -942,9 +987,34 @@ public actor BucketSyncEngine {
         (try? await syncOnce())?.stopped == .revoked
     }
 
-    private func get(_ key: String) async throws -> ObjectGet {
+    /// Fetches one window of files together. A failure does not throw away the files in that window that already arrived. The caller applies them on the actor.
+    private nonisolated func fetchWave(_ keys: [String]) async -> (done: [FetchedObject], failure: ErrorBox?) {
+        await withTaskGroup(of: WaveOutcome.self) { group in
+            for key in keys {
+                group.addTask {
+                    do {
+                        let object = try await self.get(key, recordStep: false)
+                        return .fetched(FetchedObject(key: key, object: object))
+                    } catch {
+                        return .failed(ErrorBox(error))
+                    }
+                }
+            }
+            var done: [FetchedObject] = []
+            var failure: ErrorBox?
+            for await result in group {
+                switch result {
+                case .fetched(let fetched): done.append(fetched)
+                case .failed(let box): if failure == nil { failure = box }
+                }
+            }
+            return (done, failure)
+        }
+    }
+
+    private func get(_ key: String, recordStep: Bool = true) async throws -> ObjectGet {
         let store = self.store
-        return try await demand(.get) { try await store.get(key) }
+        return try await demand(.get, record: recordStep) { try await store.get(key) }
     }
 
     private func listAll() async throws -> [ObjectHead] {
@@ -974,12 +1044,12 @@ public actor BucketSyncEngine {
     }
 
     /// Runs the store call beside a watch on `passEpoch`. Sleep and a path change bump the epoch, and the watch cancels the call instead of waiting out the resource timeout.
-    private func demand<T: Sendable>(_ step: SyncStep, _ work: @escaping @Sendable () async throws -> T) async throws -> T {
-        failureStep = step
+    private func demand<T: Sendable>(_ step: SyncStep, record: Bool = true, _ work: @escaping @Sendable () async throws -> T) async throws -> T {
+        if record { failureStep = step }
         let epoch = passEpoch
         do {
             let value = try await race(epoch: epoch, work: work)
-            failureStep = .sync
+            if record { failureStep = .sync }
             return value
         } catch {
             if SyncFailure.isCancellation(error) {
@@ -1118,6 +1188,40 @@ public actor BucketSyncEngine {
         encoder.outputFormatting = [.sortedKeys]
         return encoder
     }()
+
+    /// Writes one downloaded object onto this Mac. Returns the listed size that moved, or -1 when the file is left untouched.
+    private func applyDownload(key: String, got: ObjectGet, revisionAtFetch: UInt64, bytes: Int64, trusted: inout TrustedTeam?, report: inout SyncReport) async throws -> Int64 {
+        func settled() -> Bool { key != Self.libraryKey || libraryRevision == revisionAtFetch }
+        guard settled() else { return -1 }
+        guard let url = SyncPath.url(root: root, key: key) else { return -1 }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if key == Self.libraryKey, try await keepLocalLibraryName(diskAt: url, remote: got.body, ifMatch: got.etag, trusted: &trusted, report: &report) {
+            return max(bytes, 0)
+        }
+        guard settled() else { return -1 }
+        if key != Self.libraryKey, let local = try? Data(contentsOf: url), Digests.sha256Hex(local) != manifest.entries[key]?.digest {
+            let etag = try await put(key, body: local, contentType: S3Client.contentType(key), ifMatch: got.etag, ifNoneMatch: nil)
+            guard settled() else { return -1 }
+            manifest.entries[key] = ManifestEntry(etag: ETags.canonical(etag), digest: Digests.sha256Hex(local), size: Int64(local.count))
+            report.uploaded.append(key)
+            return bytes > 0 ? bytes : Int64(local.count)
+        }
+        var payload = got.body
+        if key.hasPrefix(".members/") {
+            let local = try? Data(contentsOf: url)
+            payload = MemberFile.incoming(local: local, remote: got.body, authorizedPublicKey: MemberFile.authorizedKey(for: key, team: trusted?.body))
+        }
+        let etag: String
+        if payload != got.body {
+            etag = try await put(key, body: payload, contentType: S3Client.contentType(key), ifMatch: got.etag, ifNoneMatch: nil)
+        } else {
+            etag = got.etag
+        }
+        try payload.write(to: url, options: .atomic)
+        manifest.entries[key] = ManifestEntry(etag: ETags.canonical(etag), digest: Digests.sha256Hex(payload), size: Int64(payload.count))
+        report.downloaded.append(key)
+        return bytes > 0 ? bytes : Int64(payload.count)
+    }
 
     /// Writes the cursor only when its bytes changed. An unchanged poll used to rewrite the file, the watcher treated that as a library edit, and the next poll started at once.
     private func saveManifest() throws {
