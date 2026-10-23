@@ -49,6 +49,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>GRAILS_SAFARI_EXTENSION</key>
+	<string>$(GRAILS_SAFARI_EXTENSION)</string>
 	<key>GrailsFeedbackEmail</key>
 	<string>$(GRAILS_FEEDBACK_EMAIL)</string>
 	<key>GrailsSiteURL</key>

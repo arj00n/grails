@@ -47,6 +47,11 @@ targets:
       - package: GrailsSync
       - package: GrailsEndpoints
       - package: Sparkle
+      - target: GrailsSafari
+        embed: false
+        link: false
+        codeSign: false
+      - sdk: SafariServices.framework
     info:
       path: Config/Grails-Info.plist
       properties:
@@ -62,6 +67,7 @@ targets:
           NSAllowsLocalNetworking: true
         GrailsSiteURL: $(GRAILS_SITE_URL)
         GrailsFeedbackEmail: $(GRAILS_FEEDBACK_EMAIL)
+        GRAILS_SAFARI_EXTENSION: $(GRAILS_SAFARI_EXTENSION)
         SUFeedURL: $(GRAILS_SPARKLE_FEED_URL)
         SUPublicEDKey: $(GRAILS_SPARKLE_PUBLIC_KEY)
         SUEnableAutomaticChecks: true
@@ -97,6 +103,45 @@ targets:
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_IDENTITY: "-"
         ENABLE_HARDENED_RUNTIME: YES
+    postBuildScripts:
+      - name: Embed Safari extension when enabled
+        path: Scripts/embed-safari-extension.sh
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - $(SRCROOT)/Scripts/embed-safari-extension.sh
+          - $(BUILT_PRODUCTS_DIR)/GrailsSafari.appex
+        outputFiles:
+          - $(TARGET_BUILD_DIR)/$(WRAPPER_NAME)/Contents/PlugIns/GrailsSafari.appex
+  GrailsSafari:
+    type: app-extension
+    platform: macOS
+    sources: [Apps/GrailsSafari]
+    info:
+      path: Apps/GrailsSafari/Info.plist
+      properties:
+        CFBundleDisplayName: Save to Grails
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.Safari.web-extension
+          NSExtensionPrincipalClass: "$(PRODUCT_MODULE_NAME).SafariWebExtensionHandler"
+    postBuildScripts:
+      - name: Copy Safari extension resources
+        path: Scripts/copy-safari-extension-resources.sh
+        basedOnDependencyAnalysis: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: $(GRAILS_BUNDLE_PREFIX).grails.safari
+        PRODUCT_NAME: GrailsSafari
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        GENERATE_INFOPLIST_FILE: NO
+        SKIP_INSTALL: YES
+        APPLICATION_EXTENSION_API_ONLY: YES
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        # safari-web-extension-converter emits this entry point. Without _NSExtensionMain the appex does not load.
+        OTHER_LDFLAGS: ["$(inherited)", "-e", "_NSExtensionMain", "-fapplication-extension"]
+        LD_RUNPATH_SEARCH_PATHS: ["$(inherited)", "@executable_path/../Frameworks", "@executable_path/../../../../Frameworks"]
   GrailsCLI:
     type: tool
     platform: macOS
