@@ -141,6 +141,71 @@ public enum Members {
         return profile.id
     }
 
+    /// This Mac's own profile. On a team library only the owner's Mac may bind to the owner's profile: a member whose handle,
+    /// or whose only profile on disk, is the owner's gets nil instead, and the caller keeps their own name.
+    public static func ownProfile(handle: String, email: String?, devicePublicKey: String?, in layout: LibraryLayout) -> MemberRecord? {
+        let all = profiles(in: layout)
+        let owner = IdentityMigration.ownerPublicKey(in: layout)
+        let isOwner = isOwnerMac(email: email, devicePublicKey: devicePublicKey, owner: owner, in: layout)
+        let allowed = all.filter { isOwner || $0.id != owner }
+        if isOwner, let owner, let mine = all.first(where: { $0.id == owner }) { return mine }
+        let device = (devicePublicKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        for key in [deviceKey(email: email, in: layout) ?? "", device] where !key.isEmpty {
+            if let mine = allowed.first(where: { $0.id == key }) { return mine }
+        }
+        if let mine = profile(matching: handle, in: allowed) { return mine }
+        return all.count == 1 ? allowed.first : nil
+    }
+
+    /// 0.3.11 bound a member's Mac to the owner's profile. A rename there rewrote the owner's profile and stamped the owner's id
+    /// on this member's device file. This puts the device file back on its own key, removes the local copy of the owner's profile
+    /// so the next sync downloads the owner's own version, and returns the name this Mac should use. Only bucket libraries carry
+    /// a signed team, so the removal never reaches a shared drive. Nil when this Mac is the owner or nothing was borrowed.
+    @discardableResult
+    public static func releaseBorrowedOwner(handle: String, email: String?, devicePublicKey: String?, in layout: LibraryLayout) -> String? {
+        guard let owner = IdentityMigration.ownerPublicKey(in: layout),
+              !isOwnerMac(email: email, devicePublicKey: devicePublicKey, owner: owner, in: layout) else { return nil }
+        var wanted = (email ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let device = (devicePublicKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let dir = folder(layout)
+        var stamped = false
+        var ownName = ""
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
+        for file in names where file.hasSuffix(".json") && !file.contains(" ") && !AtomicFile.isTemp(file) {
+            let url = dir.appendingPathComponent(file)
+            guard let data = try? Data(contentsOf: url),
+                  var object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let fileEmail = (object["email"] as? String)?.lowercased(),
+                  let key = object["publicKey"] as? String, !key.isEmpty, key != owner else { continue }
+            guard (!wanted.isEmpty && fileEmail == wanted) || (!device.isEmpty && key == device) else { continue }
+            if wanted.isEmpty { wanted = fileEmail }
+            ownName = ((object["name"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard (object["memberId"] as? String) == owner else { continue }
+            object["memberId"] = key
+            if let next = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) {
+                try? next.write(to: url, options: .atomic)
+                stamped = true
+            }
+        }
+        let borrowedHandle = profile(matching: handle, in: layout)?.id == owner
+        guard stamped || borrowedHandle else { return nil }
+        let ownerName = profile(matching: owner, in: layout).map { Handle.normalize($0.name) }
+        if stamped, let url = profileURL(id: owner, in: layout) {
+            try? FileManager.default.removeItem(at: url)
+        }
+        if !ownName.isEmpty, stamped || Handle.normalize(ownName) != ownerName { return ownName }
+        let local = wanted.split(separator: "@").first.map(String.init) ?? ""
+        return local.isEmpty ? nil : local
+    }
+
+    private static func isOwnerMac(email: String?, devicePublicKey: String?, owner: String?, in layout: LibraryLayout) -> Bool {
+        guard let owner else { return true }
+        let device = (devicePublicKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if !device.isEmpty { return device == owner }
+        let wanted = (email ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !wanted.isEmpty && wanted == IdentityMigration.ownerEmail(in: layout)
+    }
+
     /// The name to show for a member id, a current name, or a previous handle.
     public static func displayName(for author: String, in layout: LibraryLayout) -> String {
         let trimmed = author.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -362,7 +427,8 @@ public enum Members {
                   let fileEmail = object["email"] as? String else { continue }
             let current = ((object["name"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             let emailMatch = !wanted.isEmpty && fileEmail.lowercased() == wanted
-            let nameMatch = !previous.isEmpty && (current == previous || Handle.normalize(current) == oldKey)
+            // with an email, only this person's own device file; a name can be shared with someone else's
+            let nameMatch = wanted.isEmpty && !previous.isEmpty && (current == previous || Handle.normalize(current) == oldKey)
             guard emailMatch || nameMatch else { continue }
             var dirty = current != display
             if dirty { object["name"] = display }

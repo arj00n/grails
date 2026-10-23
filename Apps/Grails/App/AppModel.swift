@@ -349,11 +349,14 @@ final class AppModel {
     /// Points new writes at the stable member id and shows the profile name. Items and notes stay as they are.
     func bindIdentity() async {
         guard let store, let layout else { return }
-        let profiles = Members.profiles(in: layout)
-        let ownerKey = bucket.team?.ownerPublicKey
-        let mine = profiles.first { !$0.id.isEmpty && ownerKey != nil && $0.id == ownerKey }
-            ?? Members.profile(matching: userHandle, in: layout)
-            ?? (profiles.count == 1 ? profiles[0] : nil)
+        let email = bucket.email.isEmpty ? nil : bucket.email
+        let device = BucketKeychain.existingDeviceKey()?.publicKey
+        if let own = Members.releaseBorrowedOwner(handle: userHandle, email: email, devicePublicKey: device, in: layout) {
+            memberId = ""
+            rememberUserHandle(own)
+            await store.setUserHandle(userHandle)
+        }
+        let mine = Members.ownProfile(handle: userHandle, email: email, devicePublicKey: device, in: layout)
         guard let mine, !mine.id.isEmpty else { return }
         memberId = mine.id
         if let name = DisplayName.normalized(mine.name) { rememberUserHandle(name) }
@@ -559,7 +562,11 @@ final class AppModel {
             bucket.onDisplayName = { [weak self] name in
                 self?.rememberUserHandle(name)
             }
-            if let root = layout?.root { await bucket.attach(libraryID: libraryID, root: root) }
+            if let root = layout?.root {
+                await bucket.attach(libraryID: libraryID, root: root)
+                // attach brings the account email, which finds this Mac's own device file
+                await bindIdentity()
+            }
             selection = []
             undoStack = []
             redoStack = []

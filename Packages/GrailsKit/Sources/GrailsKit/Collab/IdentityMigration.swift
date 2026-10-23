@@ -232,15 +232,23 @@ public enum IdentityMigration {
 
     // MARK: Read
 
-    private static func ownerPublicKey(in layout: LibraryLayout) -> String? {
+    static func ownerPublicKey(in layout: LibraryLayout) -> String? {
+        guard let key = teamBody(in: layout)?["ownerPublicKey"] as? String, !key.isEmpty else { return nil }
+        return key
+    }
+
+    static func ownerEmail(in layout: LibraryLayout) -> String? {
+        guard let email = teamBody(in: layout)?["ownerEmail"] as? String, !email.isEmpty else { return nil }
+        return email.lowercased()
+    }
+
+    private static func teamBody(in layout: LibraryLayout) -> [String: Any]? {
         guard let data = try? Data(contentsOf: layout.manifestURL),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let team = object["team"] as? [String: Any],
               let canonical = team["canonical"] as? String,
-              let body = canonical.data(using: .utf8),
-              let parsed = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-              let key = parsed["ownerPublicKey"] as? String, !key.isEmpty else { return nil }
-        return key
+              let body = canonical.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: body) as? [String: Any]
     }
 
     /// Emails on the owner-signed roster. The same list on every Mac, so a profile with no device key still gets one id.
@@ -315,7 +323,7 @@ public enum IdentityMigration {
     }
 }
 
-private extension Members {
+extension Members {
     static func profile(matching token: String, in profiles: [MemberRecord]) -> MemberRecord? {
         let trimmed = token.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = Handle.normalize(trimmed)
