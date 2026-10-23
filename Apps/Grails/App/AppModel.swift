@@ -233,6 +233,9 @@ final class AppModel {
     let guide = GuideModel()
     @ObservationIgnored lazy var guidePanel = GuidePanelController(model: guide)
     var extensionPaired = UserDefaults.standard.bool(forKey: "extensionPaired")
+    var extensionNudge = ExtensionNudgeRecord.load()
+    var extensionNudgeBrowser: ExtensionNudgeBrowser = .other
+    var safariExtensionEnabled = false
     let importModel = ImportModel()
     @ObservationIgnored var hiddenPanels: Bool?
     /// Where an item's tile is on screen (window coordinates, jumping it into view if needed) and a way to hide it while its picture
@@ -411,6 +414,11 @@ final class AppModel {
         if ProcessInfo.processInfo.environment["GRAILS_API_TOKEN"] == nil, !FileManager.default.fileExists(atPath: Self.tokenFile.path) {
             extensionPaired = false
             d.set(false, forKey: "extensionPaired")
+        }
+        // A pair from before this card existed. This build's pairs are Chrome, so the card stays gone.
+        if d.object(forKey: ExtensionNudgeRecord.defaultsKey) == nil, extensionPaired {
+            extensionNudge.note(.chromeStore)
+            extensionNudge.save(d)
         }
     }
 

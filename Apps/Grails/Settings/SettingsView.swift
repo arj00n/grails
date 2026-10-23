@@ -1,7 +1,6 @@
 import GrailsDesign
 import GrailsKit
 import GrailsSync
-import SafariServices
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -525,8 +524,7 @@ struct ExtensionsSettings: View {
             if SafariExtension.isAvailable {
                 GrailsSettingsRow("Safari", detail: "Included with this app.") {
                     GrailsButton("Open Safari Extensions…", kind: .secondary, identifier: "settings-safari-extension") {
-                        let id = (Bundle.main.bundleIdentifier ?? "") + ".safari"
-                        SFSafariApplication.showPreferencesForExtension(withIdentifier: id) { _ in }
+                        SafariExtension.showPreferences()
                     }
                 }
             }

@@ -1,4 +1,5 @@
 import Foundation
+import SafariServices
 
 /// Whether this build ships the Safari web extension.
 ///
@@ -9,5 +10,25 @@ enum SafariExtension {
 
     static var isAvailable: Bool {
         (Bundle.main.object(forInfoDictionaryKey: infoKey) as? String) == "YES"
+    }
+
+    static var bundleIdentifier: String {
+        (Bundle.main.bundleIdentifier ?? "") + ".safari"
+    }
+
+    static func showPreferences() {
+        SFSafariApplication.showPreferencesForExtension(withIdentifier: bundleIdentifier) { _ in }
+    }
+
+    /// Skips the Safari state lookup while `isAvailable` is false.
+    static func refreshEnabled(_ apply: @escaping @MainActor (Bool) -> Void) {
+        guard isAvailable else {
+            Task { @MainActor in apply(false) }
+            return
+        }
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: bundleIdentifier) { state, _ in
+            let enabled = state?.isEnabled == true
+            Task { @MainActor in apply(enabled) }
+        }
     }
 }

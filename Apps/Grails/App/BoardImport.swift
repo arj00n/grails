@@ -76,6 +76,7 @@ extension AppModel {
         pairRequest = nil
         extensionPaired = true
         UserDefaults.standard.set(true, forKey: "extensionPaired")
+        if let origin = PairingOrigin.parse(request.origin) { rememberExtensionPair(origin) }
         if extensionSetup.isOpen { extensionSetup.connected = true }
         if !extensionSetup.isOpen { showToast("Extension connected") }
         // the guide ticks its last step, then leaves, and Grails comes back to the front
