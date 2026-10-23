@@ -216,7 +216,7 @@ struct SidebarRow: View {
     var disclosure: Binding<Bool>?
     var quiet = false
     var action: (() -> Void)?
-    /// Canon's row: its mark in gold with a few still-quiet stars, and the gold outline when selected.
+    /// Holy Grail's row: its mark in gold with a few still-quiet stars, and the gold outline when selected.
     var canon = false
     @State private var hovering = false
 
@@ -260,7 +260,7 @@ struct SidebarRow: View {
 }
 
 extension AppModel {
-    /// The team's Canon, when the library has one that is not archived. The sidebar shows it once, highlighted, in the main section.
+    /// The team's Holy Grail, when the library has one that is not archived. The sidebar shows it once, highlighted, in the main section.
     var canonCollection: GrailsCollection? { Canon.collection(in: collections.filter { !$0.archived }) }
 }
 

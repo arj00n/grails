@@ -6,7 +6,7 @@ public enum LibraryLanding: Equatable, Sendable {
 }
 
 public enum Landing {
-    /// Stored collection names that mean Canon. "Baseline" is the name older libraries still have on disk and in the bucket.
+    /// Stored collection names that mean Holy Grail. "Baseline" and "Canon" are the names libraries still have on disk and in the bucket.
     public static let canonNames = ["Canon", "Baseline"]
 
     public static func pick(collectionNames: [String]) -> LibraryLanding {

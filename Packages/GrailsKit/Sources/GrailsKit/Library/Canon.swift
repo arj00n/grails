@@ -1,11 +1,17 @@
 import Foundation
 
-/// The team's lasting set of best references. People promote items into it.
+/// The team's lasting set of best references. People add items to it.
 ///
-/// On disk it is an ordinary collection. Older libraries name that collection "Baseline",
-/// and a collection file may also carry a `baseline` field (a flag, or the note for why it works).
-/// Both still load as Canon. The stored name and the `baseline` key are left as written.
+/// On disk it is an ordinary collection. The app shows it as Holy Grail.
+/// Older libraries name that collection "Baseline". Libraries saved while the
+/// feature was called Canon store the name "Canon". A collection file may also
+/// carry a `baseline` field (a flag, or the note for why it works).
+/// Both stored names still load as Holy Grail. A new file is still named "Canon",
+/// because an older build only treats "Canon" and "Baseline" as this set.
+/// The `baseline` key is left as written. A new key would be ignored by those builds.
 public enum Canon {
+    public static let title = "Holy Grail"
+    /// Written into a new collection file. Older builds still match this name.
     public static let name = "Canon"
     /// Collection name older libraries still have on disk and in the bucket.
     public static let legacyStoredName = "Baseline"
@@ -15,19 +21,36 @@ public enum Canon {
             || storedName.caseInsensitiveCompare(legacyStoredName) == .orderedSame
     }
 
-    /// What the app shows. A collection stored as "Baseline" reads as Canon.
+    /// What the app shows. A collection stored as "Canon" or "Baseline" reads as Holy Grail.
     public static func displayName(forStored storedName: String) -> String {
-        storedName.caseInsensitiveCompare(legacyStoredName) == .orderedSame ? name : storedName
+        matches(storedName) ? title : storedName
     }
 
-    /// The collection this library already uses, preferring one stored under the current name.
-    /// A folder is only used when nothing else matches, so an old library that filed Canon as a folder still opens.
+    /// The collection this library already uses, preferring one stored as "Canon".
+    /// A folder is only used when nothing else matches, so an old library that filed Holy Grail as a folder still opens.
     public static func collection(in collections: [GrailsCollection]) -> GrailsCollection? {
         let hits = collections.filter(\.isCanon)
         let sets = hits.filter { $0.kind != "folder" }
         let pool = sets.isEmpty ? hits : sets
         if let current = pool.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) { return current }
         return pool.first
+    }
+
+    public struct Offer: Equatable, Sendable {
+        public let adding: [String]
+        public let removing: [String]
+        public var shown: Bool { !adding.isEmpty }
+        init(adding: [String], removing: [String]) {
+            self.adding = adding
+            self.removing = removing
+        }
+    }
+
+    public static func offer(selected: [String], alreadyIn: Set<String>) -> Offer {
+        Offer(
+            adding: selected.filter { !alreadyIn.contains($0) },
+            removing: selected.filter { alreadyIn.contains($0) }
+        )
     }
 
     /// A `baseline` JSON value that marks the collection. Absent, false, and empty do not.
@@ -47,9 +70,9 @@ public enum Canon {
 }
 
 extension GrailsCollection {
-    /// True when this collection is the team's Canon set, including one stored the old way.
+    /// True when this collection is the team's Holy Grail set, including one stored under an older name.
     public var isCanon: Bool { Canon.matches(name) || Canon.legacyFlag(extras["baseline"]) }
 
-    /// The name people see. A collection stored as "Baseline" reads as Canon. The file is not rewritten.
+    /// The name people see. "Canon" and "Baseline" read as Holy Grail. The file is not rewritten.
     public var displayName: String { Canon.displayName(forStored: name) }
 }

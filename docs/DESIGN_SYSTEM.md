@@ -269,11 +269,11 @@ Don't. A switch between photo and blob, a Save button for the look, initials or 
 
 One `NameBubbleCoordinator` owns the open bubble for the whole app. A second avatar closes the first. A live scroll closes it at once, and so does the momentum after the fingers lift. While that scroll runs, hovers do not open a bubble. When the scroll ends, the bubble stays closed unless the pointer is still on an avatar, in which case the rest (`NameBubble.rest`, currently zero, so the resting pointer shows it then) starts over. The bubble also closes when the window resigns key, the avatar scrolls out of view, or the view goes away. A view does not keep its own hover flag for the name. `Scripts/check-design-rules.sh` rejects a `GrailsNameBubble` built outside `MemberAvatar.swift`, and an `.onHover` on that avatar.
 
-### Canon
+### Holy Grail
 
-Canon has its own mark, `CanonMark`: an eight-point rosette with a punched centre, drawn as a shape (`CanonGlyph`) so it is crisp at any size. `CanonMark.image()` is the same mark as a template image for AppKit menus. Rows that take an SF Symbol name use `CanonMark.symbolName`, which `GrailsSymbol` and the palette turn into the mark. It appears in the sidebar, "Promote to Canon" and the palette.
+Holy Grail has its own mark, `CanonMark`: an eight-point rosette with a punched centre, drawn as a shape (`CanonGlyph`) so it is crisp at any size. `CanonMark.image()` is the same mark as a template image for AppKit menus. Rows that take an SF Symbol name use `CanonMark.symbolName`, which `GrailsSymbol` and the palette turn into the mark. It appears in the sidebar, the item inspector, "Add to Holy Grail", and the palette. The inspector shows the mark beside "In Holy Grail" when the open item is already in the set, and a secondary button "Add to Holy Grail" when it is not and the person can add it. A connected owner or admin also gets a quiet "Remove from Holy Grail" under that line. Removal drops the collection membership and can be undone.
 
-In the sidebar's main section, after All, Canon is one row (`GrailsCanonHighlight` behind it). It is not listed again under Collections. It has two states.
+In the sidebar's main section, after All, Holy Grail is one row (`GrailsCanonHighlight` behind it). It is not listed again under Collections. The row title is one line in a 240 pt sidebar. Holy Grail fits beside the mark. It has two states.
 
 Not selected, it is close to a plain sidebar row:
 
@@ -291,7 +291,7 @@ The only motion is `CanonSparkles`: three tiny pixel stars around the mark, in b
 
 `CanonHighlightTests` checks both inks' contrast, the pause and Reduce Motion rules, that the stars are few, tiny, off the mark and never lit together, and renders the row to check it is plain until selected (`GRAILS_CANON_PREVIEW=<file.png>` writes the four states). `Scripts/check-design-rules.sh` bans the sweeping sheen, a glow and a second timeline, and checks the stars are dithered, on their token, and still under Reduce Motion.
 
-Don't. A sweeping sheen or shimmer, a glow, a fill on the unselected row, a louder gold, more or bigger stars, or the star symbol for Canon.
+Don't. A sweeping sheen or shimmer, a glow, a fill on the unselected row, a louder gold, more or bigger stars, or the star symbol for Holy Grail.
 
 ### Row, empty, loading
 
