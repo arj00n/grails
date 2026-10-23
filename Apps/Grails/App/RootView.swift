@@ -95,7 +95,7 @@ struct RootView: View {
             if ProcessInfo.processInfo.environment["GRAILS_DESIGN_GALLERY"] != nil { model.designGallery = true }
             if ProcessInfo.processInfo.environment["GRAILS_INVITE_SHEET"] != nil { model.showBucketInvite = true }
             if ProcessInfo.processInfo.environment["GRAILS_SCREEN"] == "sync" {
-                model.syncProgress = (3, 8)
+                model.syncProgress = (3, 8, SyncFeedback.progressLine(done: 3, total: 8, estimate: "about 4 min"))
             }
             openProofScreen()
         }
@@ -172,7 +172,7 @@ struct RootView: View {
                 default: break
                 }
             case "sync":
-                model.syncProgress = (3, 8)
+                model.syncProgress = (3, 8, SyncFeedback.progressLine(done: 3, total: 8, estimate: "about 4 min"))
             case "workspace":
                 model.workspaceDraft = .choose
             case "bucket":
@@ -516,7 +516,7 @@ struct RootView: View {
                 ProgressCard(label: "Updating tags… \(p.done) of \(p.total)", done: p.done, total: p.total)
             }
             if let p = model.syncProgress, SyncFeedback.showsProgress(total: p.total) {
-                ProgressCard(label: SyncFeedback.progressLine(done: p.done, total: p.total), done: p.done, total: p.total)
+                ProgressCard(label: p.label, done: p.done, total: p.total)
                     .accessibilityIdentifier("sync-progress")
             }
         }

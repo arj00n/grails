@@ -37,14 +37,37 @@ public enum MoveError: Error, Equatable {
 
 public enum LibraryMover {
     /// Copies every object except the freeze marker. Each object is read back and checked. The source is left in place.
+    /// A pass that finds nothing new stops the copy. A source that keeps changing gets one last copy of the bytes just read.
     public static func copy(from source: any ObjectStore, to destination: any ObjectStore) async throws {
+        var settled: [String: Data] = [:]
+        for _ in 0..<4 {
+            let pass = try await copyPass(from: source, to: destination, settled: settled)
+            settled = pass.settled
+            if pass.stable { return }
+        }
+        _ = try await copyPass(from: source, to: destination, settled: settled)
+    }
+
+    private static func copyPass(from source: any ObjectStore, to destination: any ObjectStore, settled: [String: Data]) async throws -> (stable: Bool, settled: [String: Data]) {
+        var settled = settled
         let heads = try await source.list(prefix: "")
+        var moved = false
         for head in heads where head.key != MoveNotice.key {
             let got = try await source.get(head.key)
+            let digest = Digests.sha256(got.body)
+            if settled[head.key] == digest { continue }
+            moved = true
             _ = try await destination.put(head.key, body: got.body, contentType: S3Client.contentType(head.key), ifMatch: nil, ifNoneMatch: nil)
             let back = try await destination.get(head.key)
-            guard Digests.sha256(back.body) == Digests.sha256(got.body) else { throw MoveError.checksum(head.key) }
+            guard Digests.sha256(back.body) == digest else { throw MoveError.checksum(head.key) }
+            let again = try await source.get(head.key)
+            if Digests.sha256(again.body) == digest {
+                settled[head.key] = digest
+            } else {
+                settled[head.key] = nil
+            }
         }
+        return (!moved, settled)
     }
 
     public static func freeze(_ store: any ObjectStore, notice: MoveNotice) async throws {

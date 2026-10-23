@@ -64,7 +64,7 @@ final class BucketController {
     var actions = GrailsAsyncActions()
     /// Folder watches that land while a bucket pull is announcing stay quiet, so the summary is not said twice.
     @ObservationIgnored var muteArrivalUntil = Date.distantPast
-    @ObservationIgnored var onSyncProgress: ((Int, Int) -> Void)?
+    @ObservationIgnored var onSyncProgress: ((SyncTransferProgress) -> Void)?
     @ObservationIgnored var onSyncFeedback: ((SyncFeedback) -> Void)?
     @ObservationIgnored var onDisplayName: ((String) -> Void)?
     var backupEndpoint = ""
@@ -175,6 +175,9 @@ final class BucketController {
         let response = SyncInterrupt.response(event)
         if let reachable = response.reachable { self.reachable = reachable }
         if response.fresh { runAgain = true }
+        if response.cancel || response.reachable == false {
+            onSyncProgress?(.idle)
+        }
         if response.cancel {
             syncLog.log("sync interrupted event=\(String(describing: event), privacy: .public)")
             let engine = engine
@@ -216,10 +219,10 @@ final class BucketController {
         let report: SyncReport?
         var passOutcome: SyncHealth.Outcome = .success
         do {
-            report = try await engine.syncOnce(onProgress: { [weak self] done, total in
+            report = try await engine.syncOnce(onProgress: { [weak self] progress in
                 await MainActor.run {
                     guard generation == self?.attachGeneration else { return }
-                    self?.onSyncProgress?(done, total)
+                    self?.onSyncProgress?(progress)
                 }
             }, onTransfers: { [weak self] busy in
                 await MainActor.run {
@@ -249,7 +252,7 @@ final class BucketController {
         guard generation == attachGeneration else { return }
         syncing = false
         if case .cancelled = passOutcome {
-            onSyncProgress?(0, 0)
+            onSyncProgress?(.idle)
             return
         }
         syncHealth = syncHealth.next(passOutcome)
@@ -264,7 +267,7 @@ final class BucketController {
             }
             if role == .owner { await sweepOwnerInvites() }
         }
-        onSyncProgress?(0, 0)
+        onSyncProgress?(.idle)
         onSynced?()
         await snapshotIfDue(forced: false)
     }
@@ -465,10 +468,6 @@ final class BucketController {
             try Members.record(handle: shown, in: layout, minInterval: 0, name: shown)
         }
         return cache
-    }
-
-    func noteSyncProgress(done: Int, total: Int, pending: [String]) {
-        join.progress(done: done, total: total, pendingKeys: pending)
     }
 
     func finishJoinSync(role: LibraryRole) {

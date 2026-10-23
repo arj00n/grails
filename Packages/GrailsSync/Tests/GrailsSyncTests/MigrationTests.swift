@@ -47,6 +47,30 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(try fingerprint(root), before)
     }
 
+    func testCopyKeepsAnEditThatLandsDuringTheBatch() async throws {
+        let root = try TestLibrary.makeRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(root, "items/a/original.jpg", Data("aaa".utf8))
+        try write(root, "items/b/original.jpg", Data("bbb".utf8))
+        let inner = MemoryObjectStore()
+        let store = EditDuringCopy(inner: inner, root: root)
+        let edited = Data("edited-during-copy".utf8)
+
+        var progress = try await LibraryMigration.copy(root: root, store: store, limit: 8)
+        var rounds = 0
+        while !progress.finished, rounds < 6 {
+            progress = try await LibraryMigration.copy(root: root, store: store, limit: 8)
+            rounds += 1
+        }
+
+        let copiedA = await inner.body("items/a/original.jpg")
+        let copiedB = await inner.body("items/b/original.jpg")
+        XCTAssertTrue(progress.finished)
+        XCTAssertEqual(copiedA, edited)
+        XCTAssertEqual(copiedB, Data("bbb".utf8))
+        XCTAssertEqual(try Data(contentsOf: root.appendingPathComponent("items/a/original.jpg")), edited)
+    }
+
     func testMergeKeepsTheDestinationLibrary() async throws {
         let root = try TestLibrary.makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -270,4 +294,31 @@ final class MigrationTests: XCTestCase {
         XCTAssertEqual(S3Client.cleanETag("W/\"8e4225e1e3c79940ac8b524ddc993433\""), "8e4225e1e3c79940ac8b524ddc993433")
         XCTAssertEqual(S3Client.cleanETag("&quot;8e4225e1e3c79940ac8b524ddc993433&quot;"), "8e4225e1e3c79940ac8b524ddc993433")
     }
+}
+
+/// Rewrites `items/a` on disk the first time `items/b` is uploaded, once.
+private actor EditDuringCopy: ObjectStore {
+    private let inner: MemoryObjectStore
+    private let root: URL
+    private var flipped = false
+
+    init(inner: MemoryObjectStore, root: URL) {
+        self.inner = inner
+        self.root = root
+    }
+
+    func list(prefix: String) async throws -> [ObjectHead] { try await inner.list(prefix: prefix) }
+
+    func get(_ key: String) async throws -> ObjectGet { try await inner.get(key) }
+
+    func put(_ key: String, body: Data, contentType: String, ifMatch: String?, ifNoneMatch: String?) async throws -> String {
+        let etag = try await inner.put(key, body: body, contentType: contentType, ifMatch: ifMatch, ifNoneMatch: ifNoneMatch)
+        if key == "items/b/original.jpg", !flipped {
+            flipped = true
+            try Data("edited-during-copy".utf8).write(to: root.appendingPathComponent("items/a/original.jpg"))
+        }
+        return etag
+    }
+
+    func delete(_ key: String) async throws { try await inner.delete(key) }
 }

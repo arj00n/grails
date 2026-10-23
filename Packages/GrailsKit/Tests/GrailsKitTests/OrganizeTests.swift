@@ -213,6 +213,76 @@ import Testing
         let restored = try #require(try await store.item(id: item.id))
         #expect(!restored.liked && restored.note.isEmpty)
     }
+
+    @Test func overlappingUndoDoesNotTrashTheOtherActionsItem() async throws {
+        let (store, _) = try TestSupport.newStore()
+        let kept = TestSupport.item("kept", tags: ["keep"])
+        try await TestSupport.seed(store, [kept])
+        let gate = UndoInterleave()
+        let png = TestSupport.makePNG(in: TestSupport.tempDir(), name: "added")
+
+        async let added = store.recording(label: "Add") { () async throws -> AddResult in
+            await gate.signal("addStarted")
+            await gate.wait("otherBegan")
+            let result = try await store.addItem(fileAt: png)
+            await gate.signal("itemCreated")
+            await gate.wait("tagEnded")
+            return result
+        }
+        async let tagged = gate.tag(store, kept: kept.id)
+
+        let (result, addUndo) = try await added
+        let tagUndo = try await tagged
+        let newId = result.item.id
+
+        #expect(!tagUndo.items.keys.contains(newId))
+        #expect(tagUndo.items.keys.contains(kept.id))
+        #expect(addUndo.items.keys.contains(newId))
+        #expect(!addUndo.items.keys.contains(kept.id))
+
+        _ = try await store.apply(tagUndo)
+        #expect(try await store.item(id: kept.id)?.deletedAt == nil)
+        #expect(try await store.item(id: kept.id)?.tags == ["keep"])
+        #expect(try await store.item(id: newId)?.deletedAt == nil)
+    }
+}
+
+private final class UndoInterleave: @unchecked Sendable {
+    private let lock = NSLock()
+    private var flags: [String: Bool] = [:]
+    private var waiters: [String: [CheckedContinuation<Void, Never>]] = [:]
+
+    func signal(_ name: String) {
+        lock.lock()
+        flags[name] = true
+        let pending = waiters.removeValue(forKey: name) ?? []
+        lock.unlock()
+        for waiter in pending { waiter.resume() }
+    }
+
+    func wait(_ name: String) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            if flags[name] == true {
+                lock.unlock()
+                continuation.resume()
+            } else {
+                waiters[name, default: []].append(continuation)
+                lock.unlock()
+            }
+        }
+    }
+
+    func tag(_ store: LibraryStore, kept id: String) async throws -> ChangeSet {
+        await wait("addStarted")
+        let (_, undo) = try await store.recording(label: "Tag") {
+            await signal("otherBegan")
+            await wait("itemCreated")
+            try await store.addTags(["fresh"], to: [id])
+        }
+        signal("tagEnded")
+        return undo
+    }
 }
 
 extension Sequence {

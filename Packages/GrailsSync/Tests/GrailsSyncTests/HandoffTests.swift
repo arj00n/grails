@@ -84,6 +84,22 @@ final class HandoffTests: XCTestCase {
         XCTAssertEqual(sourceDeletes.deletes, 0)
     }
 
+    func testCopyPicksUpEditsThatLandDuringTheMove() async throws {
+        let inner = MemoryObjectStore()
+        let destination = MemoryObjectStore()
+        await inner.seed("items/a/thumb.jpg", body: Data("v1".utf8))
+        let source = ChangingSource(inner)
+        try await LibraryMover.copy(from: source, to: destination)
+        let copiedA = await destination.body("items/a/thumb.jpg")
+        let copiedB = await destination.body("items/b/thumb.jpg")
+        let sourceA = await inner.body("items/a/thumb.jpg")
+        let marker = await destination.body(MoveNotice.key)
+        XCTAssertEqual(copiedA, Data("version-two".utf8))
+        XCTAssertEqual(copiedB, Data("new-during-move".utf8))
+        XCTAssertEqual(sourceA, Data("version-two".utf8))
+        XCTAssertNil(marker)
+    }
+
     func testCopyRejectsAFlippedReadBack() async throws {
         let source = MemoryObjectStore()
         let inner = MemoryObjectStore()
@@ -188,6 +204,33 @@ private actor FlippingGet: ObjectStore {
         let got = try await inner.get(key)
         guard let first = got.body.first else { return got }
         return ObjectGet(body: Data([first ^ 0xFF]) + got.body.dropFirst(), etag: got.etag)
+    }
+
+    func put(_ key: String, body: Data, contentType: String, ifMatch: String?, ifNoneMatch: String?) async throws -> String {
+        try await inner.put(key, body: body, contentType: contentType, ifMatch: ifMatch, ifNoneMatch: ifNoneMatch)
+    }
+
+    func delete(_ key: String) async throws { try await inner.delete(key) }
+}
+
+/// The first read of `items/a` returns the original bytes, then the source gains a new version and a new key.
+private actor ChangingSource: ObjectStore {
+    private let inner: MemoryObjectStore
+    private var bumped = false
+
+    init(_ inner: MemoryObjectStore) { self.inner = inner }
+
+    func list(prefix: String) async throws -> [ObjectHead] { try await inner.list(prefix: prefix) }
+
+    func get(_ key: String) async throws -> ObjectGet {
+        if key == "items/a/thumb.jpg", !bumped {
+            bumped = true
+            let got = try await inner.get(key)
+            await inner.seed("items/a/thumb.jpg", body: Data("version-two".utf8))
+            await inner.seed("items/b/thumb.jpg", body: Data("new-during-move".utf8))
+            return got
+        }
+        return try await inner.get(key)
     }
 
     func put(_ key: String, body: Data, contentType: String, ifMatch: String?, ifNoneMatch: String?) async throws -> String {

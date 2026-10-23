@@ -132,6 +132,8 @@ extension AppModel {
             refreshMemberDirectory()
         }
         guard let summary = try? await store.applyExternalChanges(paths: paths), !summary.isEmpty else { return }
+        let bulk = syncProgress.map { SyncFeedback.showsProgress(total: $0.total) } ?? false
+        guard SyncWatch.shouldReload(bulkSync: bulk) else { return }
         await reload()
         if let key = canvasBoardKey, summary.canvasBoards.contains(key) {
             if viewMode == .canvas { await loadBoard() }

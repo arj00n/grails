@@ -107,20 +107,23 @@ public enum LibraryMigration {
         if try await hasLibrary(store) {
             return try await merge(root: root, store: store, limit: limit)
         }
-        let local = try LibraryScanner.scan(root: root)
         var ledger = try await load(store)
-        let todo = pending(local: local, ledger: ledger)
+        let todo = pending(local: try LibraryScanner.scan(root: root), ledger: ledger)
         let batch = Array(todo.prefix(max(0, limit)))
         for key in batch {
-            let data = try Data(contentsOf: root.appendingPathComponent(key))
-            let digest = Digests.sha256Hex(data)
+            let url = root.appendingPathComponent(key)
+            let data = try Data(contentsOf: url)
             _ = try await store.put(key, body: data, contentType: S3Client.contentType(key), ifMatch: nil, ifNoneMatch: nil)
-            ledger.digests[key] = digest
-            try await save(ledger, store: store)
+            let after = try Data(contentsOf: url)
+            if after == data {
+                ledger.digests[key] = Digests.sha256Hex(data)
+                try await save(ledger, store: store)
+            }
         }
-        let left = pending(local: local, ledger: ledger)
-        let copied = local.filter { ledger.digests[$0.key] == $0.digest }.count
-        return MigrationProgress(copied: copied, total: local.count, remaining: left)
+        let fresh = try LibraryScanner.scan(root: root)
+        let left = pending(local: fresh, ledger: ledger)
+        let copied = fresh.filter { ledger.digests[$0.key] == $0.digest }.count
+        return MigrationProgress(copied: copied, total: fresh.count, remaining: left)
     }
 
     static func hasLibrary(_ store: any ObjectStore) async throws -> Bool {

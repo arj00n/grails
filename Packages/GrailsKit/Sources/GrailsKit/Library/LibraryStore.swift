@@ -33,6 +33,7 @@ public actor LibraryStore {
     public var userHandle: String
     /// Non-nil while `recording(label:)` is running; mutations note the state they overwrite.
     var recorder: ChangeRecorder?
+    @TaskLocal static var taskRecording: ChangeRecorder?
     /// mtime of the notes folder last time we looked, so a teammate's note reloads even when no item file changed.
     var notesStamp: Double = -1
 
