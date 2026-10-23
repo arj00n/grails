@@ -148,30 +148,24 @@ extension AppModel {
         guard !ids.isEmpty else { return [] }
         let from: String?
         if case .collection(let id) = source { from = id } else { from = nil }
-        let targets = collections.filter { !$0.archived && $0.kind != "folder" && $0.id != from }
         let typed = q.trimmingCharacters(in: .whitespaces)
         var rows: [PaletteRow] = []
         let verb = from == nil ? "Add to" : "Move to"
         let canonID = Canon.collection(in: collections)?.id
-        for c in FuzzyMatcher.rank(targets, query: typed, text: { $0.displayName == $0.name ? $0.name : "\($0.displayName) \($0.name)" }, limit: 40) {
-            let rowIds: [String]
-            if c.id == canonID {
+        for dest in ItemPlacement.destinations(collections, query: typed, openCollection: from) {
+            if dest.id == canonID {
                 let offer = Canon.offer(selected: ids, alreadyIn: canonItemIds)
                 if !offer.shown { continue }
-                rowIds = offer.adding
-            } else {
-                rowIds = ids
             }
-            rows.append(.init(id: "mv-\(c.id)", title: "\(verb) \(c.displayName)", subtitle: path(of: c), symbol: c.isCanon ? CanonMark.symbolName : "rectangle.stack") { [self] in
-                Task {
-                    await perform("Move to Collection") { store in
-                        if let from { try await store.move(ids: rowIds, from: from, to: c.id) } else { try await store.add(ids: rowIds, toCollection: c.id) }
-                    }
-                    showToast("\(from == nil ? "Added" : "Moved") \(rowIds.count) \(rowIds.count == 1 ? "item" : "items") to \(c.displayName)")
-                }
+            let symbol = collections.first { $0.id == dest.id }?.isCanon == true
+                ? CanonMark.symbolName
+                : (dest.kind == "folder" ? "folder" : "rectangle.stack")
+            rows.append(.init(id: "mv-\(dest.id)", title: "\(verb) \(dest.label)", symbol: symbol, depth: dest.depth) { [self] in
+                placeItems(ids, in: dest.id)
             })
         }
-        if !typed.isEmpty, !targets.contains(where: { $0.displayName.caseInsensitiveCompare(typed) == .orderedSame || $0.name.caseInsensitiveCompare(typed) == .orderedSame }) {
+        let taken = collections.contains { !$0.archived && ($0.displayName.caseInsensitiveCompare(typed) == .orderedSame || $0.name.caseInsensitiveCompare(typed) == .orderedSame) }
+        if !typed.isEmpty, !taken {
             rows.append(.init(id: "mv-new", title: "New collection “\(typed)”", subtitle: "Create and \(from == nil ? "add" : "move") \(ids.count) here", symbol: "plus.rectangle.on.rectangle") { [self] in
                 Task {
                     await perform("New Collection") { store in

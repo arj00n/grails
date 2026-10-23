@@ -229,18 +229,48 @@ struct InfoBlock: View {
                         LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
                             .transition(.grailsChip(reduceMotion: reduceMotion))
                     }
-                    GrailsControl {
-                        if let id = itemID { model.selection = [id]; model.panel = .move }
-                    } label: {
-                        Image(systemName: "plus").font(ChromeFont.symbol(10, weight: .medium)).foregroundStyle(Ink.secondary)
-                            .frame(width: 22, height: 22).chipSurface()
-                    }
-                    .help("Move to collection (M)")
+                    folderMenu
                 }
                 .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
             }
         }
         .id(item?.id)
+    }
+
+    private var folderMenu: some View {
+        let open: String? = {
+            if case .collection(let id) = model.source { return id }
+            return nil
+        }()
+        let canonID = Canon.collection(in: model.collections)?.id
+        let memberIDs: Set<String> = item.map { Set($0.collections.keys) } ?? []
+        let destinations = ItemPlacement.destinations(model.collections, query: "", openCollection: open)
+            .filter { dest in
+                if let canonID, dest.id == canonID { return false }
+                return !memberIDs.contains(dest.id)
+            }
+        let verb = open == nil ? "Add to" : "Move to"
+        return GrailsMenu(press: .symbol) {
+            if destinations.isEmpty {
+                GrailsMenuItem("No other collections", enabled: false) {}
+            }
+            ForEach(destinations) { dest in
+                GrailsMenuItem("\(verb) \(dest.label)", symbol: dest.kind == "folder" ? "folder" : "rectangle.stack") {
+                    if let id = itemID { model.placeItems([id], in: dest.id) }
+                }
+            }
+            GrailsMenuItem("Search…") {
+                if let id = itemID {
+                    model.selection = [id]
+                    model.panel = .move
+                }
+            }
+        } label: {
+            Image(systemName: "plus").font(ChromeFont.symbol(10, weight: .medium)).foregroundStyle(Ink.secondary)
+                .frame(width: 22, height: 22).chipSurface()
+        }
+        .help(open == nil ? "Add to a folder" : "Move to a folder")
+        .accessibilityIdentifier("add-to-folder")
     }
 
     private func camera(_ rows: [(label: String, value: String)]) -> some View {

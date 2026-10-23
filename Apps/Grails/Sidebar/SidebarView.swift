@@ -344,14 +344,14 @@ extension View {
         .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.horizontal, 8).allowsHitTesting(false) } }
     }
 
-    /// Collections accept items (add), files (import), and other collections (reorder / move into a folder).
+    /// Collections and folders accept item ids. Files import onto a collection. A collection drag moves into a folder or reorders.
     func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>) -> some View {
         let id = "c-\(collection.id)"
         return onDrop(of: DropLoader.accepted, isTargeted: Binding(get: { targeted.wrappedValue == id }, set: { targeted.wrappedValue = $0 ? id : nil })) { providers in
             Task { @MainActor in
                 let d = await DropLoader.load(providers)
-                if !d.itemIDs.isEmpty {
-                    if collection.kind != "folder" { model.dropItems(ids: d.itemIDs, onto: .collection(collection.id)) }
+                if ItemPlacement.acceptsItemDrop(kind: collection.kind, itemIDs: d.itemIDs) {
+                    model.dropItems(ids: d.itemIDs, onto: .collection(collection.id))
                 } else if let moved = d.collectionIDs.first, moved != collection.id {
                     if collection.kind == "folder" { model.moveCollection(moved, intoFolder: collection.id) }
                     else if let c = model.collections.first(where: { $0.id == moved }) { _ = c; model.moveCollection(moved, after: collection) }

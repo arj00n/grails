@@ -1481,10 +1481,7 @@ final class AppModel {
         switch target {
         case .collection(let cid):
             let name = collections.first { $0.id == cid }?.displayName ?? "collection"
-            Task {
-                await perform("Add to Collection") { try await $0.add(ids: ids, toCollection: cid) }
-                showToast("Added \(ids.count) \(ids.count == 1 ? "item" : "items") to \(name)")
-            }
+            commitPlacement(ItemPlacement.action(ids: ids, openCollection: nil, target: cid), undoLabel: "Add to Collection", toastName: name)
         case .tag(let t):
             Task {
                 await perform("Add Tag") { try await $0.addTags([t], to: ids) }
@@ -1492,6 +1489,44 @@ final class AppModel {
             }
         case .trash:
             Task { await perform("Move to Trash") { try await $0.softDelete(ids: ids) } }
+        }
+    }
+
+    /// Inspector and the Move palette. Adds when the grid is not a collection. A move removes the item from the open collection only.
+    func placeItems(_ ids: [String], in targetID: String) {
+        var rowIds = ids
+        if let canonID = Canon.collection(in: collections)?.id, targetID == canonID {
+            let offer = Canon.offer(selected: ids, alreadyIn: canonItemIds)
+            guard offer.shown else { return }
+            rowIds = offer.adding
+        }
+        let open: String?
+        if case .collection(let id) = source { open = id } else { open = nil }
+        let target = collections.first { $0.id == targetID }
+        let label = target?.kind == "folder" ? "Move to Folder" : "Move to Collection"
+        commitPlacement(
+            ItemPlacement.action(ids: rowIds, openCollection: open, target: targetID),
+            undoLabel: label,
+            toastName: target?.displayName ?? "collection"
+        )
+    }
+
+    private func commitPlacement(_ action: ItemPlacement.Action, undoLabel: String, toastName: String) {
+        let ids = action.ids
+        let from = action.from
+        let target = action.target
+        let moved = action.isMove
+        let count = ids.count
+        guard !ids.isEmpty else { return }
+        Task {
+            await perform(undoLabel) { store in
+                if let from {
+                    try await store.move(ids: ids, from: from, to: target)
+                } else {
+                    try await store.add(ids: ids, toCollection: target)
+                }
+            }
+            showToast("\(moved ? "Moved" : "Added") \(count) \(count == 1 ? "item" : "items") to \(toastName)")
         }
     }
 

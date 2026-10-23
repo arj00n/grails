@@ -8,6 +8,8 @@ struct PaletteRow: Identifiable {
     var symbol: String
     var accessory: String? = nil
     var tint: Color? = nil
+    /// Steps down from the parent row. Zero for a top-level target and for a search hit.
+    var depth: Int = 0
     /// Stay open after running (e.g. toggling several tags in a row)
     var keepOpen = false
     var run: @MainActor () -> Void
@@ -92,7 +94,7 @@ struct PaletteView: View {
             Spacer()
             if let a = row.accessory { Text(a).font(.grailsBody(13)).foregroundStyle(Ink.secondary).monospacedDigit() }
         }
-        .padding(.horizontal, 10).padding(.vertical, 7)
+        .padding(.leading, 10 + CGFloat(row.depth) * Space.sm).padding(.trailing, 10).padding(.vertical, 7)
         .background(InkWash(ink: highlighted ? Ink.fillHover : Ink.clear).clipShape(RoundedRectangle(cornerRadius: Ink.rowRadius, style: .continuous)))
         .contentShape(Rectangle())
     }
