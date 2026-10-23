@@ -32,6 +32,7 @@ final class PinnedSectionHeader: NSView {
     required init?(coder: NSCoder) { nil }
 
     override var isFlipped: Bool { true }
+    override var mouseDownCanMoveWindow: Bool { false }
 
     /// `frame` is in the floating container's coordinates. Called on every scroll tick, so it only touches what changed.
     func show(_ s: ItemSummary, noted: Bool, at index: Int, frame: NSRect) {

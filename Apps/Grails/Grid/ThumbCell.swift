@@ -68,7 +68,14 @@ final class BadgePill: NSView {
     }
 }
 
+/// Ignores the mouse, so a placeholder or badge cannot drag the tile or the window.
+final class TileChromeImage: NSImageView {
+    override var mouseDownCanMoveWindow: Bool { false }
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 final class TileView: NSView {
+    override var mouseDownCanMoveWindow: Bool { false }
     /// What VoiceOver reads (and UI tests find): the item's name.
     var axLabel: String?
     override func isAccessibilityElement() -> Bool { true }
@@ -108,15 +115,15 @@ final class ThumbCell: NSCollectionViewItem {
     private var source: (id: String, thumb: URL, original: URL?, variant: String)?
     private(set) var itemID: String?
     private var pixelScale: CGFloat = 2
-    private let placeholder = NSImageView()
-    private let heart = NSImageView()
-    private let noteMark = NSImageView()
+    private let placeholder = TileChromeImage(frame: .zero)
+    private let heart = TileChromeImage(frame: .zero)
+    private let noteMark = TileChromeImage(frame: .zero)
     private let captionBar = NSView()
     private let caption = PassthroughLabel.make()
     private let titleLabel = PassthroughLabel.make(wrapping: true)
     private let siteLabel = PassthroughLabel.make()
     private let badge = BadgePill()
-    private let cloud = NSImageView()
+    private let cloud = TileChromeImage(frame: .zero)
     private let avatar = MemberAvatarView()
     private let sectionLabel = GrailsClusterTitle(frame: .zero)
     private(set) var isSection = false

@@ -59,7 +59,8 @@ struct GridView: NSViewRepresentable {
         c.installTileGeometry()
         c.installHover(on: cv)
 
-        let scroll = NSScrollView()
+        let scroll = GridScrollView()
+        scroll.contentView = GridClipView()
         scroll.documentView = cv
         scroll.hasVerticalScroller = true
         scroll.drawsBackground = false
@@ -1052,14 +1053,18 @@ struct GridView: NSViewRepresentable {
 
         // MARK: Drag out
 
-        /// Each dragged tile carries its file (for Finder, Figma, Slack) and its id (for the sidebar's drop targets).
         func collectionView(_ cv: NSCollectionView, pasteboardWriterForItemAt indexPath: IndexPath) -> NSPasteboardWriting? {
-            guard let s = items[safe: indexPath.item], s.kind != .section else { return nil }
+            guard let s = items[safe: indexPath.item] else { return nil }
+            let url = model.originalURL(for: s)
+            let onDisk = url.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+            guard let drag = GridItemDrag.offer(itemID: s.id, isSection: s.kind == .section, original: url, fileOnDisk: onDisk) else { return nil }
             (cv as? GrailsCollectionView)?.dragBegan = true
             let pb = NSPasteboardItem()
-            if let ids = try? JSONEncoder().encode([s.id]) { pb.setData(ids, forType: NSPasteboard.PasteboardType(UTType.grailsItems.identifier)) }
-            if let url = model.originalURL(for: s), FileManager.default.fileExists(atPath: url.path) {
-                pb.setString(url.absoluteString, forType: .fileURL)
+            if let ids = try? JSONEncoder().encode([drag.itemID]) {
+                pb.setData(ids, forType: NSPasteboard.PasteboardType(UTType.grailsItems.identifier))
+            }
+            if let file = drag.fileURL {
+                pb.setString(file.absoluteString, forType: .fileURL)
             }
             return pb
         }

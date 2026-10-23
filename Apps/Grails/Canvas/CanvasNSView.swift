@@ -179,6 +179,7 @@ final class CanvasNSView: NSView {
 
     override var acceptsFirstResponder: Bool { true }
     override var isFlipped: Bool { false }
+    override var mouseDownCanMoveWindow: Bool { false }
     private var backing: CGFloat { window?.backingScaleFactor ?? 2 }
 
     override func viewDidChangeEffectiveAppearance() { super.viewDidChangeEffectiveAppearance(); refreshColors() }
