@@ -213,6 +213,8 @@ struct SidebarRow: View {
     var source: Source?
     var indent = 0
     var disclosure: Binding<Bool>?
+    /// Tree rows keep the arrow's column even with nothing to open, so siblings line up whether or not they hold folders.
+    var outline = false
     var quiet = false
     var action: (() -> Void)?
     /// Holy Grail's row: its mark in gold with a few still-quiet stars, and the gold outline when selected.
@@ -228,14 +230,15 @@ struct SidebarRow: View {
                     GrailsDisclosureChevron(expanded: disclosure.wrappedValue, size: 8, weight: .bold).foregroundStyle(Ink.secondary)
                         .frame(width: 12, height: 20).contentShape(Rectangle())
                 }
-            } else if indent > 0 { Color.clear.frame(width: 12) }
+            } else if indent > 0 || outline { Color.clear.frame(width: 12) }
             GrailsSymbol(symbol, size: 12).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(selected || hovering ? Ink.text : Ink.secondary)).frame(width: 16)
                 .overlay { if canon { CanonSparkles(selected: selected) } }
             Text(title).font(.grailsBody(13)).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : AnyShapeStyle(quiet && !hovering ? Ink.secondary : Ink.text)).lineLimit(1)
             Spacer(minLength: 4)
             if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
         }
-        .padding(.leading, 8 + CGFloat(indent) * 14).padding(.trailing, 8)
+        // one level is the arrow plus its gap, so a child's arrow sits under its parent's icon
+        .padding(.leading, 8 + CGFloat(indent) * 20).padding(.trailing, 8)
         .frame(height: 28)
         // the open view's fill is the list's one sliding indicator; the row only draws hover
         .background {
@@ -307,7 +310,7 @@ private struct CollectionNode: View {
 
     private func label(hasChildren: Bool) -> some View {
         SidebarRow(model: model, title: collection.displayName, symbol: collection.kind == "folder" ? "folder" : "rectangle.stack",
-                   source: .collection(collection.id), indent: depth, disclosure: hasChildren ? $open : nil)
+                   source: .collection(collection.id), indent: depth, disclosure: hasChildren ? $open : nil, outline: true)
             .onDrag {
                 NSItemProvider(item: Data(collection.id.utf8) as NSData, typeIdentifier: UTType.grailsCollection.identifier)
             }
