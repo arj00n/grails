@@ -32,7 +32,7 @@ struct PreviewPage: View {
         ZStack(alignment: .topLeading) {
             InkWash(ink: Ink.canvas.opacity(chrome.flight * (1 - chrome.dismiss * 0.9))).ignoresSafeArea()
             // the stage draws above the column: a picture flying to or from a tile on the right passes over it
-            GrailsInfoSplit(isOpen: model.showPreviewInfo, top: RootView.barHeight, panelOpacity: infoOpacity) {
+            GrailsInfoSplit(isOpen: model.showPreviewInfo, panelOpacity: infoOpacity) {
                 PreviewStage(model: model, chrome: chrome)
             } panel: {
                 column
@@ -77,7 +77,8 @@ struct PreviewPage: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.never)
-        .overlay(alignment: .top) { Rectangle().fill(Ink.hairline).frame(height: 1) }
+        // the column runs under the bar like the sidebar; its contents start below the bar
+        .padding(.top, RootView.barHeight)
         .accessibilityIdentifier("preview-details")
     }
 }
