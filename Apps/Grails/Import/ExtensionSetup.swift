@@ -172,10 +172,9 @@ struct ExtensionModal: View {
     var model: AppModel
     private var setup: ExtensionSetup { model.extensionSetup }
 
-    private enum Stage { case choose, waiting, allow, connected }
+    private enum Stage { case choose, waiting, connected }
     private var stage: Stage {
         if setup.connected { return .connected }
-        if model.pairRequest != nil { return .allow }
         return setup.opened ? .waiting : .choose
     }
 
@@ -189,7 +188,6 @@ struct ExtensionModal: View {
             switch stage {
             case .choose: choose
             case .waiting: waiting
-            case .allow: allow
             case .connected: connected
             }
             GrailsControl("") { setup.close() }.keyboardShortcut(.cancelAction).frame(width: 0, height: 0).opacity(0)
@@ -203,7 +201,6 @@ struct ExtensionModal: View {
         switch stage {
         case .choose: "ADD THE EXTENSION"
         case .waiting: "ALMOST THERE"
-        case .allow: "ALLOW IT IN"
         case .connected: "CONNECTED"
         }
     }
@@ -273,17 +270,6 @@ struct ExtensionModal: View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             Text("\(n)").font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.canvas).frame(width: 20, height: 20).background(Ink.text, in: Circle())
             Text(text).font(.grailsBody(13)).foregroundStyle(Ink.text).fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    private var allow: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("The extension is asking to connect to Grails on this Mac.").font(.grailsBody(13)).foregroundStyle(Ink.text)
-            GrailsButton("Allow", kind: .primary, identifier: "extension-allow") {
-                if let r = model.pairRequest { model.allowPairing(r) }
-            }
-            .keyboardShortcut(.defaultAction)
-            GrailsButton("Not now", kind: .quiet) { if let r = model.pairRequest { model.denyPairing(r) } }
         }
     }
 
