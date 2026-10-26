@@ -1255,9 +1255,12 @@ final class AppModel {
         }
     }
 
-    func promoteSelectionToCanon() {
+    func promoteSelectionToCanon() { promoteToCanon(Array(selection)) }
+
+    /// Adds these items to Holy Grail, creating it the first time.
+    func promoteToCanon(_ ids: [String]) {
         guard canPromoteToCanon, let store else { return }
-        let adding = Canon.offer(selected: Array(selection), alreadyIn: canonItemIds).adding
+        let adding = Canon.offer(selected: ids, alreadyIn: canonItemIds).adding
         guard !adding.isEmpty else { return }
         Task {
             do {

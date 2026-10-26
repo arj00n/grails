@@ -118,6 +118,8 @@ struct PreviewStage: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PreviewStageView {
         let v = PreviewStageView()
+        // the stage runs under the bar; pictures fit below it, like the sidebar's and the info column's contents
+        v.topInset = RootView.barHeight
         v.sourceFor = { [weak model] s in model?.previewSource(for: s) ?? PreviewSource(original: nil, thumb: URL(fileURLWithPath: "/"), thumbMax: 512) }
         v.onCommit = { [weak model] i in model?.commitPreview(position: i) }
         v.onClose = { [weak model] in model?.closePreview() }

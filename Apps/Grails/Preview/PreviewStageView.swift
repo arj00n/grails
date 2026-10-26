@@ -29,6 +29,8 @@ final class PreviewStageView: NSView {
     /// The picture is about to fly back onto its tile. Hide the details before the first frame of that return.
     var onReturnToTile: (() -> Void)?
     var currentID: String? { pageSet[index]?.id }
+    /// The window's bar over the top of the stage. Pictures fit, centre and pan below it.
+    var topInset: CGFloat = 0 { didSet { if topInset != oldValue { needsLayout = true } } }
 
     // MARK: State
 
@@ -176,6 +178,12 @@ final class PreviewStageView: NSView {
         updateArrows()
     }
 
+    /// The stage below the bar: what a picture fits into, centres in and pans against. The stage itself still runs the full height,
+    /// so a flight from a tile, a dismiss drag and a zoomed picture are not cut off at the bar.
+    private var area: CGRect { Pager.pictureArea(stage: bounds.size, top: topInset) }
+
+    private func fit(_ i: Int) -> CGRect { Pager.fitRect(image: pixelSize(i), in: area) }
+
     private func pixelSize(_ i: Int) -> CGSize {
         guard let s = pageSet[i] else { return .zero }
         if let w = s.width, let h = s.height, w > 0, h > 0 { return CGSize(width: w, height: h) }
@@ -191,7 +199,7 @@ final class PreviewStageView: NSView {
         var pixels = Int(min(longEdge, 4096))
         // zoomed in: ask for what the zoom needs
         if zoom.value > 1.05, let item = pageSet[index] {
-            let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+            let fit = fit(index)
             pixels = Int(min(max(Double(pixels), Double(max(fit.width, fit.height) * zoom.value * scale)), 6000))
             _ = item
         }
@@ -207,7 +215,7 @@ final class PreviewStageView: NSView {
     private func fitZoomForTall(_ i: Int) -> Double {
         let size = pixelSize(i)
         guard Pager.isTall(size) else { return 1 }
-        let fit = Pager.fitRect(image: size, stage: bounds.size)
+        let fit = Pager.fitRect(image: size, in: area)
         let target = max(bounds.width - 48, 1)
         return max(1, Double(target / max(fit.width, 1)))
     }
@@ -222,22 +230,22 @@ final class PreviewStageView: NSView {
 
     /// The vertical pan that shows the top of a tall picture.
     private func tallTopPan(_ z: Double) -> CGFloat {
-        let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
-        return max((fit.height * CGFloat(z) - bounds.height) / 2, 0)
+        let fit = fit(index)
+        return max((fit.height * CGFloat(z) - area.height) / 2, 0)
     }
 
     private func currentRect() -> CGRect {
-        let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+        let fit = fit(index)
         let z = CGFloat(zoom.value)
         let size = CGSize(width: fit.width * z, height: fit.height * z)
-        let c = CGPoint(x: bounds.midX + CGFloat(panX.value), y: bounds.midY + CGFloat(panY.value))
+        let c = CGPoint(x: area.midX + CGFloat(panX.value), y: area.midY + CGFloat(panY.value))
         return CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
     }
 
     private func clampPan() {
-        let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+        let fit = fit(index)
         let z = CGFloat(zoom.value)
-        let limitX = max((fit.width * z - bounds.width) / 2, 0), limitY = max((fit.height * z - bounds.height) / 2, 0)
+        let limitX = max((fit.width * z - area.width) / 2, 0), limitY = max((fit.height * z - area.height) / 2, 0)
         panX.value = min(max(panX.value, -Double(limitX)), Double(limitX)); panX.target = min(max(panX.target, -Double(limitX)), Double(limitX))
         panY.value = min(max(panY.value, -Double(limitY)), Double(limitY)); panY.target = min(max(panY.target, -Double(limitY)), Double(limitY))
     }
@@ -262,7 +270,7 @@ final class PreviewStageView: NSView {
             guard let item = pageSet[index + slot] else { layer.isHidden = true; continue }
             layer.isHidden = slot != 0 && inFlight              // neighbours wait until the picture is in place
             var rect: CGRect
-            if slot == 0 { rect = currentRect() } else { rect = Pager.fitRect(image: pixelSize(index + slot), stage: bounds.size) }
+            if slot == 0 { rect = currentRect() } else { rect = fit(index + slot) }
             if slot == 0, inFlight, let tile = tileStageRect {
                 // the picture as it sits on its tile (whole, not cropped), growing to its place on the page
                 rect = PreviewFlight.frame(tile: tile, page: rect, image: pixelSize(index), progress: f)
@@ -283,7 +291,7 @@ final class PreviewStageView: NSView {
 
     override func layout() {
         super.layout()
-        let y = bounds.midY - 20
+        let y = area.midY - 20
         prevButton.frame = NSRect(x: 12, y: y, width: 40, height: 40)
         nextButton.frame = NSRect(x: bounds.width - 52, y: y, width: 40, height: 40)
         clampPan()
@@ -341,7 +349,7 @@ final class PreviewStageView: NSView {
 
     private func positionOverlay() {
         guard let overlay else { return }
-        overlay.frame = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+        overlay.frame = fit(index)
     }
 
     private func removeOverlay() {
@@ -596,13 +604,13 @@ final class PreviewStageView: NSView {
     /// Pixels per point at fit (≤ 1): so "maximum zoom" can be expressed against the picture's own resolution.
     private func scaleOfFit() -> CGFloat {
         let size = pixelSize(index)
-        let fit = Pager.fitRect(image: size, stage: bounds.size)
+        let fit = Pager.fitRect(image: size, in: area)
         return size.width > 0 ? fit.width / size.width : 1
     }
 
     private func applyZoom(_ z: Double, at p: CGPoint) {
         let old = zoom.value
-        let c = CGPoint(x: bounds.midX, y: bounds.midY)
+        let c = CGPoint(x: area.midX, y: area.midY)
         let ux = (p.x - c.x - CGFloat(panX.value)) / CGFloat(old), uy = (p.y - c.y - CGFloat(panY.value)) / CGFloat(old)
         zoom.value = z
         panX.value = Double(p.x - c.x - ux * CGFloat(z)); panY.value = Double(p.y - c.y - uy * CGFloat(z))
@@ -628,14 +636,14 @@ final class PreviewStageView: NSView {
         removeOverlay()
         // finish at the zoom that keeps the point under the pointer, and glide there
         let startZ = zoom.value
-        let c = CGPoint(x: bounds.midX, y: bounds.midY)
+        let c = CGPoint(x: area.midX, y: area.midY)
         let ux = (p.x - c.x - CGFloat(panX.value)) / CGFloat(startZ), uy = (p.y - c.y - CGFloat(panY.value)) / CGFloat(startZ)
         zoom.target = target
         panX.target = Double(p.x - c.x - ux * CGFloat(target)); panY.target = Double(p.y - c.y - uy * CGFloat(target))
         if target <= 1.0001 { panX.target = 0; panY.target = 0 }
         else {
-            let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
-            let limitX = max((fit.width * CGFloat(target) - bounds.width) / 2, 0), limitY = max((fit.height * CGFloat(target) - bounds.height) / 2, 0)
+            let fit = fit(index)
+            let limitX = max((fit.width * CGFloat(target) - area.width) / 2, 0), limitY = max((fit.height * CGFloat(target) - area.height) / 2, 0)
             panX.target = min(max(panX.target, -Double(limitX)), Double(limitX)); panY.target = min(max(panY.target, -Double(limitY)), Double(limitY))
         }
         if reduceMotion { zoom.value = zoom.target; panX.value = panX.target; panY.value = panY.target; refresh() } else { startLink() }
@@ -711,9 +719,9 @@ final class PreviewStageView: NSView {
         case (36, .command), (76, .command): onOpenSource?(); return              // ⌘↩
         case (3, []), (29, []): fitNow(); return                                   // F, 0
         case (29, .command): fitNow(); return
-        case (18, []): toggleZoom(at: CGPoint(x: bounds.midX, y: bounds.midY)); return   // 1: 100 %
-        case (24, .command): zoomBy(1.25, at: CGPoint(x: bounds.midX, y: bounds.midY)); return
-        case (27, .command): zoomBy(0.8, at: CGPoint(x: bounds.midX, y: bounds.midY)); return
+        case (18, []): toggleZoom(at: CGPoint(x: area.midX, y: area.midY)); return   // 1: 100 %
+        case (24, .command): zoomBy(1.25, at: CGPoint(x: area.midX, y: area.midY)); return
+        case (27, .command): zoomBy(0.8, at: CGPoint(x: area.midX, y: area.midY)); return
         case (40, []): togglePlayback(); return                                    // K
         default: break
         }

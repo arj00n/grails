@@ -3,6 +3,14 @@ import Testing
 @testable import GrailsKit
 
 @Suite struct CanonTests {
+    /// Owners and admins toggle it; members see an item that's in it, and nothing for one that isn't.
+    @Test func onlyThoseWhoMayPromoteCanToggleTheButton() {
+        #expect(Canon.control(isIn: false, canPromote: true) == .add)
+        #expect(Canon.control(isIn: true, canPromote: true) == .remove)
+        #expect(Canon.control(isIn: true, canPromote: false) == .state)
+        #expect(Canon.control(isIn: false, canPromote: false) == .hidden)
+    }
+
     /// An older library names the collection Baseline and may set a `baseline` field.
     /// Opening it still presents that collection as Holy Grail, and the file is left alone.
     @Test func legacyBaselineLibraryLoadsAsCanon() async throws {

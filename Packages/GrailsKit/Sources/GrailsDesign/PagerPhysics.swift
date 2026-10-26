@@ -87,6 +87,17 @@ public enum Pager {
         return CGRect(x: (stage.width - size.width) / 2, y: (stage.height - size.height) / 2, width: size.width, height: size.height)
     }
 
+    /// Where pictures may sit: the stage below the window's bar, so a picture never draws under the counter or the close button.
+    public static func pictureArea(stage: CGSize, top: Double) -> CGRect {
+        let t = min(max(top, 0), stage.height)
+        return CGRect(x: 0, y: t, width: stage.width, height: max(stage.height - t, 1))
+    }
+
+    /// `fitRect` inside `area`, in the stage's coordinates.
+    public static func fitRect(image: CGSize, in area: CGRect, margin: Double = 24) -> CGRect {
+        fitRect(image: image, stage: area.size, margin: margin).offsetBy(dx: area.minX, dy: area.minY)
+    }
+
     /// Tall items (full-page snapshots) open at the stage's width and are read by scrolling.
     public static func isTall(_ image: CGSize) -> Bool { image.height > 2.5 * image.width }
 
