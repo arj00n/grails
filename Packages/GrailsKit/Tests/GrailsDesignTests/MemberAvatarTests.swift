@@ -262,13 +262,34 @@ import Testing
         }
     }
 
-    @Test func theMarkIsTheRosetteAsATemplateImage() {
+    @Test func theMarkIsAFilledRosetteAsATemplateImage() throws {
         #expect(CanonMark.symbolName == "rosette")
         #expect(NSImage(systemSymbolName: CanonMark.symbolName, accessibilityDescription: nil) != nil)
-        let image = CanonMark.image(pointSize: 14)
-        #expect(image.isTemplate)
-        #expect(image.size.width > 8 && image.size.height > 8 && image.size.height < 20)
-        #expect(image.accessibilityDescription == "Holy Grail")
+        // No fill variant ships, which is why the mark lays its own disc in the ring.
+        #expect(NSImage(systemSymbolName: "rosette.fill", accessibilityDescription: nil) == nil)
+        for filled in [true, false] {
+            let image = CanonMark.image(pointSize: 14, filled: filled)
+            #expect(image.isTemplate)
+            #expect(image.size.width > 8 && image.size.height > 8 && image.size.height < 20)
+            #expect(image.accessibilityDescription == "Holy Grail")
+        }
+        // The ring's centre is ink when filled and clear in the outline, at the sizes the app draws it.
+        for size in [12.0, 13, 14, 40] {
+            #expect(try Self.inkAtRingCentre(CanonMark.image(pointSize: size, filled: true)) > 0.9, "filled at \(size)")
+            #expect(try Self.inkAtRingCentre(CanonMark.image(pointSize: size, filled: false)) < 0.1, "outline at \(size)")
+        }
+    }
+
+    /// Alpha at the middle of the rosette's ring, drawn at 4x.
+    private static func inkAtRingCentre(_ image: NSImage) throws -> Double {
+        let w = Int(image.size.width * 4), h = Int(image.size.height * 4)
+        let rep = try #require(NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h, bitsPerSample: 8, samplesPerPixel: 4,
+                                                hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+        image.draw(in: NSRect(x: 0, y: 0, width: w, height: h))
+        NSGraphicsContext.restoreGraphicsState()
+        return try #require(rep.colorAt(x: w / 2, y: Int(Double(h) * CanonMark.ringCentre))).alphaComponent
     }
 }
 

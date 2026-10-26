@@ -135,7 +135,7 @@ struct InfoBlock: View {
         }
     }
 
-    /// Holy Grail beside the heart: its mark in gold with the sidebar row's stars when the item is in it, a quiet outline-grey mark
+    /// Holy Grail beside the heart: the filled mark in gold with the sidebar row's stars when the item is in it, the grey outline
     /// when it can be added. Members see the gold mark but can't change it (`Canon.control`).
     @ViewBuilder private func holyGrail(_ item: Item) -> some View {
         let isIn = Canon.collection(in: model.collections).map { item.collections[$0.id] != nil } ?? false
@@ -168,7 +168,7 @@ struct InfoBlock: View {
     }
 
     private func holyGrailMark(isIn: Bool) -> some View {
-        CanonMark(size: 13)
+        CanonMark(size: 13, filled: isIn)
             .foregroundStyle(isIn ? AnyShapeStyle(CanonInk(selected: false)) : AnyShapeStyle(Ink.secondary))
             .overlay { if isIn { CanonSparkles() } }
             .contentShape(Rectangle())
