@@ -480,7 +480,8 @@ final class CanvasNSView: NSView {
 
     func zoom(by factor: CGFloat, at screen: CGPoint) {
         viewportDirty = true
-        let next = min(max(scale * factor, Self.minScale), Self.maxScale)
+        // already further out (a saved view from before the limit): zooming out stays put rather than jumping in
+        let next = min(max(scale * factor, min(zoomOutLimit, scale)), Self.maxScale)
         guard next != scale else { return }
         let anchor = worldPoint(screen)
         scale = next
@@ -515,6 +516,20 @@ final class CanvasNSView: NSView {
         layers[key]?.opacity = 0
     }
 
+    /// The scale that shows `box` whole inside the visible area, with `margin` on every side.
+    private func scaleToFit(_ box: CGRect, margin: CGFloat) -> CGFloat {
+        let availW = max(bounds.width - contentInsets.left - contentInsets.right, 50), availH = max(bounds.height - contentInsets.top - contentInsets.bottom, 50)
+        return min((availW - 2 * margin) / max(box.width, 1), (availH - 2 * margin) / max(box.height, 1))
+    }
+
+    /// Zooming out stops once every cluster fits in view: past that the board is only getting smaller. A small board can
+    /// still go down to 100%.
+    private var zoomOutLimit: CGFloat {
+        guard let first = clusterFrames.values.first, bounds.width > 10, bounds.height > 10 else { return Self.minScale }
+        let box = clusterFrames.values.dropFirst().reduce(first) { $0.union($1) }
+        return min(max(scaleToFit(box, margin: 70), Self.minScale), 1)
+    }
+
     /// Brings `ids` (or everything) into view with a margin.
     func fit(ids: [String]?, animated: Bool, margin: CGFloat = 70) {
         let rects: [CGRect] = ids == nil
@@ -525,8 +540,7 @@ final class CanvasNSView: NSView {
             return
         }
         let box = rects.dropFirst().reduce(first) { $0.union($1) }
-        let availW = max(bounds.width - contentInsets.left - contentInsets.right, 50), availH = max(bounds.height - contentInsets.top - contentInsets.bottom, 50)
-        let s = min(max(min((availW - 2 * margin) / max(box.width, 1), (availH - 2 * margin) / max(box.height, 1)), Self.minScale), 2)
+        let s = min(max(scaleToFit(box, margin: margin), Self.minScale), 2)
         let o = CGPoint(x: box.midX - focus.x / s, y: box.midY - focus.y / s)
         viewportDirty = true
         if animated { animate(to: (o, s)) } else { origin = o; scale = s; applyViewport() }
