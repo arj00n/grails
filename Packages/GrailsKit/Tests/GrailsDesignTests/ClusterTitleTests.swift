@@ -1,23 +1,13 @@
 import AppKit
-import CoreText
 import Testing
 @testable import GrailsDesign
 
 @Suite struct ClusterTitleTests {
-    /// Geist Bold, the same file the app draws titles with.
-    private static func geist(_ size: CGFloat) -> NSFont {
-        let here = URL(fileURLWithPath: #filePath)
-        var root = here
-        for _ in 0..<5 { root.deleteLastPathComponent() }
-        let file = root.appendingPathComponent("Apps/Grails/Resources/Fonts/Geist-Bold.ttf")
-        if FileManager.default.fileExists(atPath: file.path) {
-            CTFontManagerRegisterFontsForURL(file as CFURL, .process, nil)
-        }
-        return NSFont(name: "Geist-Bold", size: size) ?? ChromeNSFont.title(size)
-    }
+    /// SF Pro Rounded Semibold, the face the app draws titles with.
+    private static func title(_ size: CGFloat) -> NSFont { ChromeNSFont.title(size) }
 
     @Test @MainActor func diwaliIsUprightAndNotClipped() {
-        let font = Self.geist(20)
+        let font = Self.title(20)
         let line = GrailsClusterTitle.lineHeight(for: font)
         #expect(line >= font.ascender + abs(font.descender) - 0.5)
 
@@ -51,13 +41,13 @@ import Testing
         #expect(upright < mirroredWord, "upright \(upright) vs mirrored \(mirroredWord)")
     }
 
-    /// The grid draws a Geist Bold name and a Geist count in one field, then sizes the field to its intrinsic width.
+    /// The grid draws a the title name and a the count in one field, then sizes the field to its intrinsic width.
     /// The last digit ("Untitled 2", "All 178") is clipped when that width is only the string box.
     @Test @MainActor func clusterCountIsNotClipped() {
         for sample in [(name: "Untitled", count: 2, noted: false), (name: "All", count: 178, noted: false), (name: "All", count: 178, noted: true)] {
             let line = Self.clusterLine(sample.name, count: sample.count, noted: sample.noted)
             let field = GrailsClusterTitle(frame: .zero)
-            field.font = Self.geist(CGFloat(TypeScale.page))
+            field.font = Self.title(CGFloat(TypeScale.page))
             field.textColor = .black
             field.attributedStringValue = line
             let raw = ceil(line.size().width)
@@ -91,10 +81,10 @@ import Testing
         }
     }
 
-    /// Same string the grid builds: Geist Bold title, three spaces, Geist count, and an optional note.
+    /// Same string the grid builds: the title title, three spaces, the count, and an optional note.
     private static func clusterLine(_ name: String, count: Int, noted: Bool = false) -> NSAttributedString {
         let text = NSMutableAttributedString(string: name, attributes: [
-            .font: geist(CGFloat(TypeScale.page)),
+            .font: title(CGFloat(TypeScale.page)),
             .foregroundColor: NSColor.black,
         ])
         text.append(NSAttributedString(string: "   \(count)", attributes: [
@@ -112,23 +102,14 @@ import Testing
 
     private static func titleField(_ name: String, count: Int) -> GrailsClusterTitle {
         let field = GrailsClusterTitle(frame: .zero)
-        field.font = geist(CGFloat(TypeScale.page))
+        field.font = title(CGFloat(TypeScale.page))
         field.textColor = .black
         field.attributedStringValue = clusterLine(name, count: count)
         return field
     }
 
-    /// Geist, the same file the app draws counts with.
-    private static func body(_ size: CGFloat) -> NSFont {
-        let here = URL(fileURLWithPath: #filePath)
-        var root = here
-        for _ in 0..<5 { root.deleteLastPathComponent() }
-        let file = root.appendingPathComponent("Apps/Grails/Resources/Fonts/Geist-Regular.ttf")
-        if FileManager.default.fileExists(atPath: file.path) {
-            CTFontManagerRegisterFontsForURL(file as CFURL, .process, nil)
-        }
-        return NSFont(name: "Geist", size: size) ?? NSFont(name: Typography.bodyName, size: size) ?? ChromeNSFont.body(size)
-    }
+    /// SF Pro Rounded with tabular digits, the face the app draws counts with.
+    private static func body(_ size: CGFloat) -> NSFont { ChromeNSFont.count(size) }
 
     @MainActor
     private func render(_ view: NSView) -> NSBitmapImageRep {

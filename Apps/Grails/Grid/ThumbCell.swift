@@ -300,7 +300,7 @@ final class ThumbCell: NSCollectionViewItem {
             .foregroundColor: NSColor.ink(untitled ? .secondary : .text),
         ])
         text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
-            .font: NSFont.grailsDigits(16), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsCount(16), .foregroundColor: NSColor.ink(.secondary),
         ]))
         if noted {
             text.append(NSAttributedString(string: "  note", attributes: [

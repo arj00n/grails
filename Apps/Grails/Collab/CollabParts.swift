@@ -52,7 +52,7 @@ struct RowTag: View {
     }
 }
 
-/// The screen's title, Geist Bold at the sheet size, with a close button at the right.
+/// The screen's title, in the title face at the sheet size, with a close button at the right.
 struct CollabHeader: View {
     let title: String
     var close: (() -> Void)?

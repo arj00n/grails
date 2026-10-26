@@ -70,20 +70,14 @@ import Testing
         #expect(doc.numberOfPages >= 3)         // cover + one page per cluster
     }
 
-    @Test func theAppsFontsRideAlongInAnHTMLExport() async throws {
+    @Test func anHTMLExportUsesTheSystemFonts() async throws {
         let (store, _) = try TestSupport.newStore(handle: "ana")
         let dir = TestSupport.tempDir()
         let item = try await store.addItem(fileAt: TestSupport.makePNG(in: dir, name: "f", rgb: (0.2, 0.4, 0.6))).item
-        ExportFonts.body = Data([4, 5, 6, 7]); ExportFonts.bodyBold = Data([0, 1, 2, 3])
-        defer { ExportFonts.body = nil; ExportFonts.bodyBold = nil }
         let report = try await store.exportSingleFile(title: "Fonts", ids: [item.id], to: TestSupport.tempDir())
         let text = try String(contentsOf: try #require(report.file), encoding: .utf8)
-        #expect(text.contains("font-family:\"Geist\""))
-        #expect(text.contains("font-weight:700"))
-        #expect(text.contains(Data([0, 1, 2, 3]).base64EncodedString()))
-        // without them the page still names the family and falls back to the system font
-        ExportFonts.body = nil; ExportFonts.bodyBold = nil
-        let plain = try await store.exportSingleFile(title: "Plain", ids: [item.id], to: TestSupport.tempDir())
-        #expect(!(try String(contentsOf: try #require(plain.file), encoding: .utf8)).contains("@font-face"))
+        #expect(text.contains(#"-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif"#))
+        #expect(text.contains(#"ui-rounded, "SF Pro Rounded""#))
+        #expect(!text.contains("@font-face"))
     }
 }

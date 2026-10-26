@@ -2,18 +2,17 @@ from playwright.sync_api import sync_playwright
 T={'light':dict(canvas='#ECECEA',bg='#FFFFFF',side='#F7F7F5',text='#1A1A1A',sec='#6B6B68',ter='#9C9C98',border='#E7E7E4',fborder='#DCDCD8',field='#FFFFFF',focus='#A8A8A4',ring='rgba(26,26,26,0.08)',track='#F1F1EE',seg='#FFFFFF',pbg='#1A1A1A',pfg='#FFFFFF',sbg='#FFFFFF',sborder='#DCDCD8',sfg='#1A1A1A',hover='#F2F2EF',sel='#ECECE9',shadow='0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.10)',segsh='0 1px 2px rgba(0,0,0,.08),0 0 0 .5px rgba(0,0,0,.06)',avatar='#EFEFEC',traffic='#DCDCD8'),
 'dark':dict(canvas='#0F0F11',bg='#1C1D20',side='#18191B',text='#F3F4F6',sec='#9A9CA2',ter='#6C6E75',border='#2A2B2F',fborder='#323338',field='#222326',focus='#5E6067',ring='rgba(243,244,246,0.08)',track='#26272B',seg='#36373C',pbg='#F3F4F6',pfg='#1C1D20',sbg='#26272B',sborder='#34353A',sfg='#F3F4F6',hover='#232427',sel='#2A2B2F',shadow='0 0 0 .5px rgba(255,255,255,.06),0 16px 48px rgba(0,0,0,.5)',segsh='0 1px 2px rgba(0,0,0,.3)',avatar='#2A2B2F',traffic='#3A3B40')}
 import base64
-def _ff(n,f,w):return '@font-face{font-family:"%s";src:url(data:font/ttf;base64,%s) format("truetype");font-weight:%d}'%(n,base64.b64encode(open('/workspace/mockups/fonts/'+f,'rb').read()).decode(),w)
-FONTS=_ff('Geist','Geist-Regular.ttf',400)+_ff('Geist','Geist-Bold.ttf',700)
-CSS=FONTS+'''*{box-sizing:border-box;margin:0}body{background:VAR(canvas);font-family:"Geist",sans-serif;color:VAR(text);-webkit-font-smoothing:antialiased;font-size:13px;letter-spacing:-.003em}
+# SF Pro through the system font: text in SF Pro, titles in SF Pro Rounded Semibold. Nothing is embedded.
+CSS='''*{box-sizing:border-box;margin:0}body{background:VAR(canvas);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;color:VAR(text);-webkit-font-smoothing:antialiased;font-size:13px;letter-spacing:-.003em}
 .stage{display:inline-flex;gap:40px;padding:56px;align-items:flex-start}
 .sheet{width:440px;background:VAR(bg);border-radius:14px;box-shadow:VAR(shadow);padding:20px 24px 24px}
 .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-h1{font-size:15px;font-weight:700;letter-spacing:-.01em}
+h1{font-family:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;font-size:15px;font-weight:600;letter-spacing:-.01em}
 .x{width:24px;height:24px;border-radius:6px;display:grid;place-items:center;color:VAR(ter)}
 .lbl{font-size:12px;font-weight:400;color:VAR(sec);margin-bottom:6px;display:block}
 .field{height:32px;border:1px solid VAR(fborder);background:VAR(field);border-radius:8px;padding:0 10px;display:flex;align-items:center;gap:8px;font-size:13px}
 .field.focus{border-color:VAR(focus);box-shadow:0 0 0 3px VAR(ring)}
-.ph{color:VAR(ter)}.mono{font-family:"Geist",sans-serif;font-size:12px;font-variant-numeric:tabular-nums}
+.ph{color:VAR(ter)}.mono{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;font-size:12px;font-variant-numeric:tabular-nums}
 .grp{margin-bottom:20px}
 .seg{display:flex;background:VAR(track);border-radius:8px;padding:2px;height:32px}
 .seg div{flex:1;display:grid;place-items:center;border-radius:6px;font-size:13px;color:VAR(sec);font-weight:400}
@@ -34,10 +33,10 @@ h1{font-size:15px;font-weight:700;letter-spacing:-.01em}
 .tab{height:30px;display:flex;align-items:center;gap:10px;padding:0 10px;border-radius:7px;color:VAR(sec);font-weight:400;margin-bottom:2px}
 .tab.on{background:VAR(sel);color:VAR(text)}
 .main{flex:1;padding:44px 40px}
-h2{font-size:20px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px}
+h2{font-family:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;font-size:20px;font-weight:600;letter-spacing:-.02em;margin-bottom:4px}
 .desc{color:VAR(sec);margin-bottom:36px}
 .sh{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-h3{font-size:13px;font-weight:700}
+h3{font-family:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,system-ui,sans-serif;font-size:13px;font-weight:600}
 .person{display:flex;align-items:center;gap:12px;height:52px;padding:0 12px;margin:0 -12px;border-radius:10px}
 .person.hv{background:VAR(hover)}
 .av{width:30px;height:30px;border-radius:50%;background:VAR(avatar);display:grid;place-items:center;font-size:12px;font-weight:700;color:VAR(sec)}

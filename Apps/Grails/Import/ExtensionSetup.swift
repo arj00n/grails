@@ -271,7 +271,7 @@ struct ExtensionModal: View {
 
     private func step(_ n: Int, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("\(n)").font(.grailsBody(CGFloat(TypeScale.help))).monospacedDigit().foregroundStyle(Ink.canvas).frame(width: 20, height: 20).background(Ink.text, in: Circle())
+            Text("\(n)").font(.grailsCount(CGFloat(TypeScale.help))).foregroundStyle(Ink.canvas).frame(width: 20, height: 20).background(Ink.text, in: Circle())
             Text(text).font(.grailsBody(13)).foregroundStyle(Ink.text).fixedSize(horizontal: false, vertical: true)
         }
     }

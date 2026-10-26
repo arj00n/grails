@@ -17,13 +17,6 @@ let noZip = has("--no-zip"), noSources = has("--no-sources")
 let format = take("--format") ?? "folder"        // folder | html | pdf
 guard args.count == 2 else { print("usage: grails-share <Library.grails> <output folder> [--limit N] [--clusters N] [--title Name] [--format folder|html|pdf] [--no-zip] [--no-sources]"); exit(2) }
 
-// GRAILS_FONTS=<folder with the .ttf files in Apps/Grails/Resources/Fonts>: export with the app's typefaces
-if let dir = ProcessInfo.processInfo.environment["GRAILS_FONTS"] {
-    func load(_ name: String) -> Data? { try? Data(contentsOf: URL(fileURLWithPath: dir).appendingPathComponent(name)) }
-    ExportFonts.body = load("Geist-Regular.ttf")
-    ExportFonts.bodyBold = load("Geist-Bold.ttf")
-}
-
 do {
     let store = try await LibraryStore.open(at: URL(fileURLWithPath: (args[0] as NSString).expandingTildeInPath), index: nil, userHandle: NSUserName())
     var q = ItemQuery()

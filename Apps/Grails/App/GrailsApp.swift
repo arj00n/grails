@@ -11,7 +11,6 @@ struct GrailsApp: App {
     @State private var updater = UpdaterController.shared
 
     init() {
-        Typeface.register()
         UpdaterController.start()
         #if DEBUG
         installDebugCrashLog()

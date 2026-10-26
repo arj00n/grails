@@ -1,24 +1,12 @@
 import AppKit
-import CoreText
 import Testing
 @testable import GrailsDesign
 
 @Suite struct FieldLineTests {
-    private static func geist(_ size: CGFloat) -> NSFont {
-        let here = URL(fileURLWithPath: #filePath)
-        var root = here
-        for _ in 0..<5 { root.deleteLastPathComponent() }
-        let file = root.appendingPathComponent("Apps/Grails/Resources/Fonts/Geist-Regular.ttf")
-        if FileManager.default.fileExists(atPath: file.path) {
-            CTFontManagerRegisterFontsForURL(file as CFURL, .process, nil)
-        }
-        return NSFont(name: "Geist", size: size) ?? NSFont(name: Typography.bodyName, size: size) ?? ChromeNSFont.body(size)
-    }
-
-    /// A 17 pt field editor uses the font's line. Single-line mode pins Geist to 16 pt with the caret below the text.
-    @Test @MainActor func geistCommandLineMatchesTheFieldLine() {
-        let font = Self.geist(17)
-        #expect(font.fontName.contains("Geist"), "registered \(font.fontName)")
+    /// A 17 pt field editor uses the font's line. Single-line mode would pin the line to 16 pt with the caret below the text.
+    @Test @MainActor func commandLineMatchesTheFieldLine() {
+        let font = ChromeNSFont.body(17)
+        #expect(font.familyName == NSFont.systemFont(ofSize: 17).familyName, "system font \(font.fontName)")
         let frame = NSRect(x: 0, y: 0, width: 320, height: 48)
         let field = GrailsValueField(frame: frame)
         field.font = font

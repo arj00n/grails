@@ -392,7 +392,7 @@ struct ProgressColumn: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text("Importing").font(.grailsTitle(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("\(done.formatted()) / \(total.formatted())").font(.grailsBody(CGFloat(TypeScale.page))).monospacedDigit().foregroundStyle(Ink.text)
+                        Text("\(done.formatted()) / \(total.formatted())").font(.grailsCount(CGFloat(TypeScale.page))).foregroundStyle(Ink.text)
                             .accessibilityLabel("\(done) of \(total) pictures")
                             .accessibilityIdentifier("onboarding-counter")
                         ZStack(alignment: .leading) {
