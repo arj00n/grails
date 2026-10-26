@@ -363,6 +363,9 @@ final class CanvasNSView: NSView {
             let title = titles[c.id] ?? {
                 let t = GrailsClusterTitle(frame: .zero)
                 t.font = .grailsDisplay(CGFloat(TypeScale.body))
+                // ends in "…" when the cluster is narrower than its name, instead of being cut mid-letter
+                t.cell?.isScrollable = false
+                t.cell?.truncatesLastVisibleLine = true
                 addSubview(t)
                 titles[c.id] = t
                 return t
@@ -1401,6 +1404,9 @@ final class ClusterHeaderLayer: CALayer {
         s.append(NSAttributedString(string: "  \(count)", attributes: [
             .font: NSFont.grailsBody(11), .foregroundColor: NSColor.ink(.secondary),
         ]))
+        let p = NSMutableParagraphStyle()
+        p.lineBreakMode = .byTruncatingTail
+        s.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: s.length))
         return s
     }
 
