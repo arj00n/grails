@@ -122,7 +122,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(sections, id: \.self) { settingsTabButton($0) }
             }
-            .grailsSelectionTrack { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
+            .grailsSelectionTrack(glides: false) { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
             .padding(.horizontal, 10)
             .padding(.top, 6)
             Spacer(minLength: 0)

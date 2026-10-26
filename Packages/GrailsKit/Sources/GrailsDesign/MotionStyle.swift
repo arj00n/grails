@@ -432,16 +432,18 @@ private struct SelectionAnchorKey: PreferenceKey {
     static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
 }
 
-/// One indicator for a whole group (tabs, segments, sidebar rows). It sits under the selected view and springs to the next one.
-/// Appearing or disappearing is a plain fade. Reduce Motion moves it without the glide.
+/// One indicator for a whole group (tabs, segments, sidebar rows). It sits under the selected view and springs to the next one,
+/// or, in a long list where the next one can be far away, fades out there and in here. Appearing or disappearing is a plain
+/// fade. Reduce Motion moves it without the glide.
 private struct SelectionTrack<Indicator: View>: ViewModifier {
+    var glides: Bool
     var indicator: () -> Indicator
 
     func body(content: Content) -> some View {
         content
             .backgroundPreferenceValue(SelectionAnchorKey.self) { anchor in
                 GeometryReader { proxy in
-                    SelectionIndicator(rect: anchor.map { proxy[$0] }, indicator: indicator)
+                    SelectionIndicator(rect: anchor.map { proxy[$0] }, glides: glides, indicator: indicator)
                 }
             }
             .transformPreference(SelectionAnchorKey.self) { $0 = nil }
@@ -450,23 +452,34 @@ private struct SelectionTrack<Indicator: View>: ViewModifier {
 
 private struct SelectionIndicator<Indicator: View>: View {
     var rect: CGRect?
+    var glides: Bool
     var indicator: () -> Indicator
     @Environment(\.grailsReduceMotion) private var reduceMotion
     @Environment(\.grailsSnapshot) private var snapshot
     @State private var frame: CGRect = .zero
     @State private var shown = false
+    /// Where it was, fading out while it fades in at `frame` (lists that don't glide).
+    @State private var leaving: CGRect?
 
     var body: some View {
         let placed = snapshot ? (rect ?? .zero) : frame
-        indicator()
-            .frame(width: placed.width, height: placed.height)
-            .offset(x: placed.minX, y: placed.minY)
-            .opacity((snapshot ? rect != nil : shown) ? 1 : 0)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .onAppear { place(rect, glide: false) }
-            .onChange(of: rect) { _, new in place(new, glide: true) }
+        ZStack(alignment: .topLeading) {
+            if let leaving, !snapshot {
+                indicator()
+                    .frame(width: leaving.width, height: leaving.height)
+                    .offset(x: leaving.minX, y: leaving.minY)
+                    .transition(.opacity)
+            }
+            indicator()
+                .frame(width: placed.width, height: placed.height)
+                .offset(x: placed.minX, y: placed.minY)
+                .opacity((snapshot ? rect != nil : shown) ? 1 : 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear { place(rect, glide: false) }
+        .onChange(of: rect) { _, new in place(new, glide: true) }
     }
 
     private func place(_ new: CGRect?, glide: Bool) {
@@ -474,7 +487,13 @@ private struct SelectionIndicator<Indicator: View>: View {
             withAnimation(.grailsQuick) { shown = false }
             return
         }
-        if glide, shown, !reduceMotion {
+        // a list that doesn't glide crossfades: out where it was, in where it lands
+        if glide, shown, !glides, !reduceMotion, new != frame {
+            var still = Transaction()
+            still.disablesAnimations = true
+            withTransaction(still) { leaving = frame; frame = new; shown = false }
+            withAnimation(.grailsQuick) { leaving = nil; shown = true }
+        } else if glide, shown, !reduceMotion {
             withAnimation(.grailsSpring) { frame = new }
         } else {
             var still = Transaction()
@@ -492,8 +511,9 @@ public extension View {
     }
 
     /// Draws `indicator` under whichever child is marked with `grailsSelectionTarget(true)`, and springs it between them.
-    func grailsSelectionTrack<Indicator: View>(@ViewBuilder indicator: @escaping () -> Indicator) -> some View {
-        modifier(SelectionTrack(indicator: indicator))
+    /// `glides: false` for long lists: the indicator fades across instead of travelling.
+    func grailsSelectionTrack<Indicator: View>(glides: Bool = true, @ViewBuilder indicator: @escaping () -> Indicator) -> some View {
+        modifier(SelectionTrack(glides: glides, indicator: indicator))
     }
 }
 

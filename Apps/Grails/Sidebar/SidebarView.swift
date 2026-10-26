@@ -163,7 +163,7 @@ struct SidebarView: View {
                 }
             }
             .padding(.vertical, 8)
-            .grailsSelectionTrack { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
+            .grailsSelectionTrack(glides: false) { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
             // a collection reordered, added or removed, or a tag coming and going: the rows around it move on the spring
             .animation(.grailsSpring(reduceMotion: reduceMotion), value: model.collections.map(\.id))
             .animation(.grailsSpring(reduceMotion: reduceMotion), value: model.tags.map(\.tag))
@@ -233,6 +233,8 @@ struct SidebarRow: View {
 
     private var selected: Bool { source != nil && model.source == source }
 
+    static func inset(nested: Bool, indent: Int) -> CGFloat { (nested ? 16 : 0) + CGFloat(indent) * 20 }
+
     var body: some View {
         HStack(spacing: 8) {
             if let disclosure {
@@ -247,10 +249,9 @@ struct SidebarRow: View {
             Spacer(minLength: 4)
             if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
         }
-        // one level is the arrow plus its gap, so a child's arrow sits under its parent's icon
-        .padding(.leading, 8 + (nested ? 16 : 0) + CGFloat(indent) * 20).padding(.trailing, 8)
+        .padding(.leading, 8).padding(.trailing, 8)
         .frame(height: 28)
-        // the open view's fill is the list's one sliding indicator; the row only draws hover
+        // the open view's fill is the list's one indicator; the row only draws hover
         .background {
             if canon {
                 GrailsCanonHighlight(selected: selected, hovering: hovering, radius: Ink.sidebarRadius)
@@ -259,6 +260,9 @@ struct SidebarRow: View {
             }
         }
         .grailsSelectionTarget(selected)
+        // the indent sits outside the fill, so hover and selection cover the row itself, not the space in front of it; one level
+        // is the arrow plus its gap, so a child's arrow sits under its parent's icon
+        .padding(.leading, Self.inset(nested: nested, indent: indent))
         .padding(.horizontal, 8)
         .contentShape(Rectangle())
         .grailsTapPress {
@@ -342,7 +346,7 @@ private struct CollectionNode: View {
             .onDrag {
                 NSItemProvider(item: Data(collection.id.utf8) as NSData, typeIdentifier: UTType.grailsCollection.identifier)
             }
-            .collectionDropTarget(model: model, collection: collection, targeted: $targeted)
+            .collectionDropTarget(model: model, collection: collection, targeted: $targeted, inset: SidebarRow.inset(nested: true, indent: depth))
             .contextMenu {
                 libraryTransferMenu
                 GrailsControl(model.pinnedCollections.contains(collection.id) ? "Unpin from Sidebar" : "Pin to Sidebar") {
@@ -376,7 +380,8 @@ extension View {
 
     /// Collections and folders accept item ids and files alike. A collection dragged onto a sibling reorders; onto any other
     /// row it moves inside.
-    func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>) -> some View {
+    /// `inset`: the row's indent, so the drop outline hugs the row like its fill does.
+    func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>, inset: CGFloat = 0) -> some View {
         let id = "c-\(collection.id)"
         return onDrop(of: DropLoader.accepted, isTargeted: Binding(get: { targeted.wrappedValue == id }, set: { targeted.wrappedValue = $0 ? id : nil })) { providers in
             Task { @MainActor in
@@ -393,7 +398,7 @@ extension View {
             }
             return true
         }
-        .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.horizontal, 8).allowsHitTesting(false) } }
+        .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.leading, inset).padding(.horizontal, 8).allowsHitTesting(false) } }
     }
 }
 
