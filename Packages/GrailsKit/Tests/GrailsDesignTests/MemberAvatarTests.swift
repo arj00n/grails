@@ -262,10 +262,13 @@ import Testing
         }
     }
 
-    @Test func theMarkIsATemplateImage() {
+    @Test func theMarkIsTheRosetteAsATemplateImage() {
+        #expect(CanonMark.symbolName == "rosette")
+        #expect(NSImage(systemSymbolName: CanonMark.symbolName, accessibilityDescription: nil) != nil)
         let image = CanonMark.image(pointSize: 14)
         #expect(image.isTemplate)
-        #expect(image.size == NSSize(width: 14, height: 14))
+        #expect(image.size.width > 8 && image.size.height > 8 && image.size.height < 20)
+        #expect(image.accessibilityDescription == "Holy Grail")
     }
 }
 
