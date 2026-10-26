@@ -106,63 +106,33 @@ public enum CanonStars {
     }
 }
 
-/// Holy Grail's own mark: an eight-point rosette with a punched centre. A shape, so it stays crisp at any size and takes any fill.
-public struct CanonGlyph: Shape {
-    public init() {}
-
-    public func path(in rect: CGRect) -> Path {
-        Path(Self.cgPath(in: rect))
-    }
-
-    static func cgPath(in rect: CGRect) -> CGPath {
-        let c = CGPoint(x: rect.midX, y: rect.midY)
-        let outer = min(rect.width, rect.height) / 2
-        let inner = outer * 0.64
-        let path = CGMutablePath()
-        for i in 0..<16 {
-            let r = i.isMultiple(of: 2) ? outer : inner
-            let a = -Double.pi / 2 + Double(i) * Double.pi / 8
-            let p = CGPoint(x: c.x + r * cos(a), y: c.y + r * sin(a))
-            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
-        }
-        path.closeSubpath()
-        let hole = outer * 0.26
-        path.addEllipse(in: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2))
-        return path
-    }
-}
-
-/// The Holy Grail mark, everywhere Holy Grail appears. `CanonMark.image` is the same mark for AppKit menus.
+/// The Holy Grail mark, everywhere Holy Grail appears: the SF Symbol `rosette`. It has no fill variant, so the colour carries the state.
+/// `CanonMark.image` is the same mark for AppKit menus.
 public struct CanonMark: View {
     var size: CGFloat
     public init(size: CGFloat = 12) { self.size = size }
 
-    /// Rows that take an SF Symbol name (the palette) use this name to ask for the Holy Grail mark instead.
-    public static let symbolName = "grails.canon"
+    public static let symbolName = "rosette"
+    /// The rosette's ring and ribbons stand taller and carry more ink than the heart or a folder at the same point size; at this share
+    /// of it they sit level with them.
+    public static let opticalScale = 0.88
 
     public var body: some View {
-        CanonGlyph()
-            .fill(style: FillStyle(eoFill: true, antialiased: true))
-            .frame(width: size, height: size)
+        Image(systemName: Self.symbolName)
+            .font(ChromeFont.symbol(size * Self.opticalScale))
             .accessibilityLabel("Holy Grail")
     }
 
-    /// A template image of the mark, tinted like an SF Symbol in a menu.
-    public static func image(pointSize: CGFloat = 14) -> NSImage {
-        let image = NSImage(size: NSSize(width: pointSize, height: pointSize), flipped: false) { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            ctx.addPath(CanonGlyph.cgPath(in: rect.insetBy(dx: rect.width * 0.04, dy: rect.height * 0.04)))
-            ctx.setFillColor(NSColor.black.cgColor)
-            ctx.fillPath(using: .evenOdd)
-            return true
-        }
+    /// A template image of the mark, sized like the other symbols in a menu.
+    public static func image(pointSize: CGFloat = NSFont.menuFont(ofSize: 0).pointSize) -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize * opticalScale, weight: .regular)
+        let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Holy Grail")?.withSymbolConfiguration(config) ?? NSImage()
         image.isTemplate = true
-        image.accessibilityDescription = "Holy Grail"
         return image
     }
 }
 
-/// An SF Symbol, or the Holy Grail mark when the name is `CanonMark.symbolName`.
+/// An SF Symbol at `size`, with the Holy Grail mark at its optical size.
 public struct GrailsSymbol: View {
     var name: String
     var size: CGFloat
