@@ -72,7 +72,8 @@ targets:
         SUPublicEDKey: $(GRAILS_SPARKLE_PUBLIC_KEY)
         SUEnableAutomaticChecks: true
         SUScheduledCheckInterval: 86400
-        SUAllowsAutomaticUpdates: false
+        SUAllowsAutomaticUpdates: true
+        SUAutomaticallyUpdate: true
         CFBundleURLTypes:
           - CFBundleURLName: $(GRAILS_BUNDLE_PREFIX).grails
             CFBundleURLSchemes: [grails, stash]

@@ -1271,6 +1271,25 @@ final class AppModel {
         }
     }
 
+    /// Takes items out of a collection and the collections inside it, which is what its grid shows. They stay in the library and everywhere else.
+    func removeItems(_ ids: [String], fromCollection cid: String) {
+        if bucket.readOnly { showToast("Update Grails"); return }
+        guard !ids.isEmpty, let collection = collections.first(where: { $0.id == cid }) else { return }
+        if Canon.collection(in: collections)?.id == cid { removeFromCanon(ids); return }
+        let name = collection.displayName
+        let label = collection.kind == "folder" ? "Remove from Folder" : "Remove from Collection"
+        let canonID = Canon.collection(in: collections)?.id
+        Task {
+            let removed: Void? = await perform(label) { store in
+                // Holy Grail keeps its own permission even when it sits inside the folder
+                for id in try await store.collectionTree(rootedAt: cid) where id != canonID { try await store.remove(ids: ids, fromCollection: id) }
+            }
+            guard removed != nil else { return }
+            bucket.nudge()
+            showToast("Removed \(ids.count) \(ids.count == 1 ? "item" : "items") from \(name)")
+        }
+    }
+
     func trashSelection() {
         if bucket.readOnly { showToast("Update Grails"); return }
         let ids = Array(selection)

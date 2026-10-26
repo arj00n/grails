@@ -226,7 +226,8 @@ struct InfoBlock: View {
                 }
                 FlowLayout(spacing: 4) {
                     ForEach(info.collections, id: \.id) { c in
-                        LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
+                        LinkChip(label: c.name, action: { model.showCollection(c.id) }, content: { Text(c.name) },
+                                 onRemove: removable(c.id) ? { if let id = itemID { model.removeItems([id], fromCollection: c.id) } } : nil)
                             .transition(.grailsChip(reduceMotion: reduceMotion))
                     }
                     folderMenu
@@ -235,6 +236,11 @@ struct InfoBlock: View {
             }
         }
         .id(item?.id)
+    }
+
+    /// Holy Grail has its own Remove button above, for the roles that may use it.
+    private func removable(_ collectionID: String) -> Bool {
+        collectionID != Canon.collection(in: model.collections)?.id
     }
 
     private var folderMenu: some View {
@@ -371,24 +377,37 @@ struct TagToken: View {
     }
 }
 
-/// A chip that takes you somewhere (a collection). Brightens under the pointer.
+/// A chip that takes you somewhere (a collection). Brightens under the pointer, and shows an × there when it can be removed.
 struct LinkChip<Content: View>: View {
     let label: String
     let action: () -> Void
     @ViewBuilder var content: () -> Content
+    var onRemove: (() -> Void)? = nil
     @State private var hovering = false
 
     var body: some View {
-        GrailsControl(action: action) {
-            content()
-                .font(.grailsBody(12))
-                .foregroundStyle(hovering ? Ink.text : Ink.secondary)
-                .padding(.horizontal, 8).frame(height: 22)
-                .chipSurface(selected: hovering)
-                .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            GrailsControl(action: action) {
+                content()
+                    .font(.grailsBody(12))
+                    .foregroundStyle(hovering ? Ink.text : Ink.secondary)
+                    .padding(.leading, 8).padding(.trailing, onRemove == nil ? 8 : 2).frame(height: 22)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(label)
+            if let onRemove {
+                // the space is kept while hidden, so the chips never reflow under the pointer
+                GrailsControl(action: onRemove) {
+                    Image(systemName: "xmark").font(ChromeFont.symbol(8, weight: .semibold)).foregroundStyle(Ink.secondary)
+                        .frame(width: 18, height: 22).contentShape(Rectangle())
+                }
+                .opacity(hovering ? 1 : 0)
+                .allowsHitTesting(hovering)
+                .accessibilityLabel("Remove from \(label)")
+            }
         }
+        .chipSurface(selected: hovering)
         .hoverState($hovering)
-        .accessibilityLabel(label)
     }
 }
 

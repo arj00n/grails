@@ -323,6 +323,8 @@ struct SettingsView: View {
             }
             GrailsSettingsGroup("Updates") {
                 GrailsSettingsToggle("Check automatically", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.setChecksAutomatically($0) }))
+                GrailsSettingsToggle("Install automatically", isOn: Binding(get: { updater.installsAutomatically }, set: { updater.setInstallsAutomatically($0) }))
+                    .disabled(!updater.checksAutomatically)
                 GrailsSettingsRow("Last checked") {
                     if let d = updater.lastChecked {
                         Text(d.formatted(.relative(presentation: .named))).foregroundStyle(Ink.secondary).monospacedDigit()

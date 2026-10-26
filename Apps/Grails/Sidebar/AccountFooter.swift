@@ -42,8 +42,12 @@ struct AccountFooter: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            GrailsMemberAvatar(model.myFace, side: 30, showsName: false)
-                .accessibilityIdentifier("account-avatar")
+            // the profile is the first thing on the Library tab
+            GrailsControl(action: { model.openSettings(.library) }) {
+                GrailsMemberAvatar(model.myFace, side: 30, showsName: false)
+            }
+            .accessibilityLabel("Profile")
+            .accessibilityIdentifier("account-avatar")
             VStack(alignment: .leading, spacing: 2) {
                 Text(model.userHandle)
                     .font(.grailsBody(13))

@@ -16,6 +16,7 @@ final class UpdaterController {
     private(set) var canCheck = false
     private(set) var lastChecked: Date?
     private(set) var checksAutomatically = false
+    private(set) var installsAutomatically = false
 
     var isAvailable: Bool { controller != nil }
 
@@ -30,6 +31,7 @@ final class UpdaterController {
             updater.observe(\.canCheckForUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
             updater.observe(\.lastUpdateCheckDate) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
             updater.observe(\.automaticallyChecksForUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
+            updater.observe(\.automaticallyDownloadsUpdates) { [weak self] _, _ in Task { @MainActor in self?.refresh() } },
         ]
     }
 
@@ -52,10 +54,17 @@ final class UpdaterController {
         checksAutomatically = on
     }
 
+    /// On by default (`SUAutomaticallyUpdate`): a signed update downloads quietly and installs when Grails quits.
+    func setInstallsAutomatically(_ on: Bool) {
+        controller?.updater.automaticallyDownloadsUpdates = on
+        installsAutomatically = on
+    }
+
     private func refresh() {
         guard let updater = controller?.updater else { return }
         canCheck = updater.canCheckForUpdates
         lastChecked = updater.lastUpdateCheckDate
         checksAutomatically = updater.automaticallyChecksForUpdates
+        installsAutomatically = updater.automaticallyDownloadsUpdates
     }
 }

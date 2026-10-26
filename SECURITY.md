@@ -59,7 +59,7 @@ The browser extension talks to the app over HTTP on `127.0.0.1` (port 47823 to 4
 
 ### Updates
 
-Grails uses Sparkle 2. Each update DMG is signed with an EdDSA (Ed25519) key. The app has the public key built in (`SUPublicEDKey`) and refuses any update whose signature doesn't match. It never installs without asking (`SUAllowsAutomaticUpdates` is off).
+Grails uses Sparkle 2. Each update DMG is signed with an EdDSA (Ed25519) key. The app has the public key built in (`SUPublicEDKey`) and refuses any update whose signature doesn't match. By default it downloads a signed update in the background and installs it when Grails quits (`SUAutomaticallyUpdate`); Settings → Updates turns that off, and then it asks first.
 
 - The private key is never in this repository (`*.key` and `sparkle_ed25519_private*` are gitignored).
 - `Scripts/release.sh` refuses to publish a DMG whose signature doesn't verify against the public key.
