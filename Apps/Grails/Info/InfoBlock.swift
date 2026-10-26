@@ -124,12 +124,54 @@ struct InfoBlock: View {
                         .accessibilityIdentifier("item-title-more")
                 }
             }
-            GrailsControl(press: .icon) { model.toggleLike(ids: [item.id]) } label: {
-                Image(systemName: item.liked ? "heart.fill" : "heart").font(ChromeFont.symbol(13)).foregroundStyle(item.liked ? Ink.text : Ink.secondary)
+            HStack(spacing: CGFloat(Space.tight)) {
+                holyGrail(item)
+                GrailsControl(press: .icon) { model.toggleLike(ids: [item.id]) } label: {
+                    Image(systemName: item.liked ? "heart.fill" : "heart").font(ChromeFont.symbol(13)).foregroundStyle(item.liked ? Ink.text : Ink.secondary)
+                }
+                .help("Like (L)")
+                .accessibilityLabel(item.liked ? "Unlike" : "Like")
             }
-            .help("Like (L)")
-            .accessibilityLabel(item.liked ? "Unlike" : "Like")
         }
+    }
+
+    /// Holy Grail beside the heart: its mark in gold with the sidebar row's stars when the item is in it, a quiet outline-grey mark
+    /// when it can be added. Members see the gold mark but can't change it (`Canon.control`).
+    @ViewBuilder private func holyGrail(_ item: Item) -> some View {
+        let isIn = Canon.collection(in: model.collections).map { item.collections[$0.id] != nil } ?? false
+        let added = "In the \(Canon.title)"
+        switch Canon.control(isIn: isIn, canPromote: model.canPromoteToCanon) {
+        case .hidden:
+            EmptyView()
+        case .state:
+            holyGrailMark(isIn: true)
+                .help(added)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(added)
+                .accessibilityIdentifier("in-holy-grail")
+        case .add:
+            GrailsControl(press: .icon) { model.promoteToCanon([item.id]) } label: { holyGrailMark(isIn: false) }
+                .help("Add to \(Canon.title)")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Add to \(Canon.title)")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("add-to-holy-grail")
+        case .remove:
+            GrailsControl(press: .icon) { model.removeFromCanon([item.id]) } label: { holyGrailMark(isIn: true) }
+                .help(added)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(added)
+                .accessibilityHint("Removes it from the \(Canon.title)")
+                .accessibilityAddTraits([.isButton, .isSelected])
+                .accessibilityIdentifier("remove-from-holy-grail")
+        }
+    }
+
+    private func holyGrailMark(isIn: Bool) -> some View {
+        CanonMark(size: 13)
+            .foregroundStyle(isIn ? AnyShapeStyle(CanonInk(selected: false)) : AnyShapeStyle(Ink.secondary))
+            .overlay { if isIn { CanonSparkles() } }
+            .contentShape(Rectangle())
     }
 
     private func provenance(_ info: ItemInfo) -> some View {
@@ -189,50 +231,16 @@ struct InfoBlock: View {
         .id(item?.id)
     }
 
-    @ViewBuilder private func collections(_ info: ItemInfo) -> some View {
+    private func collections(_ info: ItemInfo) -> some View {
         section("Collections") {
-            VStack(alignment: .leading, spacing: 0) {
-                if let item {
-                    let canonID = Canon.collection(in: model.collections)?.id
-                    let already: Set<String> = {
-                        guard let canonID, item.collections[canonID] != nil else { return [] }
-                        return [item.id]
-                    }()
-                    let offer = Canon.offer(selected: [item.id], alreadyIn: already)
-                    if offer.shown, model.canPromoteToCanon {
-                        GrailsButton("Add to \(Canon.title)", kind: .secondary, identifier: "add-to-holy-grail") {
-                            model.promoteSelectionToCanon()
-                        }
-                        .padding(.bottom, CGFloat(Space.xs))
-                    } else if !offer.removing.isEmpty {
-                        VStack(alignment: .leading, spacing: CGFloat(Space.xs)) {
-                            HStack(spacing: CGFloat(Space.tight)) {
-                                CanonMark(size: 14)
-                                Text("In \(Canon.title)")
-                            }
-                            .font(.grailsBody(13))
-                            .foregroundStyle(Ink.secondary)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("In \(Canon.title)")
-                            .accessibilityIdentifier("in-holy-grail")
-                            if model.canPromoteToCanon {
-                                GrailsButton("Remove from \(Canon.title)", kind: .quiet, identifier: "remove-from-holy-grail") {
-                                    model.removeFromCanon(offer.removing)
-                                }
-                            }
-                        }
-                        .padding(.bottom, CGFloat(Space.xs))
-                    }
+            FlowLayout(spacing: 4) {
+                ForEach(info.collections, id: \.id) { c in
+                    LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
+                        .transition(.grailsChip(reduceMotion: reduceMotion))
                 }
-                FlowLayout(spacing: 4) {
-                    ForEach(info.collections, id: \.id) { c in
-                        LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
-                            .transition(.grailsChip(reduceMotion: reduceMotion))
-                    }
-                    folderMenu
-                }
-                .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
+                folderMenu
             }
+            .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
         }
         .id(item?.id)
     }

@@ -168,6 +168,19 @@ import Testing
         #expect(Pager.isTall(CGSize(width: 800, height: 3000)) && !Pager.isTall(CGSize(width: 800, height: 1000)))
         #expect(Pager.maxZoom(fit: 0.2) == 2 && Pager.maxZoom(fit: 1) == 4)
     }
+
+    @Test func aPictureThatFillsTheHeightStaysBelowTheBar() {
+        let stage = CGSize(width: 1200, height: 800)
+        let area = Pager.pictureArea(stage: stage, top: 44)
+        #expect(area == CGRect(x: 0, y: 44, width: 1200, height: 756))
+        // a square big enough to fill the height: the old fit put its top at 24, under a 44 pt bar
+        let square = Pager.fitRect(image: CGSize(width: 2000, height: 2000), in: area)
+        #expect(square.minY >= 44 + 24 && square.maxY <= 800 - 24)
+        #expect(abs(square.midY - area.midY) < 0.5 && abs(square.midX - 600) < 0.5)
+        let tall = Pager.fitRect(image: CGSize(width: 900, height: 3000), in: area)
+        #expect(tall.minY >= 44 + 24)
+        #expect(Pager.pictureArea(stage: CGSize(width: 100, height: 30), top: 44).height >= 1)    // never empty
+    }
 }
 
 @Suite struct SpringTests {

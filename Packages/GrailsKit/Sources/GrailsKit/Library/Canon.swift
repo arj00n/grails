@@ -53,6 +53,25 @@ public enum Canon {
         )
     }
 
+    /// The info column's Holy Grail button for one item. Anyone sees that an item is in it; only someone who may promote
+    /// (a connected owner or admin) can add or remove it, so for everyone else an item that isn't in it shows nothing.
+    public enum Control: Equatable, Sendable {
+        case hidden
+        /// In it, shown in gold, not a button.
+        case state
+        case add
+        case remove
+    }
+
+    public static func control(isIn: Bool, canPromote: Bool) -> Control {
+        switch (isIn, canPromote) {
+        case (true, true): return .remove
+        case (true, false): return .state
+        case (false, true): return .add
+        case (false, false): return .hidden
+        }
+    }
+
     /// A `baseline` JSON value that marks the collection. Absent, false, and empty do not.
     static func legacyFlag(_ value: JSONValue?) -> Bool {
         switch value {
