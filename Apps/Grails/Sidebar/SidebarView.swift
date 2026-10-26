@@ -233,24 +233,24 @@ struct SidebarRow: View {
 
     private var selected: Bool { source != nil && model.source == source }
 
-    static func inset(nested: Bool, indent: Int) -> CGFloat { (nested ? 16 : 0) + CGFloat(indent) * 20 }
-
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: CGFloat(SidebarRowMetrics.gap)) {
             if let disclosure {
                 GrailsControl(press: .icon) { withGrailsSpring { disclosure.wrappedValue.toggle() } } label: {
                     GrailsDisclosureChevron(expanded: disclosure.wrappedValue, size: 8, weight: .bold).foregroundStyle(Ink.secondary)
-                        .frame(width: 12, height: 20).contentShape(Rectangle())
+                        .frame(width: CGFloat(SidebarRowMetrics.chevronSlot), height: 20).contentShape(Rectangle())
                 }
-            } else if indent > 0 || outline { Color.clear.frame(width: 12) }
+            } else if indent > 0 || outline { Color.clear.frame(width: CGFloat(SidebarRowMetrics.chevronSlot)) }
             GrailsSymbol(symbol, size: 12).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(selected || hovering ? Ink.text : Ink.secondary)).frame(width: 16)
                 .overlay { if canon { CanonSparkles(selected: selected) } }
             Text(title).font(.grailsBody(13)).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : AnyShapeStyle(quiet && !hovering ? Ink.secondary : Ink.text)).lineLimit(1)
             Spacer(minLength: 4)
             if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
         }
-        .padding(.leading, 8).padding(.trailing, 8)
-        .frame(height: 28)
+        // depth is laid out inside the fill, so every row's hover, selection and drop outline is the same rectangle
+        .padding(.leading, CGFloat(SidebarRowMetrics.contentLeading(nested: nested, depth: indent)))
+        .padding(.trailing, CGFloat(SidebarRowMetrics.contentInset))
+        .frame(height: CGFloat(SidebarRowMetrics.height))
         // the open view's fill is the list's one indicator; the row only draws hover
         .background {
             if canon {
@@ -260,10 +260,7 @@ struct SidebarRow: View {
             }
         }
         .grailsSelectionTarget(selected)
-        // the indent sits outside the fill, so hover and selection cover the row itself, not the space in front of it; one level
-        // is the arrow plus its gap, so a child's arrow sits under its parent's icon
-        .padding(.leading, Self.inset(nested: nested, indent: indent))
-        .padding(.horizontal, 8)
+        .padding(.horizontal, CGFloat(SidebarRowMetrics.fillInset))
         .contentShape(Rectangle())
         .grailsTapPress {
             if let action { action() } else if let source { model.source = source } else if let disclosure { withGrailsSpring { disclosure.wrappedValue.toggle() } }
@@ -346,7 +343,7 @@ private struct CollectionNode: View {
             .onDrag {
                 NSItemProvider(item: Data(collection.id.utf8) as NSData, typeIdentifier: UTType.grailsCollection.identifier)
             }
-            .collectionDropTarget(model: model, collection: collection, targeted: $targeted, inset: SidebarRow.inset(nested: true, indent: depth))
+            .collectionDropTarget(model: model, collection: collection, targeted: $targeted)
             .contextMenu {
                 libraryTransferMenu
                 GrailsControl(model.pinnedCollections.contains(collection.id) ? "Unpin from Sidebar" : "Pin to Sidebar") {
@@ -375,13 +372,12 @@ extension View {
             }
             return true
         }
-        .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.horizontal, 8).allowsHitTesting(false) } }
+        .overlay { if targeted.wrappedValue == id { SidebarDropOutline() } }
     }
 
     /// Collections and folders accept item ids and files alike. A collection dragged onto a sibling reorders; onto any other
     /// row it moves inside.
-    /// `inset`: the row's indent, so the drop outline hugs the row like its fill does.
-    func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>, inset: CGFloat = 0) -> some View {
+    func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>) -> some View {
         let id = "c-\(collection.id)"
         return onDrop(of: DropLoader.accepted, isTargeted: Binding(get: { targeted.wrappedValue == id }, set: { targeted.wrappedValue = $0 ? id : nil })) { providers in
             Task { @MainActor in
@@ -398,7 +394,17 @@ extension View {
             }
             return true
         }
-        .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.leading, inset).padding(.horizontal, 8).allowsHitTesting(false) } }
+        .overlay { if targeted.wrappedValue == id { SidebarDropOutline() } }
+    }
+}
+
+/// A drop onto a sidebar row outlines that row's own rectangle: same inset and radius as its fill.
+private struct SidebarDropOutline: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous)
+            .strokeBorder(Ink.focus, lineWidth: 1.5)
+            .padding(.horizontal, CGFloat(SidebarRowMetrics.fillInset))
+            .allowsHitTesting(false)
     }
 }
 

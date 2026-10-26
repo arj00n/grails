@@ -89,6 +89,9 @@ if grep -R --include='*.swift' -n -e 'grailsDisplay' -e 'ChromeFont.display' -e 
   "$ROOT/Apps" "$ROOT/Packages"; then
   fail "the display font returned"
 fi
+SIDEBAR="$ROOT/Apps/Grails/Sidebar/SidebarView.swift"
+grep -q 'SidebarRowMetrics.contentLeading(nested: nested, depth: indent)' "$SIDEBAR" || fail "sidebar depth sits inside the row fill"
+if grep -n 'static func inset(nested\|padding(.leading, inset)' "$SIDEBAR"; then fail "sidebar indent moves the row fill"; fi
 echo "PASS view rules"
 
 # App chrome goes through GrailsDesign. A raw control, a system font, a system colour, or a header rule is a miss.

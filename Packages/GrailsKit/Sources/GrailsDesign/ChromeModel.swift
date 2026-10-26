@@ -44,6 +44,29 @@ public enum RadiusToken {
     public static let sheet = 14.0
 }
 
+/// One rectangle rule for every sidebar row: Inbox, a collection with or without folders, a folder at any depth.
+/// The fill (hover, selection, drop outline) is inset the same from both sidebar edges on every row. The chevron slot, the
+/// icon and the title sit inside it, and depth moves the content, never the fill.
+public enum SidebarRowMetrics {
+    /// The fill's inset from each sidebar edge.
+    public static let fillInset = 8.0
+    /// The content's inset from the fill's edges.
+    public static let contentInset = 8.0
+    public static let height = 28.0
+    /// The disclosure chevron's column; tree rows keep it empty when they have nothing to open, so siblings line up.
+    public static let chevronSlot = 12.0
+    public static let gap = 8.0
+    /// Rows under a section heading start one step in, so the arrow sits under the heading's title.
+    public static let nestedStep = 16.0
+    /// One level is the arrow plus its gap, so a child's arrow sits under its parent's icon.
+    public static let depthStep = chevronSlot + gap
+
+    /// Where the content starts inside the fill.
+    public static func contentLeading(nested: Bool, depth: Int) -> Double {
+        contentInset + (nested ? nestedStep : 0) + Double(max(depth, 0)) * depthStep
+    }
+}
+
 public enum TypeScale {
     /// Geist Bold. Settings and empty pages.
     public static let page = 20.0
