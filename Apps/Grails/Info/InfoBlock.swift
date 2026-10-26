@@ -599,7 +599,7 @@ struct NoteThread: View {
         let voice = note.voice ? voiceURL(note) : nil
         return HStack(alignment: .top, spacing: 8) {
             Text(monogram(shownAuthor(note)))
-                .font(.grailsBody(11, bold: true))
+                .font(.grailsTitle(11))
                 .foregroundStyle(Ink.text)
                 .frame(width: 22, height: 22)
                 .background(Ink.surface, in: Circle())
