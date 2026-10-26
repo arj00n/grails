@@ -150,7 +150,7 @@ final class AppModel {
     @ObservationIgnored private var contextMenuGeneration = 0
     private(set) var collections: [GrailsCollection] = []
     private(set) var canonItemIds: Set<String> = []
-    var canPromoteToCanon: Bool { bucket.connected && TeamPermissions.canPromoteToCanon(bucket.role) }
+    var canPromoteToCanon: Bool { TeamPermissions.canPromoteToCanon(bucket.role, connected: bucket.connected) }
     private(set) var smartFolders: [SmartFolder] = []
     private(set) var tags: [(tag: String, count: Int)] = []
     /// Tags on the items in the current view, with how many of them have each: what the tab strip offers.
@@ -1247,6 +1247,7 @@ final class AppModel {
     /// Adds these items to Holy Grail, creating it the first time.
     func promoteToCanon(_ ids: [String]) {
         guard canPromoteToCanon, let store else { return }
+        if bucket.readOnly { showToast("Update Grails"); return }
         let adding = Canon.offer(selected: ids, alreadyIn: canonItemIds).adding
         guard !adding.isEmpty else { return }
         Task {
@@ -1265,6 +1266,7 @@ final class AppModel {
 
     func removeFromCanon(_ ids: [String]) {
         guard canPromoteToCanon, !ids.isEmpty, let canonID = Canon.collection(in: collections)?.id else { return }
+        if bucket.readOnly { showToast("Update Grails"); return }
         let removing = ids
         let collectionID = canonID
         Task {

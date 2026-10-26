@@ -560,6 +560,17 @@ final class InviteTests: XCTestCase {
         XCTAssertEqual(TeamPermissions.canPromoteToCanon(.member), false)
     }
 
+    /// A folder or Drive library has no bucket, so the person who has it open can always add to Holy Grail.
+    /// A team library still follows the role: the owner and admins add, members only see it.
+    func testHolyGrailIsOpenToTheOwnerOfAFolderLibrary() {
+        for role in [LibraryRole.owner, .admin, .member] {
+            XCTAssertTrue(TeamPermissions.canPromoteToCanon(role, connected: false))
+        }
+        XCTAssertTrue(TeamPermissions.canPromoteToCanon(.owner, connected: true))
+        XCTAssertTrue(TeamPermissions.canPromoteToCanon(.admin, connected: true))
+        XCTAssertFalse(TeamPermissions.canPromoteToCanon(.member, connected: true))
+    }
+
     func testCompactLinkRoundTripsAndLegacyStillOpens() async throws {
         let opened = try InviteBlob.open(try issue().link.blob, code: code)
         XCTAssertEqual(opened.email, "ada@studio.com")
