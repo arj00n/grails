@@ -60,6 +60,14 @@ struct SidebarView: View {
                         }
                         .accessibilityIdentifier("sidebar-canon")
                 }
+                ForEach(model.pinnedCollectionRows) { c in
+                    SidebarRow(model: model, title: c.displayName, symbol: c.kind == "folder" ? "folder" : "rectangle.stack", source: .collection(c.id))
+                        .collectionDropTarget(model: model, collection: c, targeted: $targeted)
+                        .contextMenu {
+                            GrailsControl("Unpin from Sidebar") { model.unpinCollection(c.id) }
+                            GrailsControl("Copy Link") { model.copyLink(.collection(c.id)) }
+                        }
+                }
                 SidebarRow(model: model, title: "Liked", symbol: "heart", source: .liked)
                 SidebarRow(model: model, title: "For you", symbol: "at", count: model.forYouUnread > 0 ? model.forYouUnread : nil, source: .mentions)
                 SidebarRow(model: model, title: "Untagged", symbol: "tag.slash", source: .untagged)
@@ -82,10 +90,10 @@ struct SidebarView: View {
                         Group {
                             ForEach(topLevel) { CollectionNode(model: model, collection: $0, depth: 0, targeted: $targeted) }
                             if !archived.isEmpty {
-                                SidebarRow(model: model, title: "Archived", symbol: "archivebox", disclosure: $archivedOpen)
+                                SidebarRow(model: model, title: "Archived", symbol: "archivebox", disclosure: $archivedOpen, nested: true)
                                 if archivedOpen {
                                     ForEach(archived) { c in
-                                        SidebarRow(model: model, title: c.displayName, symbol: "archivebox", source: .collection(c.id), indent: 1)
+                                        SidebarRow(model: model, title: c.displayName, symbol: "archivebox", source: .collection(c.id), indent: 1, nested: true)
                                             .contextMenu { GrailsControl("Unarchive") { model.archiveCollection(c, false) } }
                                     }
                                     .transition(.grailsReveal(reduceMotion: reduceMotion))
@@ -213,6 +221,8 @@ struct SidebarRow: View {
     var source: Source?
     var indent = 0
     var disclosure: Binding<Bool>?
+    /// Rows under a section heading sit one step in from it, with the arrow under the heading's title.
+    var nested = false
     /// Tree rows keep the arrow's column even with nothing to open, so siblings line up whether or not they hold folders.
     var outline = false
     var quiet = false
@@ -238,7 +248,7 @@ struct SidebarRow: View {
             if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
         }
         // one level is the arrow plus its gap, so a child's arrow sits under its parent's icon
-        .padding(.leading, 8 + CGFloat(indent) * 20).padding(.trailing, 8)
+        .padding(.leading, 8 + (nested ? 16 : 0) + CGFloat(indent) * 20).padding(.trailing, 8)
         .frame(height: 28)
         // the open view's fill is the list's one sliding indicator; the row only draws hover
         .background {
@@ -262,6 +272,24 @@ struct SidebarRow: View {
 }
 
 extension AppModel {
+    /// Collections and folders pinned to the top of the sidebar, in the order they were pinned. Yours alone, per library.
+    var pinnedCollectionRows: [GrailsCollection] {
+        pinnedCollections.compactMap { id in collections.first { $0.id == id && !$0.archived && !$0.isCanon } }
+    }
+
+    func pinCollection(_ id: String) {
+        guard !pinnedCollections.contains(id) else { return }
+        withGrailsSpring { pinnedCollections.append(id) }
+        savePinnedCollections()
+    }
+
+    func unpinCollection(_ id: String) {
+        withGrailsSpring { pinnedCollections.removeAll { $0 == id } }
+        savePinnedCollections()
+    }
+
+    private func savePinnedCollections() { UserDefaults.standard.set(pinnedCollections, forKey: "pinnedCollections.\(libraryID)") }
+
     /// The team's Holy Grail, when the library has one that is not archived. The sidebar shows it once, highlighted, in the main section.
     var canonCollection: GrailsCollection? { Canon.collection(in: collections.filter { !$0.archived }) }
 }
@@ -310,13 +338,16 @@ private struct CollectionNode: View {
 
     private func label(hasChildren: Bool) -> some View {
         SidebarRow(model: model, title: collection.displayName, symbol: collection.kind == "folder" ? "folder" : "rectangle.stack",
-                   source: .collection(collection.id), indent: depth, disclosure: hasChildren ? $open : nil, outline: true)
+                   source: .collection(collection.id), indent: depth, disclosure: hasChildren ? $open : nil, nested: true, outline: true)
             .onDrag {
                 NSItemProvider(item: Data(collection.id.utf8) as NSData, typeIdentifier: UTType.grailsCollection.identifier)
             }
             .collectionDropTarget(model: model, collection: collection, targeted: $targeted)
             .contextMenu {
                 libraryTransferMenu
+                GrailsControl(model.pinnedCollections.contains(collection.id) ? "Unpin from Sidebar" : "Pin to Sidebar") {
+                    if model.pinnedCollections.contains(collection.id) { model.unpinCollection(collection.id) } else { model.pinCollection(collection.id) }
+                }
                 GrailsControl("Copy Link") { model.copyLink(.collection(collection.id)) }
                 GrailsControl("Rename…") { model.promptRenameCollection(collection) }
                 GrailsControl("New Folder Inside…") { model.promptNewCollection(parent: collection.id) }

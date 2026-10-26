@@ -175,6 +175,7 @@ final class AppModel {
     var stripTags: [String] = [] { didSet { if oldValue != stripTags { scrollResetTick += 1; reloadSoon() } } }
     /// Tags pinned to the strip, per library.
     var pinnedTags: [String] = []
+    var pinnedCollections: [String] = []
     var sort: SortChoice = .newest { didSet { if oldValue != sort { scrollResetTick += 1; reloadSoon() } } }
     private var shuffleSeed: UInt64 = 1
 
@@ -553,6 +554,7 @@ final class AppModel {
             await bindIdentity()
             collab.recordPresence()
             pinnedTags = UserDefaults.standard.stringArray(forKey: "pinnedTags.\(libraryID)") ?? []
+            pinnedCollections = UserDefaults.standard.stringArray(forKey: "pinnedCollections.\(libraryID)") ?? []
             stripTags = []
             if remember { workspaces = Workspaces.remember(id: libraryID, path: storedPath, name: libraryName) }
             addedByFilter = nil

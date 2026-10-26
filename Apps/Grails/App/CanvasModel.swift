@@ -51,13 +51,15 @@ extension AppModel {
     }
 
     /// This board's clusters, read from its folders, with the layout saved on the board. Named clusters from before folders
-    /// become folders first (with the cluster's id, so two Macs doing it make one folder).
+    /// become folders first (with the cluster's id, so two Macs doing it make one folder), inside a collection only: on the
+    /// whole library a named cluster was a way of laying things out, and making it a collection would file most of the
+    /// library into it.
     func folderClusters() async -> [CanvasCluster]? {
         guard let store, let place = folderBoard, let key = canvasBoardKey else { return nil }
         let stored = await store.canvasBoard(key: key)?.clusters ?? []
         do {
             var all = try await store.index.collections()
-            if !bucket.readOnly, migratedBoards.insert(key).inserted {
+            if place != .library, !bucket.readOnly, migratedBoards.insert(key).inserted {
                 let strays = FolderClusters.strays(stored, folders: Set(all.map(\.id)))
                 for c in strays {
                     _ = try await store.createCollection(id: c.id, name: c.title.trimmingCharacters(in: .whitespaces), parentId: place.parent)
