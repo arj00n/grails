@@ -2387,18 +2387,29 @@ public extension GrailsPersonRow where Actions == EmptyView {
 
 public struct GrailsToast: View {
     var text: String
-    var symbol: String
+    private var symbol: String
+    /// Holy Grail's filled mark instead of `symbol`. The slash is cut through that mark.
+    private var holyGrail: Bool
+    private var holyGrailStruck: Bool
 
     public init(_ text: String, symbol: String = "checkmark.circle") {
         self.text = text
         self.symbol = symbol
+        self.holyGrail = false
+        self.holyGrailStruck = false
+    }
+
+    /// The filled gold rosette. `struck` is the removal toast: the same mark, with a slash through the ring.
+    public init(_ text: String, holyGrailStruck: Bool) {
+        self.text = text
+        self.symbol = ""
+        self.holyGrail = true
+        self.holyGrailStruck = holyGrailStruck
     }
 
     public var body: some View {
         HStack(spacing: CGFloat(Space.xs)) {
-            Image(systemName: symbol)
-                .font(ChromeFont.symbol(13, weight: .medium))
-                .foregroundStyle(symbol == ChromeIcon.error ? GrailsColor.destructive : GrailsColor.secondary)
+            mark
             Text(text)
                 .font(ChromeFont.body(TypeScale.button))
                 .foregroundStyle(GrailsColor.text)
@@ -2411,6 +2422,18 @@ public struct GrailsToast: View {
         .overlay(RoundedRectangle(cornerRadius: CGFloat(RadiusToken.card), style: .continuous).strokeBorder(GrailsColor.hairline, lineWidth: 1))
         // caps the width offered to the text, so a long message wraps; the card still hugs a short one
         .frame(maxWidth: 420)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if holyGrail {
+            CanonMark(size: 13, filled: true, struck: holyGrailStruck)
+                .foregroundStyle(CanonInk(selected: false))
+                .accessibilityHidden(true)
+        } else {
+            Image(systemName: symbol)
+                .font(ChromeFont.symbol(13, weight: .medium))
+                .foregroundStyle(symbol == ChromeIcon.error ? GrailsColor.destructive : GrailsColor.secondary)
+        }
     }
 }
 

@@ -256,6 +256,8 @@ final class AppModel {
 
     var libraryPlace: LibraryPlace { collab.libraryPlace }
     var toast: String?
+    /// The mark beside `toast` for a like or a Holy Grail change. Nil keeps the plain check.
+    var toastMark: LibraryNotice.Mark?
     /// Grid asks for keyboard focus whenever this changes.
     private(set) var focusGridTick = 0
     var searchFocusTick = 0
@@ -1135,13 +1137,21 @@ final class AppModel {
         } catch { errorMessage = "Redo failed: \(error.localizedDescription)" }
     }
 
-    func showToast(_ text: String, seconds: Double = 2.2) {
+    func showToast(_ text: String, mark: LibraryNotice.Mark? = nil, seconds: Double = 2.2) {
+        toastMark = mark
         toast = text
         toastTask?.cancel()
         toastTask = Task {
             try? await Task.sleep(for: .seconds(seconds))
-            if !Task.isCancelled { toast = nil }
+            if !Task.isCancelled {
+                toast = nil
+                toastMark = nil
+            }
         }
+    }
+
+    func showNotice(_ notice: LibraryNotice, seconds: Double = 2.2) {
+        showToast(notice.text, mark: notice.mark, seconds: seconds)
     }
 
     // MARK: Import
@@ -1226,8 +1236,7 @@ final class AppModel {
         let like = !all
         Task {
             guard await perform(like ? "Like" : "Unlike", { try await $0.setLiked(like, ids: ids) }) != nil else { return }
-            let word = like ? "Liked" : "Unliked"
-            showToast(ids.count == 1 ? word : "\(word) \(ids.count) items")
+            showNotice(LibraryNotice.like(on: like, count: ids.count))
         }
     }
 
@@ -1258,6 +1267,7 @@ final class AppModel {
                 try await store.add(ids: adding, toCollection: id)
                 bucket.nudge()
                 await reload()
+                showNotice(LibraryNotice.holyGrail(added: true, count: adding.count))
             } catch {
                 errorMessage = "Couldn't add to \(Canon.title)"
             }
@@ -1272,6 +1282,7 @@ final class AppModel {
         Task {
             if await perform("Remove from \(Canon.title)", { try await $0.remove(ids: removing, fromCollection: collectionID) }) != nil {
                 bucket.nudge()
+                showNotice(LibraryNotice.holyGrail(added: false, count: removing.count))
             }
         }
     }
@@ -1524,6 +1535,7 @@ final class AppModel {
         let target = action.target
         let moved = action.isMove
         let count = ids.count
+        let toCanon = collections.contains { $0.id == target && $0.isCanon }
         guard !ids.isEmpty else { return }
         Task {
             await perform(undoLabel) { store in
@@ -1533,7 +1545,11 @@ final class AppModel {
                     try await store.add(ids: ids, toCollection: target)
                 }
             }
-            showToast("\(moved ? "Moved" : "Added") \(count) \(count == 1 ? "item" : "items") to \(toastName)")
+            if toCanon {
+                showNotice(LibraryNotice.holyGrail(added: true, count: count))
+            } else {
+                showToast("\(moved ? "Moved" : "Added") \(count) \(count == 1 ? "item" : "items") to \(toastName)")
+            }
         }
     }
 
