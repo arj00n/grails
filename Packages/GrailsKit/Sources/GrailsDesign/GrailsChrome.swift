@@ -1971,6 +1971,7 @@ public struct GrailsPlainField<Focus: Hashable>: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: multiline ? .topLeading : .leading)
             } else if multiline {
                 MultilineHost(text: $text, placeholder: placeholder, size: size, bold: bold, title: title, horizontalInset: 0, maxLines: lineLimit.upperBound, identifier: "", textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), focused: lineFocused, submitsOnReturn: true, onSubmit: onSubmit, onFocus: { lineFocused = $0 })
+                    .onFirstLine()
             } else {
                 QuietField(text: $text, placeholder: placeholder, secure: false, corrects: true, identifier: "", textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), pointSize: CGFloat(size), bold: bold, title: title, focused: $lineFocused, onSubmit: onSubmit)
             }
@@ -2161,6 +2162,7 @@ public struct GrailsMultilineField: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             MultilineHost(text: $text, placeholder: placeholder, size: size, bold: bold, horizontalInset: horizontalInset, maxLines: maxLines, identifier: identifier, textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), focused: focused.wrappedValue, submitsOnReturn: false, onSubmit: onSubmit, onFocus: { focused.wrappedValue = $0 })
+                .onFirstLine()
         }
     }
 }
@@ -2211,10 +2213,18 @@ private struct MultilineHost: NSViewRepresentable {
         }
     }
 
+    private var font: NSFont { title ? ChromeNSFont.title(CGFloat(size)) : ChromeNSFont.body(CGFloat(size), bold: bold) }
+
+    /// SwiftUI doesn't read an NSView's baseline, so a `.firstTextBaseline` row would line up with the field's top edge.
+    /// This names the first line's baseline: the shared top inset plus the line's own baseline.
+    func onFirstLine() -> some View {
+        let baseline = FieldLine.topInset(font: font) + NSLayoutManager().defaultBaselineOffset(for: font)
+        return alignmentGuide(.firstTextBaseline) { _ in baseline }
+    }
+
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: GrailsLineText, context: Context) -> CGSize? {
         let width = proposal.width ?? nsView.bounds.width
         guard width > 1 else { return nil }
-        let font = title ? ChromeNSFont.title(CGFloat(size)) : ChromeNSFont.body(CGFloat(size), bold: bold)
         let measured = Self.textHeight(text: text.isEmpty ? " " : text, font: font, width: width, horizontalInset: horizontalInset, maxLines: maxLines)
         return CGSize(width: width, height: measured)
     }
@@ -2234,8 +2244,7 @@ private struct MultilineHost: NSViewRepresentable {
             view.textColor = parent.textColor
             view.prompt = parent.placeholder
             view.promptColor = parent.promptColor
-            let font = parent.title ? ChromeNSFont.title(CGFloat(parent.size)) : ChromeNSFont.body(CGFloat(parent.size), bold: parent.bold)
-            view.useSharedLine(font: font, horizontalInset: parent.horizontalInset)
+            view.useSharedLine(font: parent.font, horizontalInset: parent.horizontalInset)
             view.textContainer?.maximumNumberOfLines = parent.maxLines
             view.textContainer?.lineBreakMode = parent.maxLines > 0 ? .byTruncatingTail : .byWordWrapping
             if !parent.identifier.isEmpty { view.setAccessibilityIdentifier(parent.identifier) }
