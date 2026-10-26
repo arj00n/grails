@@ -377,6 +377,20 @@ actor FakeService: CaptureService {
         #expect(try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: "chrome-extension://abcdefgh").0 == 403)
     }
 
+    /// Chrome leaves Origin off an extension's GET to a host in its permissions. The poll for the token has to work without it.
+    @Test func theExtensionCollectsTheTokenWithoutAnOriginOnItsPoll() async throws {
+        let (server, _, base) = try await start()
+        defer { server.stop() }
+        let opened = try await call(base, "POST", "/api/v1/pair", token: nil, origin: ExtensionOrigin.chrome)
+        let id = try #require(try JSONSerialization.jsonObject(with: opened.2) as? [String: String])["requestId"]!
+        #expect(try await call(base, "GET", "/api/v1/pair/\(id)", token: nil).0 == 202)
+        server.pairing.approve(id)
+        #expect(try await call(base, "GET", "/api/v1/pair/\(id)", token: nil, origin: "https://evil.example").0 == 403)
+        let got = try await call(base, "GET", "/api/v1/pair/\(id)", token: nil)
+        #expect(got.0 == 200 && String(decoding: got.2, as: UTF8.self).contains(token))
+        #expect(try await call(base, "GET", "/api/v1/pair/nope", token: nil).0 == 403)
+    }
+
     @Test func aSafariOriginPairsAndOnlyThatOriginCollectsTheToken() async throws {
         let (server, _, base) = try await start()
         defer { server.stop() }

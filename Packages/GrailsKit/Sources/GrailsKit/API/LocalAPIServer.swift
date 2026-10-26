@@ -229,11 +229,14 @@ public final class LocalAPIServer: @unchecked Sendable {
         }
         if req.path.hasPrefix("/api/v1/pair/"), req.method == "GET" {
             let id = String(req.path.dropFirst("/api/v1/pair/".count))
-            guard let origin = req.header("origin"), PairingOrigin.parse(origin) != nil else { return .error(403, "Only a browser extension can ask") }
+            // Chrome sends no Origin on an extension's GET to a host it has permission for, so a missing one is the extension
+            // polling with the id only its POST was told. An Origin that is there still has to be the one that opened the request.
+            let origin = req.header("origin")
+            if let origin, PairingOrigin.parse(origin) == nil { return .error(403, "Only a browser extension can ask") }
             switch pairing.state(of: id) {
             case .pending?: return .json(202, ["ok": "pending"])
             case .approved?:
-                guard pairing.origin(of: id) == origin else { return .error(403, "Not allowed") }
+                if let origin, pairing.origin(of: id) != origin { return .error(403, "Not allowed") }
                 guard let token = tokens.persistedToken() else { return .error(500, "Couldn't store the token") }
                 return .json(200, ["token": token])
             case .denied?, nil: return .error(403, "Not allowed")
