@@ -487,12 +487,18 @@ private struct SelectionIndicator<Indicator: View>: View {
             withAnimation(.grailsQuick) { shown = false }
             return
         }
-        // a list that doesn't glide crossfades: out where it was, in where it lands
-        if glide, shown, !glides, !reduceMotion, new != frame {
+        // a list that doesn't glide: the new row is lit at once (it may have been showing its hover fill, so fading in from
+        // nothing would dip), and the old one fades out. The same row nudged by a relayout just follows, with no fade.
+        if glide, shown, !glides {
+            let sameRow = abs(new.midY - frame.midY) < new.height / 2 && abs(new.midX - frame.midX) < new.width / 2
             var still = Transaction()
             still.disablesAnimations = true
-            withTransaction(still) { leaving = frame; frame = new; shown = false }
-            withAnimation(.grailsQuick) { leaving = nil; shown = true }
+            withTransaction(still) {
+                if !sameRow, !reduceMotion { leaving = frame }
+                frame = new
+            }
+            // next turn, once the old fill is on screen, so the fade isn't folded into its own insertion
+            if leaving != nil { DispatchQueue.main.async { withAnimation(.grailsQuick) { leaving = nil } } }
         } else if glide, shown, !reduceMotion {
             withAnimation(.grailsSpring) { frame = new }
         } else {
