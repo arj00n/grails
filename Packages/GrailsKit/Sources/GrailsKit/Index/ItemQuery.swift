@@ -73,8 +73,12 @@ public struct ItemSummary: Sendable, Hashable, Identifiable {
     public var noted: Bool = false
 
     /// A divider row for the grid: the cluster's title, and how many items follow in `bytes`.
-    public static func sectionHeader(id: String, title: String, count: Int) -> ItemSummary {
+    public static func sectionHeader(id: String, title: String, count: Int, collapsed: Bool = false) -> ItemSummary {
         ItemSummary(id: "section:\(id)", kind: .section, name: title, ext: nil, width: nil, height: nil, bytes: Int64(count), liked: false,
-                    addedAt: .distantPast, addedBy: "", deletedAt: nil, site: nil, linkDisplay: nil, badge: nil, durationSec: nil)
+                    addedAt: .distantPast, addedBy: "", deletedAt: nil, site: nil, linkDisplay: nil, badge: collapsed ? Self.collapsedBadge : nil, durationSec: nil)
     }
+
+    static let collapsedBadge = "collapsed"
+    /// A section header whose cluster is folded: the grid shows the title and count, not the pictures.
+    public var sectionCollapsed: Bool { kind == .section && badge == Self.collapsedBadge }
 }

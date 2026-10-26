@@ -60,7 +60,7 @@ extension AppModel {
             if !bucket.readOnly, migratedBoards.insert(key).inserted {
                 let strays = FolderClusters.strays(stored, folders: Set(all.map(\.id)))
                 for c in strays {
-                    _ = try await store.createCollection(id: c.id, name: c.title.trimmingCharacters(in: .whitespaces), kind: "folder", parentId: place.parent)
+                    _ = try await store.createCollection(id: c.id, name: c.title.trimmingCharacters(in: .whitespaces), parentId: place.parent)
                     try await store.add(ids: c.items, toCollection: c.id)
                 }
                 if !strays.isEmpty { all = try await store.index.collections(); bucket.nudge() }
@@ -186,7 +186,7 @@ extension AppModel {
                     }
                     for c in edit.created {
                         let name = c.title.trimmingCharacters(in: .whitespaces)
-                        _ = try await store.createCollection(id: c.id, name: name.isEmpty ? "Untitled" : name, kind: "folder", parentId: parent)
+                        _ = try await store.createCollection(id: c.id, name: name.isEmpty ? "Untitled" : name, parentId: parent)
                         try await store.add(ids: c.items, toCollection: c.id)
                     }
                     for (id, ids) in edit.added {
@@ -250,6 +250,16 @@ extension AppModel {
         commitClusters(next, label: "Change Tile Size")
     }
 
+    /// Folds a cluster to its title bar, or opens it again, in the grid and on the canvas alike.
+    func toggleClusterCollapsed(_ id: String) {
+        guard let key = canvasBoardKey else { return }
+        var next = viewMode == .canvas && canvasLoadedKey == key ? canvasClusters : sectionClusters
+        guard let i = next.firstIndex(where: { $0.id == id }) else { return }
+        next[i].collapsed.toggle()
+        next[i].at = Date().timeIntervalSince1970
+        commitClusters(next, label: next[i].collapsed ? "Collapse Cluster" : "Expand Cluster")
+    }
+
     /// Breaks a cluster up: its items go to the first other cluster (or stay, if it is the only one).
     func dissolveCluster(_ id: String) {
         guard canvasClusters.count > 1, let c = canvasClusters.first(where: { $0.id == id }), let into = canvasClusters.first(where: { $0.id != id }) else {
@@ -271,6 +281,9 @@ extension AppModel {
         add("Notes", "note.text") { [self] in
             let title = canvasClusters.first { $0.id == id }?.title ?? ""
             if let board = canvasBoardKey { showClusterNotes(board: board, id: id, title: title) }
+        }
+        if let c = (viewMode == .canvas ? canvasClusters : sectionClusters).first(where: { $0.id == id }) {
+            add(c.collapsed ? "Expand" : "Collapse", c.collapsed ? "chevron.down" : "chevron.right") { [self] in toggleClusterCollapsed(id) }
         }
         let sizes = NSMenu()
         for (name, tile) in [("Small", 160.0), ("Medium", 260.0), ("Large", 400.0), ("Extra Large", 600.0)] {

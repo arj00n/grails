@@ -317,6 +317,8 @@ final class AppModel {
     @ObservationIgnored var boardFolders: Set<String> = []
     /// Boards whose named clusters were already turned into folders this session.
     @ObservationIgnored var migratedBoards: Set<String> = []
+    /// The library whose collection kinds were last brought in line (see `LibraryStore.normalizeCollectionKinds`).
+    @ObservationIgnored var kindsNormalized: String?
     /// Bumped when the grid-of-record for the canvas changes from outside the canvas (board loaded, undo, teammate, arrange).
     private(set) var canvasVersion = 0
     @ObservationIgnored var canvasLoadedKey: String?
@@ -929,6 +931,11 @@ final class AppModel {
             guard !Task.isCancelled, generation == reloadGeneration else { return }
             if viewMode == .canvas { await syncCanvas() }
             guard !Task.isCancelled, generation == reloadGeneration else { return }
+            // once per library: collections from before kinds followed the parent (housekeeping, not an undo step)
+            if !bucket.readOnly, let root = layout?.root.path, kindsNormalized != root {
+                kindsNormalized = root
+                if let n = try? await store.normalizeCollectionKinds(), n > 0 { bucket.nudge() }
+            }
             let colls = try await store.index.collections()
             let canonMembers: Set<String>
             if let canon = Canon.collection(in: colls) {
@@ -1213,7 +1220,7 @@ final class AppModel {
         case .commandPalette: panel = .commandK
         case .zoomIn: zoom(by: 1.25)
         case .zoomOut: zoom(by: 1 / 1.25)
-        case .newCollection: promptNewCollection(kind: "collection", parent: nil)
+        case .newCollection: promptNewCollection(parent: nil)
         case .newSmartFolder: smartEditor = SmartEditorState()
         }
     }
@@ -1339,14 +1346,16 @@ final class AppModel {
 
     // MARK: Collections
 
-    func promptNewCollection(kind: String, parent: String?, thenAdd ids: [String] = []) {
+    /// A collection at the top level, a folder inside one (see `GrailsCollection.kind(parentId:)`).
+    func promptNewCollection(parent: String?, thenAdd ids: [String] = []) {
+        let kind = GrailsCollection.kind(parentId: parent)
         prompt = PromptRequest(
             title: kind == "folder" ? "New Folder" : "New Collection", placeholder: kind == "folder" ? "Folder name" : "Collection name", confirmTitle: "Create"
         ) { [weak self] name in
             guard let self, !name.isEmpty else { return }
             Task {
                 let created = await self.perform(kind == "folder" ? "New Folder" : "New Collection") { store in
-                    let c = try await store.createCollection(name: name, kind: kind, parentId: parent)
+                    let c = try await store.createCollection(name: name, parentId: parent)
                     if !ids.isEmpty { try await store.add(ids: ids, toCollection: c.id) }
                     return c.id
                 }
@@ -1391,6 +1400,12 @@ final class AppModel {
     func setCoverFromSelection(_ c: GrailsCollection) {
         guard let id = selection.first else { showToast("Select an item first"); return }
         Task { await perform("Set Cover") { try await $0.setCover(itemId: id, for: c.id) } }
+    }
+
+    /// The collection or folder that's open, where "New Folder" puts the new one. Never Holy Grail.
+    var folderParent: GrailsCollection? {
+        guard case .collection(let id) = source, let c = collections.first(where: { $0.id == id }), !c.isCanon else { return nil }
+        return c
     }
 
     func moveCollection(_ id: String, intoFolder folder: String) {

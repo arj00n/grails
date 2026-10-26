@@ -37,7 +37,7 @@ struct GrailsApp: App {
             }
             CommandGroup(replacing: .newItem) {
                 GrailsMenuItem("New Collection…", shortcut: shortcuts.shortcut(for: .newCollection)) { model.run(.newCollection) }
-                GrailsMenuItem("New Folder…") { model.promptNewCollection(kind: "folder", parent: nil) }
+                GrailsMenuItem("New Folder…", enabled: model.folderParent != nil) { model.promptNewCollection(parent: model.folderParent?.id) }
                 GrailsMenuItem("New Smart Folder…", shortcut: shortcuts.shortcut(for: .newSmartFolder)) { model.run(.newSmartFolder) }
                 Divider()
                 GrailsMenuItem("Import Boards…", shortcut: Shortcut("i", [.command, .shift])) { model.promptImportBoard() }

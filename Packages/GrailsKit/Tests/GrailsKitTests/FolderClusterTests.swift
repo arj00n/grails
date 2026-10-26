@@ -82,6 +82,18 @@ import Testing
         #expect(FolderClusters.edit(from: old, to: [moved], folders: ["F1"]).isEmpty)
     }
 
+    @Test func aFoldedClusterStaysFoldedAndOldBoardsReadOpen() throws {
+        let old = #"{"id":"F1","title":"Brand","x":0,"y":0,"width":900,"tile":260,"items":["a"],"at":1}"#
+        let read = try JSONDecoder().decode(CanvasCluster.self, from: Data(old.utf8))
+        #expect(!read.collapsed)
+        #expect(!String(decoding: try JSONEncoder().encode(read), as: UTF8.self).contains("collapsed"))
+        var folded = read
+        folded.collapsed = true
+        #expect(try JSONDecoder().decode(CanvasCluster.self, from: JSONEncoder().encode(folded)).collapsed)
+        let out = FolderClusters.reconcile(stored: [folded], folders: [brand], visible: ["a", "b"])
+        #expect(out.first { $0.id == "F1" }?.collapsed == true)
+    }
+
     @Test func repeatedPicturesGetTheirOwnTileKeys() {
         let keyed = TileKey.keyed([CanvasCluster(id: "F1", items: ["a", "b"]), CanvasCluster(id: "F2", items: ["b", "c"])])
         #expect(keyed[0].items == ["a", "b"])

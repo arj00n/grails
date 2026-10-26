@@ -5,6 +5,7 @@ struct GridSection: Equatable {
     let id: String
     let title: String
     var ids: [String]
+    var collapsed = false
 }
 
 extension AppModel {
@@ -45,7 +46,7 @@ extension AppModel {
             for c in folderBoard == nil ? sectionClusters : TileKey.keyed(sectionClusters) {
                 let ids = c.items.filter { visible.contains(TileKey.item($0)) && !seen.contains($0) }
                 seen.formUnion(ids)
-                sections.append(GridSection(id: c.id, title: c.title, ids: ids))
+                sections.append(GridSection(id: c.id, title: c.title, ids: ids, collapsed: c.collapsed))
             }
             let orphans = items.map(\.id).filter { !seen.contains($0) }
             if !orphans.isEmpty { sections[0].ids += orphans }

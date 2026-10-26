@@ -73,8 +73,7 @@ struct SidebarView: View {
                 if showCollections {
                     SidebarHeader(title: "Collections", expanded: $expandCollections) {
                         GrailsMenu {
-                            GrailsControl("New Collection…") { model.promptNewCollection(kind: "collection", parent: nil) }
-                            GrailsControl("New Folder…") { model.promptNewCollection(kind: "folder", parent: nil) }
+                            GrailsControl("New Collection…") { model.promptNewCollection(parent: nil) }
                             GrailsControl("New Smart Folder…") { model.run(.newSmartFolder) }
                         } label: { BarIcon(symbol: "plus", size: 22) }
                             .accessibilityIdentifier("sidebar-add")
@@ -282,7 +281,7 @@ private struct CollectionNode: View {
 
     var body: some View {
         let children = model.collections.filter { $0.parentId == collection.id && !$0.archived && $0.id != model.canonCollection?.id }
-        let hasChildren = collection.kind == "folder" || !children.isEmpty
+        let hasChildren = !children.isEmpty
         label(hasChildren: hasChildren)
         if hasChildren, open {
             ForEach(children) { CollectionNode(model: model, collection: $0, depth: depth + 1, targeted: $targeted) }
@@ -317,12 +316,9 @@ private struct CollectionNode: View {
                 libraryTransferMenu
                 GrailsControl("Copy Link") { model.copyLink(.collection(collection.id)) }
                 GrailsControl("Rename…") { model.promptRenameCollection(collection) }
-                if collection.kind == "folder" {
-                    GrailsControl("New Collection Inside…") { model.promptNewCollection(kind: "collection", parent: collection.id) }
-                    GrailsControl("New Folder Inside…") { model.promptNewCollection(kind: "folder", parent: collection.id) }
-                }
+                GrailsControl("New Folder Inside…") { model.promptNewCollection(parent: collection.id) }
                 GrailsControl("Duplicate") { model.duplicateCollection(collection) }
-                if collection.kind != "folder" { GrailsControl("Use Selected Item as Cover") { model.setCoverFromSelection(collection) } }
+                GrailsControl("Use Selected Item as Cover") { model.setCoverFromSelection(collection) }
                 Divider()
                 GrailsControl("Archive") { model.archiveCollection(collection, true) }
                 GrailsControl("Delete…", role: .destructive) { model.confirmDeleteCollection(collection) }
@@ -344,7 +340,8 @@ extension View {
         .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.horizontal, 8).allowsHitTesting(false) } }
     }
 
-    /// Collections and folders accept item ids. Files import onto a collection. A collection drag moves into a folder or reorders.
+    /// Collections and folders accept item ids and files alike. A collection dragged onto a sibling reorders; onto any other
+    /// row it moves inside.
     func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>) -> some View {
         let id = "c-\(collection.id)"
         return onDrop(of: DropLoader.accepted, isTargeted: Binding(get: { targeted.wrappedValue == id }, set: { targeted.wrappedValue = $0 ? id : nil })) { providers in
@@ -353,9 +350,10 @@ extension View {
                 if ItemPlacement.acceptsItemDrop(kind: collection.kind, itemIDs: d.itemIDs) {
                     model.dropItems(ids: d.itemIDs, onto: .collection(collection.id))
                 } else if let moved = d.collectionIDs.first, moved != collection.id {
-                    if collection.kind == "folder" { model.moveCollection(moved, intoFolder: collection.id) }
-                    else if let c = model.collections.first(where: { $0.id == moved }) { _ = c; model.moveCollection(moved, after: collection) }
-                } else if !d.files.isEmpty, collection.kind != "folder" {
+                    // onto a sibling it reorders; onto anything else it goes inside, and becomes a folder there
+                    if model.collections.first(where: { $0.id == moved })?.parentId == collection.parentId { model.moveCollection(moved, after: collection) }
+                    else { model.moveCollection(moved, intoFolder: collection.id) }
+                } else if !d.files.isEmpty {
                     await model.importFiles(d.files, collectionId: collection.id)
                 }
             }

@@ -53,6 +53,7 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage(GrailsMotionPreference.key) private var motion = GrailsMotionPreference.system.rawValue
     @State private var nameDraft = ""
+    @State private var escape = SettingsEscape()
     @State private var savingName = false
     @State private var nameError: String?
     @State private var nameSaved = false
@@ -95,9 +96,6 @@ struct SettingsView: View {
         .background(Ink.canvas)
         // the page is opaque and takes every click, so nothing reaches the library under it
         .contentShape(Rectangle())
-        .background {
-            GrailsControl("") { model.escapeSettings() }.keyboardShortcut(.cancelAction).frame(width: 0, height: 0).opacity(0)
-        }
         .accessibilityIdentifier("settings-page")
         .onAppear {
             libraryNameDraft = model.libraryName
@@ -107,7 +105,8 @@ struct SettingsView: View {
                 savingName = true
             }
         }
-        .onDisappear { Task { await saveName() } }
+        .onAppear { escape.start { model.escapeSettings() } }
+        .onDisappear { escape.stop(); Task { await saveName() } }
         .onChange(of: model.libraryName) { libraryNameDraft = model.libraryName }
         .task { await model.refreshAutoTagSkipped() }
     }
@@ -372,6 +371,32 @@ struct SettingsView: View {
     }
 }
 
+/// Esc anywhere on the page goes back, a text field included (the name saves on the way out). A shortcut being recorded
+/// takes Esc itself, and a modal over the page keeps it (see `escapeSettings`).
+@MainActor
+private final class SettingsEscape {
+    private var monitor: Any?
+
+    func start(_ onEscape: @escaping @MainActor () -> Void) {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function])
+            guard event.keyCode == 53, flags.isEmpty else { return event }
+            let handled = MainActor.assumeIsolated {
+                guard !ShortcutsSettings.recordingActive, !GrailsModalLayer.shared.hasOpenModal else { return false }
+                onEscape()
+                return true
+            }
+            return handled ? nil : event
+        }
+    }
+
+    func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
+    }
+}
+
 struct MigrateLibrarySheet: View {
     @Bindable var model: AppModel
     private func dismiss() { model.showMigrateSheet = false }
@@ -465,6 +490,8 @@ struct ShortcutsSettings: View {
     @State private var recording: ShortcutAction?
     @State private var message: String?
     @State private var monitor: Any?
+    /// While a shortcut is being recorded, Esc cancels the recording instead of closing Settings.
+    static var recordingActive = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(SettingsGroupMetrics.groupGap)) {
@@ -493,6 +520,7 @@ struct ShortcutsSettings: View {
         stopRecording()
         recording = a
         message = nil
+        Self.recordingActive = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let code = event.keyCode
             let shortcut = Shortcut(event: event)
@@ -509,6 +537,7 @@ struct ShortcutsSettings: View {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = nil
+        Self.recordingActive = false
     }
 }
 

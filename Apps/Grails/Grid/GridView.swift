@@ -39,6 +39,7 @@ struct GridView: NSViewRepresentable {
         cv.onEscape = { [weak c] in c?.escape() }
         cv.onSearch = { [weak c] in c?.model.focusSearchTick += 1 }
         cv.onRenameSection = { [weak c] i in c?.beginRenameSection(at: i) ?? false }
+        cv.onToggleSection = { [weak c] i in c?.toggleSection(at: i) }
         cv.onZoom = { [weak c] factor, p in c?.hitch?.noteActivity(); c?.zoom(by: factor, at: p) }
         cv.onZoomEnd = { [weak c] in c?.flushPendingZoom(); c?.scheduleSettle(after: 0.03) }
         cv.onScrollActivity = { [weak c] in c?.hitch?.noteActivity() }
@@ -368,7 +369,8 @@ struct GridView: NSViewRepresentable {
             var flat: [ItemSummary] = []
             flat.reserveCapacity(model.items.count + sections.count)
             for sec in sections {
-                flat.append(.sectionHeader(id: sec.id, title: sec.title, count: sec.ids.count))
+                flat.append(.sectionHeader(id: sec.id, title: sec.title, count: sec.ids.count, collapsed: sec.collapsed))
+                if sec.collapsed { continue }
                 // a picture in two folders is a second tile, under its own key
                 for key in sec.ids {
                     guard var it = byID[TileKey.item(key)] else { continue }
@@ -950,6 +952,12 @@ struct GridView: NSViewRepresentable {
             guard let cv = collectionView else { return }
             let first = cv.selectionIndexPaths.sorted().first(where: { items[safe: $0.item]?.kind != .section })
             if let id = first.flatMap({ items[safe: $0.item]?.id }) { model.openPreview(TileKey.item(id)) }
+        }
+
+        /// The arrow in front of a section's title folds it to its title, or opens it again.
+        func toggleSection(at index: Int) {
+            guard let s = items[safe: index], s.kind == .section else { return }
+            model.toggleClusterCollapsed(s.id.hasPrefix("section:") ? String(s.id.dropFirst("section:".count)) : s.id)
         }
 
         /// Double-clicking a section's title edits its name in place.

@@ -16,6 +16,7 @@ final class GrailsCollectionView: NSCollectionView {
     private var pressedAt: CGPoint = .zero
     /// Double-click on an item; true when it was a section title and got renamed in place instead of opened.
     var onRenameSection: ((Int) -> Bool)?
+    var onToggleSection: ((Int) -> Void)?
     var onEscape: (() -> Void)?
     var onSearch: (() -> Void)?
     /// Multiplicative zoom (1.02 = 2% bigger) about a point in this view's coordinates, delivered continuously while
@@ -81,6 +82,11 @@ final class GrailsCollectionView: NSCollectionView {
         }
         let down = event.locationInWindow
         let hit = indexPathForItem(at: convert(down, from: nil))
+        // the arrow in front of a section's title folds it; a fast second click on it doesn't rename
+        if let hit, let cell = item(at: hit) as? ThumbCell, cell.isSection, cell.sectionArrowContains(cell.view.convert(down, from: nil)) {
+            if event.clickCount == 1 { onToggleSection?(hit.item) }
+            return
+        }
         // double-clicking a section's title edits its name
         if event.clickCount == 2, let hit {
             super.mouseDown(with: event)

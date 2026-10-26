@@ -209,10 +209,10 @@ public actor LibraryStore {
     @discardableResult
     /// `id` is given when a canvas cluster becomes a folder: the folder keeps the cluster's id, so two Macs turning the same
     /// cluster into a folder make one folder, not two.
-    public func createCollection(id: String = ULID().string, name: String, kind: String = "collection", parentId: String? = nil) async throws -> GrailsCollection {
+    public func createCollection(id: String = ULID().string, name: String, parentId: String? = nil) async throws -> GrailsCollection {
         let siblings = try await index.collections().filter { $0.parentId == parentId }
         let c = GrailsCollection(
-            id: id, kind: kind, name: name, parentId: parentId, order: FractionalIndex.after(siblings.last?.order), updatedBy: userHandle
+            id: id, kind: GrailsCollection.kind(parentId: parentId), name: name, parentId: parentId, order: FractionalIndex.after(siblings.last?.order), updatedBy: userHandle
         )
         try await persistCollection(c)
         return c

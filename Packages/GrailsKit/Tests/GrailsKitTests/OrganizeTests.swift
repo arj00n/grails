@@ -61,10 +61,10 @@ import Testing
 
     @Test func nestingMovingAndCycleProtection() async throws {
         let (store, _, _) = try await store(withItems: 0)
-        let folder = try await store.createCollection(name: "Campaigns", kind: "folder")
+        let folder = try await store.createCollection(name: "Campaigns")
         let a = try await store.createCollection(name: "Diwali", parentId: folder.id)
         let b = try await store.createCollection(name: "Holi", parentId: folder.id)
-        let sub = try await store.createCollection(name: "Sub", kind: "folder", parentId: folder.id)
+        let sub = try await store.createCollection(name: "Sub", parentId: folder.id)
         #expect(try await store.collectionTree(rootedAt: folder.id) == [folder.id, a.id, b.id, sub.id])
 
         try await store.moveCollection(id: b.id, toParent: folder.id, after: nil)        // to the front
@@ -77,9 +77,29 @@ import Testing
         #expect(try await store.index.collections().filter { $0.parentId == nil }.map(\.name) == ["Campaigns", "Diwali"])
     }
 
+    @Test func kindFollowsWhereItSits() async throws {
+        let (store, _, _) = try await store(withItems: 0)
+        let project = try await store.createCollection(name: "Diwali")
+        let part = try await store.createCollection(name: "Posters", parentId: project.id)
+        #expect(project.kind == "collection" && part.kind == "folder")
+        try await store.moveCollection(id: part.id, toParent: nil)
+        #expect(await store.readCollection(id: part.id)?.kind == "collection")
+        try await store.moveCollection(id: project.id, toParent: part.id)
+        #expect(await store.readCollection(id: project.id)?.kind == "folder")
+
+        // written before the kind followed the parent
+        var stale = try #require(await store.readCollection(id: part.id))
+        stale.kind = "folder"
+        try AtomicFile.writeJSON(stale, to: store.layout.collectionURL(stale.id))
+        try await store.index.upsertCollection(stale, mtime: 0)
+        #expect(try await store.normalizeCollectionKinds() == 1)
+        #expect(await store.readCollection(id: part.id)?.kind == "collection")
+        #expect(try await store.normalizeCollectionKinds() == 0)
+    }
+
     @Test func folderShowsUnionOfItsCollections() async throws {
         let (store, items, _) = try await store(withItems: 4)
-        let folder = try await store.createCollection(name: "F", kind: "folder")
+        let folder = try await store.createCollection(name: "F")
         let a = try await store.createCollection(name: "A", parentId: folder.id)
         let b = try await store.createCollection(name: "B", parentId: folder.id)
         try await store.add(ids: [items[0].id, items[1].id], toCollection: a.id)
@@ -107,7 +127,7 @@ import Testing
 
     @Test func duplicateAndDeleteCollection() async throws {
         let (store, items, _) = try await store(withItems: 2)
-        let folder = try await store.createCollection(name: "F", kind: "folder")
+        let folder = try await store.createCollection(name: "F")
         let child = try await store.createCollection(name: "Child", parentId: folder.id)
         try await store.add(ids: items.map(\.id), toCollection: child.id)
 
