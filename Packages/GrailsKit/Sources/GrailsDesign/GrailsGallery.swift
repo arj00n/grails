@@ -8,7 +8,7 @@ public struct GrailsDesignGallery: View {
         ScrollView {
             VStack(alignment: .leading, spacing: CGFloat(Space.xxl)) {
                 Text("Grails Design")
-                    .font(ChromeFont.display(TypeScale.page))
+                    .font(ChromeFont.title(TypeScale.page))
                     .tracking(TypeScale.pageTracking)
                     .foregroundStyle(GrailsColor.text)
                 GrailsAppearanceColumn(scheme: .light)

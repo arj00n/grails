@@ -16,7 +16,7 @@ struct JoinProblemView: View {
         let copy = state.copy
         VStack(alignment: .leading, spacing: 18) {
             CollabHeader(title: state.name) { c.closeJoin(state, resolving: false) }
-            Text(copy.title).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
+            Text(copy.title).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
                 .accessibilityIdentifier("join-problem-\(copy.primary.rawValue)")
             StepsList(copy.steps)
             HStack(spacing: 6) {
@@ -157,7 +157,7 @@ private struct JoinFloatView: View {
         let copy = state.copy
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text(state.name.uppercased()).font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).lineLimit(1)
+                Text(state.name).font(.grailsTitle(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).lineLimit(1)
                 Spacer()
                 GrailsControl(press: .icon, action: close) { Image(systemName: "xmark").font(ChromeFont.symbol(10, weight: .semibold)).foregroundStyle(Ink.secondary) }
                     .accessibilityLabel("Close")

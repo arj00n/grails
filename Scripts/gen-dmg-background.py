@@ -77,7 +77,7 @@ def render():
     plate(out, t, cw // 2 - 62, ch - 27, cw // 2 + 62, ch - 5)
     img = Image.fromarray(out).resize((W * S, H * S), Image.NEAREST)
     d = ImageDraw.Draw(img)
-    title = ImageFont.truetype(os.path.join(FONTS, "GeistMono-Regular.ttf"), 26 * S)
+    title = ImageFont.truetype(os.path.join(FONTS, "Geist-Bold.ttf"), 26 * S)
     bold = ImageFont.truetype(os.path.join(FONTS, "Geist-Bold.ttf"), 15 * S)
     body = ImageFont.truetype(os.path.join(FONTS, "Geist-Regular.ttf"), 11 * S)
     cx = W * S // 2

@@ -150,11 +150,11 @@ struct BucketInviteSheet: View {
     @ViewBuilder private var share: some View {
         if let card = model.bucket.share {
             VStack(alignment: .leading, spacing: CGFloat(ChromeMetrics.groupGap)) {
-                GrailsCopyField("Link", value: card.link, mono: true, size: TypeScale.monoLink, tracking: TypeScale.monoLinkTracking, identifier: "invite-copy-link") {
+                GrailsCopyField("Link", value: card.link, size: TypeScale.inviteLink, identifier: "invite-copy-link") {
                     model.bucket.copy(card.link)
                     model.showToast("Link copied")
                 }
-                GrailsCopyField("Code", value: codeShown, mono: true, size: TypeScale.monoCode, tracking: TypeScale.monoCodeTracking, identifier: "invite-copy-code", accessory: codeHidden ? ChromeIcon.reveal : ChromeIcon.conceal, accessoryLabel: codeHidden ? "Show code" : "Hide code", onAccessory: { codeHidden.toggle() }) {
+                GrailsCopyField("Code", value: codeShown, size: TypeScale.inviteCode, identifier: "invite-copy-code", accessory: codeHidden ? ChromeIcon.reveal : ChromeIcon.conceal, accessoryLabel: codeHidden ? "Show code" : "Hide code", onAccessory: { codeHidden.toggle() }) {
                     model.bucket.copy(card.code)
                     model.showToast("Code copied")
                 }

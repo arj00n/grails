@@ -137,7 +137,7 @@ struct SettingsView: View {
     private var backBar: some View {
         HStack(spacing: 6) {
             BarButton(symbol: "chevron.left", help: "Back to the library (Esc)", identifier: "settings-back") { model.closeSettings() }
-            Text("Settings").font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+            Text("Settings").font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
             Spacer(minLength: 0)
         }
         .padding(.leading, TrafficLightMetrics.shared.leading)
@@ -163,7 +163,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(selectedTab.title).font(.grailsDisplay(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
+            Text(selectedTab.title).font(.grailsTitle(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
             Text(selectedTab.summary).font(.grailsBody(13)).foregroundStyle(Ink.secondary)
         }
         .padding(.bottom, 36)
@@ -233,7 +233,7 @@ struct SettingsView: View {
                         .frame(width: Self.controlWidth)
                 }
                 GrailsSettingsRow("Existing items") {
-                    if let p = model.autoTagProgress { Text("\(p.done) of \(p.total)").foregroundStyle(Ink.secondary).monospacedDigit() }
+                    if let p = model.autoTagProgress { Text("\(p.done) of \(p.total)").font(.grailsBody(CGFloat(TypeScale.body))).foregroundStyle(Ink.secondary).monospacedDigit() }
                     GrailsButton("Tag existing items now", kind: .secondary) { model.autoTagEverything() }
                 }
                 if !model.autoTagSkipped.isEmpty {
@@ -326,7 +326,7 @@ struct SettingsView: View {
                     .disabled(!updater.checksAutomatically)
                 GrailsSettingsRow("Last checked") {
                     if let d = updater.lastChecked {
-                        Text(d.formatted(.relative(presentation: .named))).foregroundStyle(Ink.secondary).monospacedDigit()
+                        Text(d.formatted(.relative(presentation: .named))).font(.grailsBody(CGFloat(TypeScale.body))).foregroundStyle(Ink.secondary).monospacedDigit()
                     }
                     GrailsButton("Check now", kind: .secondary, enabled: updater.canCheck) { updater.checkForUpdates() }
                 }

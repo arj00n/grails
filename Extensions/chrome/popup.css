@@ -1,7 +1,6 @@
 /* Popup chrome. Tokens match docs/design/mockups/tokens.md. Light and dark follow the system. */
 @font-face { font-family: "Geist"; src: url("fonts/Geist-Regular.ttf"); font-weight: 400; font-style: normal; }
 @font-face { font-family: "Geist"; src: url("fonts/Geist-Bold.ttf"); font-weight: 700; font-style: normal; }
-@font-face { font-family: "Geist Mono"; src: url("fonts/GeistMono-Regular.ttf"); font-weight: 400; font-style: normal; }
 
 :root {
   color-scheme: light;
@@ -58,8 +57,8 @@ body {
 }
 
 header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
-h1 { margin: 0; font: 400 15px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: -0.15px; color: var(--text); }
-h2 { margin: 20px 0 12px; font: 400 13px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: 0; color: var(--text); }
+h1 { margin: 0; font: 700 15px/1.2 Geist, -apple-system, system-ui, sans-serif; letter-spacing: -0.15px; color: var(--text); }
+h2 { margin: 20px 0 12px; font: 700 13px/1.2 Geist, -apple-system, system-ui, sans-serif; letter-spacing: 0; color: var(--text); }
 #status { display: flex; align-items: center; gap: 6px; font-size: 12px; line-height: 1.5; color: var(--secondary); }
 .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--status-offline); flex: none; }
 .dot.ok { background: var(--status-ok); }

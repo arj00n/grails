@@ -1,22 +1,22 @@
 # Grails UI tokens (1pt = 1 CSS px; PNGs rendered @2x)
 
 ## Font
-Geist (UI/body), Geist Bold (section headers), and Geist Mono (titles, link, invite code). Shipped files: Geist-Regular (400), Geist-Bold (700), GeistMono-Regular (400). No other weights are used.
-SwiftUI: `.custom("Geist-Regular", size:)`, `.custom("Geist-Bold", size:)`, `.custom("GeistMono-Regular", size:)`.
+Geist (text) and Geist Bold (titles and section headers). Shipped files: Geist-Regular (400) and Geist-Bold (700). No other weights are used.
+SwiftUI: `.custom("Geist-Regular", size:)` and `.custom("Geist-Bold", size:)`. Titles use the bold file through `ChromeFont.title`. Invite links and codes use Geist Regular with tabular digits and no extra tracking.
 
 ## Type
 | Role | Font | Size | Weight | Tracking | Color |
 |---|---|---|---|---|---|
-| Page title ("Team") | Geist Mono | 20 | Regular 400 | -0.02em | text |
-| Sheet title ("Invite") | Geist Mono | 15 | Regular 400 | -0.01em | text |
+| Page title ("Team") | Geist Bold | 20 | Bold 700 | -0.02em | text |
+| Sheet title ("Invite") | Geist Bold | 15 | Bold 700 | -0.01em | text |
 | Section header ("People") | Geist | 13 | Bold 700 | 0 | text |
 | Body / field value / row title | Geist | 13 | Regular 400 | 0 | text |
 | Field label | Geist | 12 | Regular 400 | 0 | secondary |
 | Helper / meta / row subtitle | Geist | 12 | Regular 400, line-height 1.5 | 0 | secondary / tertiary |
 | Button label (primary + secondary) | Geist | 13 | Regular 400 | 0 | per button |
 | Quiet action | Geist | 12 | Regular 400 | 0 | secondary |
-| Invite link | Geist Mono | 12 | Regular 400 | -0.01em | text |
-| Invite code | Geist Mono | 15 | Regular 400 | +0.08em | text |
+| Invite link | Geist | 12 | Regular 400 | 0, tabular digits | text |
+| Invite code | Geist | 15 | Regular 400 | 0, tabular digits | text |
 | Avatar initial | Geist | 12 | Bold 700 | 0 | secondary |
 
 ## Colors

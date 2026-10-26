@@ -20,7 +20,6 @@ guard args.count == 2 else { print("usage: grails-share <Library.grails> <output
 // GRAILS_FONTS=<folder with the .ttf files in Apps/Grails/Resources/Fonts>: export with the app's typefaces
 if let dir = ProcessInfo.processInfo.environment["GRAILS_FONTS"] {
     func load(_ name: String) -> Data? { try? Data(contentsOf: URL(fileURLWithPath: dir).appendingPathComponent(name)) }
-    ExportFonts.display = load("GeistMono-Regular.ttf")
     ExportFonts.body = load("Geist-Regular.ttf")
     ExportFonts.bodyBold = load("Geist-Bold.ttf")
 }

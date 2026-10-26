@@ -17,14 +17,14 @@ import Testing
         let opened = open["title"] ?? .zero
         #expect(title.height > 40)
         #expect(opened.height > title.height + 8)
-        let font = ChromeNSFont.display(CGFloat(TypeScale.title))
+        let font = ChromeNSFont.title(CGFloat(TypeScale.title))
         #expect(TitleLines.needsMore(Self.essay, font: font, width: 268))
         #expect(!TitleLines.needsMore("Lamp", font: font, width: 268))
     }
 
     /// A tile caption wraps inside its own height. An in-place rename stays one line, so neither paints over the next line.
     @Test @MainActor func captionWrapsAndInlineTitleStaysOneLine() {
-        let font = ChromeNSFont.display(13)
+        let font = ChromeNSFont.title(13)
         let caption = GrailsCaption(frame: .zero)
         caption.font = font
         caption.stringValue = Self.essay
@@ -38,7 +38,7 @@ import Testing
         #expect(wrapped < line * 6)
 
         let field = GrailsValueField()
-        field.font = ChromeNSFont.display(CGFloat(TypeScale.title))
+        field.font = ChromeNSFont.title(CGFloat(TypeScale.title))
         field.stringValue = Self.essay
         let single = field.sizeThatFits(NSSize(width: 200, height: 400)).height
         #expect(single < field.font!.boundingRectForFont.height + 8)
@@ -96,10 +96,10 @@ private struct InspectorColumn: View {
     @FocusState private var focus: Bool
 
     var body: some View {
-        let font = ChromeNSFont.display(CGFloat(TypeScale.title))
+        let font = ChromeNSFont.title(CGFloat(TypeScale.title))
         VStack(alignment: .leading, spacing: 14) {
             VStack(alignment: .leading, spacing: 4) {
-                GrailsPlainField("Item name", text: .constant(text), axis: .vertical, size: TypeScale.title, display: true, focus: $focus, equals: true, idle: false, lineLimit: expanded ? 1...32 : 1...TitleLines.collapsed)
+                GrailsPlainField("Item name", text: .constant(text), axis: .vertical, size: TypeScale.title, title: true, focus: $focus, equals: true, idle: false, lineLimit: expanded ? 1...32 : 1...TitleLines.collapsed)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .report("title")

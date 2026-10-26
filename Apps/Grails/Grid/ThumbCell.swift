@@ -165,7 +165,7 @@ final class ThumbCell: NSCollectionViewItem {
         caption.lineBreakMode = .byTruncatingTail
         captionBar.addSubview(caption)
         v.addSubview(captionBar)
-        titleLabel.font = .grailsDisplay(CGFloat(TypeScale.body))
+        titleLabel.font = .grailsTitle(CGFloat(TypeScale.body))
         titleLabel.textColor = .ink(.text)
         titleLabel.alignment = .center
         titleLabel.maximumNumberOfLines = 4
@@ -179,7 +179,7 @@ final class ThumbCell: NSCollectionViewItem {
         v.addSubview(siteLabel)
         badge.isHidden = true
         v.addSubview(badge)
-        sectionLabel.font = .grailsDisplay(CGFloat(TypeScale.page))
+        sectionLabel.font = .grailsTitle(CGFloat(TypeScale.page))
         sectionLabel.textColor = .ink(.text)
         sectionLabel.alignment = .left
         sectionLabel.isHidden = true
@@ -252,7 +252,7 @@ final class ThumbCell: NSCollectionViewItem {
         if !sectionLabel.isHidden {
             if !lite || cachedSection == nil { cachedSection = sectionLabel.intrinsicContentSize }
             let s = cachedSection ?? sectionLabel.intrinsicContentSize
-            let font = sectionLabel.font ?? NSFont.grailsDisplay(CGFloat(TypeScale.page))
+            let font = sectionLabel.font ?? NSFont.grailsTitle(CGFloat(TypeScale.page))
             let h = GrailsClusterTitle.lineHeight(for: font)
             let w = min(max(ceil(s.width), 0), max(0, b.width - 2))
             let indent = Self.sectionArrowWidth
@@ -285,7 +285,7 @@ final class ThumbCell: NSCollectionViewItem {
     func beginRenamingSection(text: String, commit: @escaping (String) -> Void) {
         guard isSection else { return }
         view.layoutSubtreeIfNeeded()
-        let field = InlineTitleField(text: text, font: .grailsDisplay(CGFloat(TypeScale.page)))
+        let field = InlineTitleField(text: text, font: .grailsTitle(CGFloat(TypeScale.page)))
         sectionLabel.isHidden = true
         field.onFinish = { [weak self] new in
             self?.sectionLabel.isHidden = false
@@ -310,11 +310,11 @@ final class ThumbCell: NSCollectionViewItem {
         for v in [placeholder, heart, noteMark, captionBar, titleLabel, siteLabel, badge, cloud, avatar] as [NSView] { v.isHidden = true }
         let untitled = s.name.isEmpty
         let text = NSMutableAttributedString(string: untitled ? "Untitled" : s.name, attributes: [
-            .font: NSFont.grailsDisplay(CGFloat(TypeScale.page)),
+            .font: NSFont.grailsTitle(CGFloat(TypeScale.page)),
             .foregroundColor: NSColor.ink(untitled ? .secondary : .text),
         ])
         text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
-            .font: NSFont.grailsBody(16), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsDigits(16), .foregroundColor: NSColor.ink(.secondary),
         ]))
         if noted {
             text.append(NSAttributedString(string: "  note", attributes: [

@@ -15,12 +15,12 @@ struct InfoPanel: View {
                     InfoBlock(model: model, itemID: id)
                 } else if model.selection.count > 1 {
                     let chosen = model.selectedSummaries
-                    Text("\(model.selection.count) selected").font(.grailsDisplay(CGFloat(TypeScale.title)))
+                    Text("\(model.selection.count) selected").font(.grailsTitle(CGFloat(TypeScale.title)))
                     let bytes = chosen.reduce(Int64(0)) { $0 + ($1.bytes ?? 0) }
-                    if bytes > 0 { Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)).font(.grailsBody(12)).foregroundStyle(Ink.secondary) }
+                    if bytes > 0 { Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary) }
                 } else {
-                    Text(model.title).font(.grailsDisplay(CGFloat(TypeScale.title)))
-                    Text(model.countLabel).font(.grailsBody(12)).foregroundStyle(Ink.secondary)
+                    Text(model.title).font(.grailsTitle(CGFloat(TypeScale.title)))
+                    Text(model.countLabel).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary)
                 }
             }
             .padding(16)

@@ -362,7 +362,7 @@ final class CanvasNSView: NSView {
             h.isHidden = hidden
             let title = titles[c.id] ?? {
                 let t = GrailsClusterTitle(frame: .zero)
-                t.font = .grailsDisplay(CGFloat(TypeScale.body))
+                t.font = .grailsTitle(CGFloat(TypeScale.body))
                 // ends in "…" when the cluster is narrower than its name, instead of being cut mid-letter
                 t.cell?.isScrollable = false
                 t.cell?.truncatesLastVisibleLine = true
@@ -386,7 +386,7 @@ final class CanvasNSView: NSView {
     func beginRename(_ id: String) {
         guard editable, let c = clusters.first(where: { $0.id == id }), clusterFrames[id] != nil else { return }
         renaming?.field.finish(commit: true)
-        let field = InlineTitleField(text: c.title, font: .grailsDisplay(CGFloat(TypeScale.body)))
+        let field = InlineTitleField(text: c.title, font: .grailsTitle(CGFloat(TypeScale.body)))
         field.onFinish = { [weak self] text in
             guard let self else { return }
             self.renaming = nil
@@ -1405,18 +1405,18 @@ final class DustLayer: CALayer {
 
 /// The grip at the right end of a cluster's name. The name itself is a `GrailsClusterTitle`, so it uses the font's line and is not drawn by hand.
 final class ClusterHeaderLayer: CALayer {
-    static var heightPx: CGFloat { GrailsClusterTitle.lineHeight(for: .grailsDisplay(CGFloat(TypeScale.body))) }
+    static var heightPx: CGFloat { GrailsClusterTitle.lineHeight(for: .grailsTitle(CGFloat(TypeScale.body))) }
     private let grip = CAShapeLayer()
     var showsGrip = true { didSet { grip.isHidden = !showsGrip } }
 
     static func title(_ title: String, count: Int) -> NSAttributedString {
         let s = NSMutableAttributedString()
         s.append(NSAttributedString(string: title.isEmpty ? "Untitled" : title, attributes: [
-            .font: NSFont.grailsDisplay(CGFloat(TypeScale.body)),
+            .font: NSFont.grailsTitle(CGFloat(TypeScale.body)),
             .foregroundColor: NSColor.ink(title.isEmpty ? .secondary : .text),
         ]))
         s.append(NSAttributedString(string: "  \(count)", attributes: [
-            .font: NSFont.grailsBody(11), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsDigits(11), .foregroundColor: NSColor.ink(.secondary),
         ]))
         let p = NSMutableParagraphStyle()
         p.lineBreakMode = .byTruncatingTail

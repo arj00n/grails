@@ -98,7 +98,8 @@ test("a success toast is Geist, greys, and closed shadow, then dismisses itself"
   assert.ok(shown.shadow.children.includes(shown.card));
   assert.ok(!shown.host.children.includes(shown.label));
   assert.match(css, /font: 13px\/1\.5 Geist, "Geist"/);
-  assert.match(css, /"Geist Mono"/);
+  assert.match(css, /font: 400 12px\/1\.2 Geist, "Geist"/);
+  assert.doesNotMatch(css, /ui-monospace/);
   assert.match(css, /--text: #1A1A1A/);
   assert.match(css, /--text: #F3F4F6/);
   assert.match(css, /--status-ok: #2DA44E/);

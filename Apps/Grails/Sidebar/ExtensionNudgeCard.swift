@@ -11,7 +11,7 @@ struct ExtensionNudgeCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Save from your browser")
-                .font(.grailsDisplay(13))
+                .font(.grailsTitle(13))
                 .foregroundStyle(Ink.text)
                 .fixedSize(horizontal: false, vertical: true)
             Text("Send a page here without leaving the tab.")

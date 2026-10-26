@@ -354,7 +354,7 @@ struct RootView: View {
                 Text(model.mentionClusters.isEmpty ? "Nothing for you yet" : "On a cluster")
                 if !model.mentionClusters.isEmpty { mentionChips }
             } else if libraryIsEmpty {
-                Text("Nothing here yet").font(.grailsDisplay(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
+                Text("Nothing here yet").font(.grailsTitle(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
                 Text("Bring in a board you already love, or paste anything worth keeping.")
                     .font(.grailsBody(14)).foregroundStyle(Ink.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
                 HStack(spacing: 8) {
@@ -368,7 +368,7 @@ struct RootView: View {
                 Text("Nothing here yet")
             }
         }
-        .font(.grailsDisplay(CGFloat(TypeScale.page)))
+        .font(.grailsTitle(CGFloat(TypeScale.page)))
         .tracking(TypeScale.pageTracking)
         .foregroundStyle(Ink.secondary)
     }
@@ -443,7 +443,7 @@ struct RootView: View {
                 .padding(.leading, 10).padding(.trailing, 5).frame(height: 28)
                 .background(Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
             } else {
-                Text(model.title).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+                Text(model.title).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
             }
             Text(model.countLabel).font(.grailsBody(12)).foregroundStyle(Ink.tertiary).lineLimit(1).layoutPriority(-1)
         }

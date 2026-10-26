@@ -3,7 +3,7 @@ T={'light':dict(canvas='#ECECEA',bg='#FFFFFF',side='#F7F7F5',text='#1A1A1A',sec=
 'dark':dict(canvas='#0F0F11',bg='#1C1D20',side='#18191B',text='#F3F4F6',sec='#9A9CA2',ter='#6C6E75',border='#2A2B2F',fborder='#323338',field='#222326',focus='#5E6067',ring='rgba(243,244,246,0.08)',track='#26272B',seg='#36373C',pbg='#F3F4F6',pfg='#1C1D20',sbg='#26272B',sborder='#34353A',sfg='#F3F4F6',hover='#232427',sel='#2A2B2F',shadow='0 0 0 .5px rgba(255,255,255,.06),0 16px 48px rgba(0,0,0,.5)',segsh='0 1px 2px rgba(0,0,0,.3)',avatar='#2A2B2F',traffic='#3A3B40')}
 import base64
 def _ff(n,f,w):return '@font-face{font-family:"%s";src:url(data:font/ttf;base64,%s) format("truetype");font-weight:%d}'%(n,base64.b64encode(open('/workspace/mockups/fonts/'+f,'rb').read()).decode(),w)
-FONTS=_ff('Geist','Geist-Regular.ttf',400)+_ff('Geist','Geist-Bold.ttf',700)+_ff('Geist Mono','GeistMono-Regular.ttf',400)
+FONTS=_ff('Geist','Geist-Regular.ttf',400)+_ff('Geist','Geist-Bold.ttf',700)
 CSS=FONTS+'''*{box-sizing:border-box;margin:0}body{background:VAR(canvas);font-family:"Geist",sans-serif;color:VAR(text);-webkit-font-smoothing:antialiased;font-size:13px;letter-spacing:-.003em}
 .stage{display:inline-flex;gap:40px;padding:56px;align-items:flex-start}
 .sheet{width:440px;background:VAR(bg);border-radius:14px;box-shadow:VAR(shadow);padding:20px 24px 24px}
@@ -13,7 +13,7 @@ h1{font-size:15px;font-weight:700;letter-spacing:-.01em}
 .lbl{font-size:12px;font-weight:400;color:VAR(sec);margin-bottom:6px;display:block}
 .field{height:32px;border:1px solid VAR(fborder);background:VAR(field);border-radius:8px;padding:0 10px;display:flex;align-items:center;gap:8px;font-size:13px}
 .field.focus{border-color:VAR(focus);box-shadow:0 0 0 3px VAR(ring)}
-.ph{color:VAR(ter)}.mono{font-family:"Geist Mono",monospace;font-size:12px;letter-spacing:-.01em}
+.ph{color:VAR(ter)}.mono{font-family:"Geist",sans-serif;font-size:12px;font-variant-numeric:tabular-nums}
 .grp{margin-bottom:20px}
 .seg{display:flex;background:VAR(track);border-radius:8px;padding:2px;height:32px}
 .seg div{flex:1;display:grid;place-items:center;border-radius:6px;font-size:13px;color:VAR(sec);font-weight:400}
@@ -58,7 +58,7 @@ def invite():return f'''<div class="stage"><div><div class="cap">1 · Invite</di
 <div><div class="cap">2 · Share</div><div class="sheet"><div class="hd"><h1>Share invite</h1><div class="x">{X}</div></div>
 <p class="sub">Send the link, then share the code separately.</p>
 <div class="grp"><label class="lbl">Link</label><div class="row"><div class="field"><span class="mono" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">https://grails.arjoon.xyz/i/k3x9Qa2mPz7L</span></div><span class="btn s" style="height:32px">{COPY}Copy</span></div></div>
-<div class="grp"><label class="lbl">Code</label><div class="row"><div class="field" style="justify-content:space-between"><span class="mono" style="font-size:15px;letter-spacing:.08em;font-weight:400">482 917</span><span style="color:VAR(ter);display:flex">{EYE}</span></div><span class="btn s" style="height:32px">{COPY}Copy</span></div></div>
+<div class="grp"><label class="lbl">Code</label><div class="row"><div class="field" style="justify-content:space-between"><span class="mono" style="font-size:15px;font-weight:400">482 917</span><span style="color:VAR(ter);display:flex">{EYE}</span></div><span class="btn s" style="height:32px">{COPY}Copy</span></div></div>
 <div class="meta">{CLK}Expires in 24 hours</div>
 <div class="ft"><span class="btn p">Done</span></div></div></div></div>'''
 GEN=ic('<circle cx="8" cy="8" r="2"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4"/>')

@@ -10,7 +10,7 @@ struct ImportPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Import").font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
+                Text("Import").font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
                 Spacer()
                 BarButton(symbol: "xmark", help: "Close (Esc)", identifier: "import-close") { model.importPanelOpen = false }
             }

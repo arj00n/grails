@@ -68,15 +68,27 @@ grep -q 'proxy.size.height > 0.5' "$CHROME" || fail "a hidden rule does not pain
 grep -q 'ChromeMetrics.cardHeight' "$CHROME" || fail "card height"
 grep -q 'ModalDivider.shows' "$CHROME" || fail "footer divider ignores empty sides"
 grep -q 'showsFooter: flow.step != .choose' "$SHEET" || fail "chooser hides its footer"
-grep -q 'ChromeFont.display(TypeScale.title)' "$CHROME" || fail "sheet title is geist mono"
-grep -q 'ChromeFont.display(TypeScale.page)' "$ROOT/Packages/GrailsKit/Sources/GrailsDesign/GrailsGallery.swift" || fail "page title is geist mono"
+grep -q 'ChromeFont.title(TypeScale.title)' "$CHROME" || fail "sheet title is geist bold"
+grep -q 'ChromeFont.title(TypeScale.page)' "$ROOT/Packages/GrailsKit/Sources/GrailsDesign/GrailsGallery.swift" || fail "page title is geist bold"
 if grep -q 'ChromeFont.body(TypeScale.title, bold: true)\|ChromeFont.body(TypeScale.page, bold: true)' "$CHROME" "$ROOT/Packages/GrailsKit/Sources/GrailsDesign/GrailsGallery.swift"; then
-  fail "a title is geist bold"
+  fail "a title uses the body bold call"
 fi
-if grep -R --include='*.swift' -q 'grailsBody(20, bold: true)' "$ROOT/Apps/Grails"; then fail "a page title is geist bold"; fi
+if grep -R --include='*.swift' -q 'grailsBody(20, bold: true)' "$ROOT/Apps/Grails"; then fail "a page title is body bold"; fi
 POPUP="$ROOT/Extensions/chrome/popup.css"
-grep -q 'font-family: "Geist Mono"' "$POPUP" || fail "popup loads geist mono"
-grep -q 'h1 {.*Geist Mono' "$POPUP" || fail "popup title is geist mono"
+grep -q 'h1 {.*700 15px/1.2 Geist' "$POPUP" || fail "popup title is geist bold"
+grep -q 'h2 {.*700 13px/1.2 Geist' "$POPUP" || fail "popup section is geist bold"
+# The banned face is assembled here so a search of this script does not require the face.
+mono_family="Geist"" Mono"
+mono_file="Geist""Mono"
+if grep -R -n -e "$mono_family" -e "$mono_file" \
+  "$ROOT/Apps" "$ROOT/Packages" "$ROOT/Extensions" "$ROOT/docs" \
+  "$ROOT/Scripts/gen-dmg-background.py" "$ROOT/Scripts/design-layout-proof.py"; then
+  fail "geist mono returned"
+fi
+if grep -R --include='*.swift' -n -e 'grailsDisplay' -e 'ChromeFont.display' -e 'ChromeNSFont.display' -e 'ExportFonts.display' -e 'Typography.displayName' \
+  "$ROOT/Apps" "$ROOT/Packages"; then
+  fail "the display font returned"
+fi
 echo "PASS view rules"
 
 # App chrome goes through GrailsDesign. A raw control, a system font, a system colour, or a header rule is a miss.

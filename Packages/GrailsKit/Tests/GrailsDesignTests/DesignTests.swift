@@ -200,7 +200,7 @@ import Testing
 }
 
 @Suite struct TypographyTests {
-    @Test func theThreeFacesAreDistinct() {
-        #expect(Typography.displayName != Typography.bodyName && Typography.bodyName != Typography.bodyBoldName)
+    @Test func theFacesAreDistinct() {
+        #expect(Typography.bodyName != Typography.bodyBoldName)
     }
 }
