@@ -28,7 +28,7 @@ final class CanvasNSView: NSView {
     var onOptionClick: ((String) -> Void)?
     var onSearch: (() -> Void)?
     /// False in views that have no board to save to (the Trash): items can be selected and previewed but not rearranged.
-    var editable = true { didSet { if oldValue != editable { for h in headers.values { h.isHidden = !editable }; for t in titles.values { t.isHidden = !editable } } } }
+    var editable = true { didSet { if oldValue != editable { updateHeaderGeometry() } } }
 
     // MARK: Data
     var layout: LibraryLayout?
@@ -387,8 +387,7 @@ final class CanvasNSView: NSView {
         field.onFinish = { [weak self] text in
             guard let self else { return }
             self.renaming = nil
-            self.headers[id]?.isHidden = !self.editable
-            self.titles[id]?.isHidden = !self.editable
+            self.updateHeaderGeometry()
             self.window?.makeFirstResponder(self)
             if let text, text.trimmingCharacters(in: .whitespaces) != c.title { self.onRenameClusterTo?(id, text) }
         }
@@ -406,19 +405,28 @@ final class CanvasNSView: NSView {
     }
 
     /// Title bars keep the same size on screen at every zoom, like Figma's frame names: each header is laid out in screen
-    /// points and scaled by 1/zoom, pinned just above its cluster's pictures.
+    /// points and scaled by 1/zoom, pinned just above its cluster's pictures. Like Figma's, a name is cut to its cluster's
+    /// width on screen and hidden once the cluster is too narrow to show any of it, so zoomed out names never overlap.
+    /// Narrower than this on screen, a cluster shows no name (a couple of letters and an ellipsis tell you nothing).
+    private static let minTitleWidth: CGFloat = 44
+
     private func updateHeaderGeometry() {
         let inv = 1 / max(scale, 0.0001)
         for c in clusters {
             guard let f = clusterFrames[c.id], let h = headers[c.id] else { continue }
-            let widthPx = max(f.width * scale, 220)                 // a narrow cluster's name still has room
+            let widthPx = f.width * scale
+            let grip = widthPx >= 140
+            let titleWidth = widthPx - (grip ? 30 : 0)
+            let hidden = !editable || renaming?.id == c.id
+            h.isHidden = hidden || titleWidth < Self.minTitleWidth
+            titles[c.id]?.isHidden = hidden || titleWidth < Self.minTitleWidth
             h.anchorPoint = .zero
             h.bounds = CGRect(x: 0, y: 0, width: widthPx, height: ClusterHeaderLayer.heightPx)
             h.position = CGPoint(x: f.minX, y: -(f.minY + ClusterLayout.headerHeight) + 7 * inv)
             h.setAffineTransform(CGAffineTransform(scaleX: inv, y: inv))
-            h.showsGrip = f.width * scale >= 140
+            h.showsGrip = grip
             let s = screenPoint(CGPoint(x: f.minX, y: f.minY + ClusterLayout.headerHeight))
-            titles[c.id]?.frame = NSRect(x: s.x, y: s.y + 4, width: widthPx - 30, height: ClusterHeaderLayer.heightPx)
+            titles[c.id]?.frame = NSRect(x: s.x, y: s.y + 4, width: max(titleWidth, 0), height: ClusterHeaderLayer.heightPx)
         }
         if let r = renaming { r.field.reposition(renameFrame(for: r.id)) }
     }
@@ -720,7 +728,8 @@ final class CanvasNSView: NSView {
             // the label row sits just above the pictures; it is a fixed size on screen, so the grab area is too
             let top = f.minY + ClusterLayout.headerHeight
             let hitHeight = max(ClusterLayout.headerHeight, 34 / scale)
-            let bar = CGRect(x: f.minX, y: top - hitHeight, width: max(f.width, 220 / scale), height: hitHeight)
+            guard headers[c.id]?.isHidden == false else { continue }
+            let bar = CGRect(x: f.minX, y: top - hitHeight, width: f.width, height: hitHeight)
             guard bar.contains(p) else { continue }
             let grip = 30 / scale
             return f.width * scale >= 140 && p.x > f.maxX - grip ? .grip(c.id) : .title(c.id)
