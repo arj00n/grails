@@ -8,7 +8,7 @@ The approved mockups in `docs/design/mockups/` are the source of truth. `tokens.
 
 Quiet. The picture is the colour. Chrome is near-monochrome.
 
-Type does the hierarchy. A title is Geist Mono. A section header is Geist Bold. A label is smaller and secondary. They are not different boxes.
+Type does the hierarchy. A title is Geist Bold. A section header is Geist Bold at a smaller size. A label is smaller and secondary. They are not different boxes.
 
 Space separates sections. A rule under a title or a section header is noise. A hairline is for a control edge, the sidebar edge, or a footer whose body actually scrolls.
 
@@ -22,7 +22,7 @@ Motion eases out and stays at or under 240 ms. Spatial motion may settle with a 
 
 Copy is short. A label names the thing. Help text is rare.
 
-Geist Mono is for titles, the invite link, and the invite code. Everything else is Geist Regular, except a section header or an avatar initial, which is Geist Bold.
+Geist Bold is for titles. Geist Regular is for text, including an invite link or an invite code, which use tabular digits. A section header or an avatar initial is Geist Bold at its own size.
 
 Do not restyle the dither, the painting wall, FluidDither, or SmokeField.
 
@@ -73,19 +73,19 @@ A swatch from a picture uses `GrailsHex.color`. That is data, not a chrome colou
 
 | Role | Face | Size | Tracking |
 | --- | --- | --- | --- |
-| Page title | Geist Mono | 20 | -0.02em |
-| Sheet title | Geist Mono | 15 | -0.01em |
+| Page title | Geist Bold | 20 | -0.02em |
+| Sheet title | Geist Bold | 15 | -0.01em |
 | Section header | Geist Bold | 13 | 0 |
 | Body, field value, row title | Geist | 13 | 0 |
 | Field label | Geist | 12 | 0, secondary |
 | Helper, meta, row subtitle | Geist | 12 | 0, secondary or tertiary |
 | Button | Geist | 13 | 0 |
 | Quiet action | Geist | 12 | 0, secondary |
-| Invite link | Geist Mono | 12 | -0.01em |
-| Invite code | Geist Mono | 15 | +0.08em |
+| Invite link | Geist | 12 | 0, tabular digits |
+| Invite code | Geist | 15 | 0, tabular digits |
 | Avatar initial | Geist Bold | 12 | 0, secondary |
 
-`ChromeFont.body`, `ChromeFont.display`, and `ChromeFont.symbol` are the only font constructors. `display` is Geist Mono, for a title, an invite link, or an invite code. `symbol` is for SF Symbols, 14 pt, regular, small. App code may call `.grailsBody` and `.grailsDisplay`. A page title is `.grailsDisplay` at 20. A sheet title is `.grailsDisplay` at 15. A section header such as People stays `.grailsBody` at 13, bold.
+`ChromeFont.body`, `ChromeFont.title`, and `ChromeFont.symbol` are the only font constructors. `title` is Geist Bold. The caller passes a size and does not pass a weight. `symbol` is for SF Symbols, 14 pt, regular, small. App code may call `.grailsBody` and `.grailsTitle`. A page title is `.grailsTitle` at 20. A sheet title is `.grailsTitle` at 15. A section header such as People stays `.grailsBody` at 13, bold. An invite link or code is `.grailsBody` with tabular digits.
 
 ## Space, radius, border, motion
 
@@ -207,7 +207,7 @@ Don't. An underline. A system `.pickerStyle(.segmented)`.
 
 `GrailsModal`. Header, body, footer.
 
-Anatomy. Title in Geist Mono 15, tracking -0.01em. Optional subtitle in 13 secondary. A 24 pt close control, tertiary. Padding 20 top, 24 sides, 24 bottom. Title to the first field is 20. Content to the footer is 28.
+Anatomy. Title in Geist Bold 15, tracking -0.01em. Optional subtitle in 13 secondary. A 24 pt close control, tertiary. Padding 20 top, 24 sides, 24 bottom. Title to the first field is 20. Content to the footer is 28.
 
 The footer is separated by space. A 1 px hairline is drawn only when the body is taller than 480 and scrolls. An empty body does not count.
 
@@ -217,7 +217,7 @@ Don't. A rule under the title. A rule on a short sheet. The steps of one flow as
 
 ### Settings
 
-Settings is a page of the main window, not a window and not a modal. It takes the place of the library: its section list where the library sidebar was (same width and fill, the sidebar edge hairline), the traffic lights, a back chevron and the title Settings in the top band, then the section's page. The page title is Geist Mono 20 with a one-line description, 36 to the first section, and no rule under either. ⌘,, the sidebar gear, and ⌘K open it; the back chevron, Esc, and ⌘[ close it. Esc goes to a modal first when one is open. The library stays mounted under the page, hidden from keys and the pointer, so closing Settings returns to the same scroll, selection, and preview. Anything Settings opens is a modal on the layer, above the page. `SettingsNavigation` holds the state and `SettingsNavigationTests` checks it.
+Settings is a page of the main window, not a window and not a modal. It takes the place of the library: its section list where the library sidebar was (same width and fill, the sidebar edge hairline), the traffic lights, a back chevron and the title Settings in the top band, then the section's page. The page title is Geist Bold 20 with a one-line description, 36 to the first section, and no rule under either. ⌘,, the sidebar gear, and ⌘K open it; the back chevron, Esc, and ⌘[ close it. Esc goes to a modal first when one is open. The library stays mounted under the page, hidden from keys and the pointer, so closing Settings returns to the same scroll, selection, and preview. Anything Settings opens is a modal on the layer, above the page. `SettingsNavigation` holds the state and `SettingsNavigationTests` checks it.
 
 ### Settings group
 
@@ -297,7 +297,7 @@ Don't. A sweeping sheen or shimmer, a glow, a fill on the unselected row, a loud
 
 `GrailsRow`. A 13 pt title, an optional 12 pt detail, and a trailing control.
 
-`GrailsEmpty`. A Geist Mono line and one sentence of secondary text. No illustration. It fades in and rises 4 pt.
+`GrailsEmpty`. A Geist Bold line and one sentence of secondary text. No illustration. It fades in and rises 4 pt.
 
 `GrailsPending`. A small turning spinner and one line. It shows only after 300 ms.
 

@@ -43,7 +43,7 @@ extension WebExporter {
 
         // cover
         beginPage()
-        draw(title, at: CGPoint(x: margin + 20, y: pageH / 2 + 10), size: 84, weight: 0.4, gray: 0.95, ctx: ctx, maxWidth: pageW - margin * 2 - 40)
+        draw(title, at: CGPoint(x: margin + 20, y: pageH / 2 + 10), size: 84, title: true, gray: 0.95, ctx: ctx, maxWidth: pageW - margin * 2 - 40)
         let when = DateFormatter.localizedString(from: Date(), dateStyle: .long, timeStyle: .none)
         draw("\(entries.count) \(entries.count == 1 ? "item" : "items")  ·  \(when)", at: CGPoint(x: margin + 20, y: pageH / 2 - 56), size: 26, gray: 0.5, ctx: ctx, maxWidth: pageW - margin * 2)
         draw("Made with Grails", at: CGPoint(x: margin + 20, y: 56), size: 16, gray: 0.35, ctx: ctx, maxWidth: 400)
@@ -75,7 +75,7 @@ extension WebExporter {
                 let label = section.title.isEmpty ? (sections.count > 1 ? "Untitled" : "") : section.title
                 if !label.isEmpty {
                     let suffix = pages.count > 1 ? "  \(pi + 1)/\(pages.count)" : ""
-                    draw(label + suffix, at: CGPoint(x: margin, y: pageH - margin - 36), size: 34, weight: 0.4, gray: 0.92, ctx: ctx, maxWidth: contentW)
+                    draw(label + suffix, at: CGPoint(x: margin, y: pageH - margin - 36), size: 34, title: true, gray: 0.92, ctx: ctx, maxWidth: contentW)
                 }
                 let top = pageH - margin - (label.isEmpty ? 0 : headerH)
                 var y = 0.0
@@ -123,18 +123,18 @@ extension WebExporter {
         if includeSources, let s = e.source, let link = URL(string: s) { ctx.setURL(link as CFURL, for: rect) }
     }
 
-    /// Geist Mono for titles and Geist for the rest when the app has handed them over; the system font otherwise.
-    private static func typeface(display: Bool, size: CGFloat) -> CTFont {
-        let name = display ? "GeistMono-Regular" : "Geist-Regular"
-        if (display ? ExportFonts.display : ExportFonts.body) != nil {
+    /// Geist Bold for a title and Geist for the rest when the app has handed them over; the system font otherwise.
+    private static func typeface(title: Bool, size: CGFloat) -> CTFont {
+        let name = title ? "Geist-Bold" : "Geist-Regular"
+        if (title ? ExportFonts.bodyBold : ExportFonts.body) != nil {
             let f = CTFontCreateWithName(name as CFString, size, nil)
             if (CTFontCopyPostScriptName(f) as String) == name { return f }
         }
-        return CTFontCreateUIFontForLanguage(display ? .emphasizedSystem : .system, size, nil) ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+        return CTFontCreateUIFontForLanguage(title ? .emphasizedSystem : .system, size, nil) ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
     }
 
-    private static func draw(_ text: String, at p: CGPoint, size: CGFloat, weight: CGFloat = 0, gray: CGFloat, ctx: CGContext, maxWidth: CGFloat, rightAligned: Bool = false) {
-        let font = typeface(display: weight > 0.2, size: size)
+    private static func draw(_ text: String, at p: CGPoint, size: CGFloat, title: Bool = false, gray: CGFloat, ctx: CGContext, maxWidth: CGFloat, rightAligned: Bool = false) {
+        let font = typeface(title: title, size: size)
         let attrs: [NSAttributedString.Key: Any] = [.init(kCTFontAttributeName as String): font, .init(kCTForegroundColorAttributeName as String): CGColor(gray: gray, alpha: 1)]
         let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: attrs))
         let token = CTLineCreateWithAttributedString(NSAttributedString(string: "…", attributes: attrs))

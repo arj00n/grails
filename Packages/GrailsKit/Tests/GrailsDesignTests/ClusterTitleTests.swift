@@ -4,16 +4,16 @@ import Testing
 @testable import GrailsDesign
 
 @Suite struct ClusterTitleTests {
-    /// Geist Mono, the same file the app draws titles with.
+    /// Geist Bold, the same file the app draws titles with.
     private static func geist(_ size: CGFloat) -> NSFont {
         let here = URL(fileURLWithPath: #filePath)
         var root = here
         for _ in 0..<5 { root.deleteLastPathComponent() }
-        let file = root.appendingPathComponent("Apps/Grails/Resources/Fonts/GeistMono-Regular.ttf")
+        let file = root.appendingPathComponent("Apps/Grails/Resources/Fonts/Geist-Bold.ttf")
         if FileManager.default.fileExists(atPath: file.path) {
             CTFontManagerRegisterFontsForURL(file as CFURL, .process, nil)
         }
-        return NSFont(name: "Geist Mono", size: size) ?? ChromeNSFont.display(size)
+        return NSFont(name: "Geist-Bold", size: size) ?? ChromeNSFont.title(size)
     }
 
     @Test @MainActor func diwaliIsUprightAndNotClipped() {
@@ -51,7 +51,7 @@ import Testing
         #expect(upright < mirroredWord, "upright \(upright) vs mirrored \(mirroredWord)")
     }
 
-    /// The grid draws a Geist Mono name and a Geist count in one field, then sizes the field to its intrinsic width.
+    /// The grid draws a Geist Bold name and a Geist count in one field, then sizes the field to its intrinsic width.
     /// The last digit ("Untitled 2", "All 178") is clipped when that width is only the string box.
     @Test @MainActor func clusterCountIsNotClipped() {
         for sample in [(name: "Untitled", count: 2, noted: false), (name: "All", count: 178, noted: false), (name: "All", count: 178, noted: true)] {
@@ -91,7 +91,7 @@ import Testing
         }
     }
 
-    /// Same string the grid builds: Geist Mono title, three spaces, Geist count, and an optional note.
+    /// Same string the grid builds: Geist Bold title, three spaces, Geist count, and an optional note.
     private static func clusterLine(_ name: String, count: Int, noted: Bool = false) -> NSAttributedString {
         let text = NSMutableAttributedString(string: name, attributes: [
             .font: geist(CGFloat(TypeScale.page)),

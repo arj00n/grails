@@ -19,7 +19,7 @@ struct WorkspaceAvatar: View {
             .fill(plate)
             .frame(width: size, height: size)
             .overlay(Text(String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased())
-                .font(.grailsDisplay(12)).foregroundStyle(hex == nil ? AnyShapeStyle(Ink.text) : AnyShapeStyle(Color.white))) // on image
+                .font(.grailsTitle(12)).foregroundStyle(hex == nil ? AnyShapeStyle(Ink.text) : AnyShapeStyle(Color.white))) // on image
     }
 }
 
@@ -35,7 +35,7 @@ struct WorkspaceSwitcher: View {
         GrailsControl(press: .row) { model.workspaceMenuOpen.toggle() } label: {
             HStack(spacing: 8) {
                 WorkspaceAvatar(name: model.libraryName, hex: current?.color)
-                Text(model.libraryName).font(.grailsDisplay(CGFloat(TypeScale.title))).lineLimit(1).foregroundStyle(Ink.text)
+                Text(model.libraryName).font(.grailsTitle(CGFloat(TypeScale.title))).lineLimit(1).foregroundStyle(Ink.text)
                 Spacer(minLength: 4)
                 Image(systemName: "chevron.up.chevron.down").font(ChromeFont.symbol(9)).foregroundStyle(Ink.secondary)
             }

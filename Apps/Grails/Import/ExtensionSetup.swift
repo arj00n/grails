@@ -182,7 +182,7 @@ struct ExtensionModal: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
             HStack {
-                Text(heading).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
+                Text(heading).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
                 Spacer()
                 BarButton(symbol: "xmark", help: "Close (Esc)", identifier: "extension-close") { setup.close() }
             }
@@ -271,7 +271,7 @@ struct ExtensionModal: View {
 
     private func step(_ n: Int, _ text: String) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text("\(n)").font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.canvas).frame(width: 20, height: 20).background(Ink.text, in: Circle())
+            Text("\(n)").font(.grailsBody(CGFloat(TypeScale.help))).monospacedDigit().foregroundStyle(Ink.canvas).frame(width: 20, height: 20).background(Ink.text, in: Circle())
             Text(text).font(.grailsBody(13)).foregroundStyle(Ink.text).fixedSize(horizontal: false, vertical: true)
         }
     }

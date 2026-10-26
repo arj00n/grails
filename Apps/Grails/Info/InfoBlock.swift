@@ -81,7 +81,7 @@ struct InfoBlock: View {
     }
 
     private var titleOverflows: Bool {
-        TitleLines.needsMore(name, font: ChromeNSFont.display(CGFloat(TypeScale.title)), width: titleWidth)
+        TitleLines.needsMore(name, font: ChromeNSFont.title(CGFloat(TypeScale.title)), width: titleWidth)
     }
 
     private func copy(_ value: String, toast: String) {
@@ -108,7 +108,7 @@ struct InfoBlock: View {
     private func header(_ item: Item, _ info: ItemInfo) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
-                GrailsPlainField("Item name", text: $name, axis: .vertical, size: TypeScale.title, display: true, focus: $focus, equals: .name, idle: nil, lineLimit: nameExpanded ? 1...32 : 1...TitleLines.collapsed, onSubmit: { commitName(item) })
+                GrailsPlainField("Item name", text: $name, axis: .vertical, size: TypeScale.title, title: true, focus: $focus, equals: .name, idle: nil, lineLimit: nameExpanded ? 1...32 : 1...TitleLines.collapsed, onSubmit: { commitName(item) })
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .background {
@@ -453,7 +453,7 @@ struct NoteThread: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let cluster, !cluster.title.isEmpty {
-                Text(cluster.title).font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).lineLimit(1)
+                Text(cluster.title).font(.grailsTitle(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).lineLimit(1)
                     .padding(.horizontal, 10).padding(.top, 8)
             }
             if !notes.isEmpty { commentList }

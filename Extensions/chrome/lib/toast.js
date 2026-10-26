@@ -1,5 +1,5 @@
 // The on-page "Saved" card. Shadow DOM so the page's CSS cannot hide or restyle it.
-// GrailsDesign greys, Geist for the message, Geist Mono for the name. Light and dark follow the system.
+// GrailsDesign greys. Geist for the message and the name. Light and dark follow the system.
 
 function grailsToastCSS() {
   return `
@@ -25,7 +25,7 @@ function grailsToastCSS() {
     }
     .mark { width: 6px; height: 6px; border-radius: 50%; background: var(--status-ok); flex: none; }
     .toast.error .mark { background: var(--status-error); }
-    .name { font: 400 12px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: -0.12px; color: var(--secondary); }
+    .name { font: 400 12px/1.2 Geist, "Geist", -apple-system, system-ui, sans-serif; color: var(--secondary); }
     .label { color: var(--text); }
   `;
 }

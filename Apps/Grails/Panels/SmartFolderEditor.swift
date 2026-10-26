@@ -60,7 +60,7 @@ struct SmartFolderEditor: View {
                     ], selection: state.match) { state.match = $0 }
                     Text("of the following rules")
                     Spacer()
-                    if let n = matchCount { Text("\(n.formatted()) \(n == 1 ? "item matches" : "items match")").foregroundStyle(Ink.secondary).monospacedDigit() }
+                    if let n = matchCount { Text("\(n.formatted()) \(n == 1 ? "item matches" : "items match")").font(.grailsBody(CGFloat(TypeScale.body))).foregroundStyle(Ink.secondary).monospacedDigit() }
                 }
                 VStack(spacing: 8) {
                     ForEach(state.rules.indices, id: \.self) { i in

@@ -1,16 +1,13 @@
 import Foundation
 
-/// Geist Mono for titles, Geist for text, Geist Bold for a section header. All three are SIL OFL, bundled unmodified.
+/// Geist for text, Geist Bold for a title or a section header. Both are SIL OFL, bundled unmodified.
 public enum Typography {
-    public static let displayName = "GeistMono-Regular"
     public static let bodyName = "Geist-Regular"
     public static let bodyBoldName = "Geist-Bold"
-    /// Family names for CSS.
-    public static let displayFamily = "Geist Mono"
+    /// CSS family. Weight picks the file.
     public static let bodyFamily = "Geist"
 
     /// (file name without extension, extension) as bundled.
-    public static let displayFile = (name: "GeistMono-Regular", ext: "ttf")
     public static let bodyFile = (name: "Geist-Regular", ext: "ttf")
     public static let bodyBoldFile = (name: "Geist-Bold", ext: "ttf")
 

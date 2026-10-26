@@ -45,9 +45,9 @@ public enum RadiusToken {
 }
 
 public enum TypeScale {
-    /// Geist Mono. Settings and empty pages.
+    /// Geist Bold. Settings and empty pages.
     public static let page = 20.0
-    /// Geist Mono. Sheet and window titles.
+    /// Geist Bold. Sheet and window titles.
     public static let title = 15.0
     public static let subtitle = 13.0
     /// Geist Bold. Section headers such as People.
@@ -59,16 +59,14 @@ public enum TypeScale {
     public static let quiet = 12.0
     /// Helper, meta, and row subtitles.
     public static let help = 12.0
-    public static let monoLink = 12.0
-    public static let monoCode = 15.0
+    /// Invite link. Geist Regular, tabular digits, no tracking.
+    public static let inviteLink = 12.0
+    /// Invite code. Geist Regular, tabular digits, no tracking. Same size as a sheet title, different face.
+    public static let inviteCode = 15.0
     /// -0.02em of the page title, in points.
     public static let pageTracking = -0.4
     /// -0.01em of the sheet title, in points.
     public static let titleTracking = -0.15
-    /// -0.01em of the invite link, in points.
-    public static let monoLinkTracking = -0.12
-    /// +0.08em of the invite code, in points.
-    public static let monoCodeTracking = 1.2
 }
 
 /// Which palette token a chrome role uses. Views read `Palette`; they do not pick their own hex.
