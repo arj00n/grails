@@ -17,7 +17,7 @@ public struct CanvasCluster: Codable, Hashable, Sendable, Identifiable {
     public var items: [String]
     /// When this cluster was last edited (seconds since 1970). Newest wins when two Macs edited the same cluster.
     public var at: Double
-    /// Folded to its title bar: the pictures stay members, they just aren't drawn.
+    /// Folded in the grid to its title: the pictures stay members, the grid just doesn't show them. The canvas ignores it.
     public var collapsed: Bool
 
     public static let defaultTile = 260.0

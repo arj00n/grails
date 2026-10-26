@@ -19,7 +19,6 @@ final class CanvasNSView: NSView {
     /// The board's clusters after an edit, plus an undo label ("Move on Canvas", "Group", …).
     var onCommitClusters: (([CanvasCluster], String) -> Void)?
     var onRenameClusterTo: ((String, String) -> Void)?
-    var onToggleCollapsed: ((String) -> Void)?
     var onPreview: ((String) -> Void)?
     var keyHandler: ((NSEvent) -> Bool)?
     var contextMenuProvider: ((String) -> NSMenu?)?
@@ -314,7 +313,7 @@ final class CanvasNSView: NSView {
     /// The cluster's frame: as wide as its packed rows (a lone tile doesn't claim a whole row), at least wide enough for a title.
     private func frame(of c: CanvasCluster, packed: ClusterLayout.Packed) -> CGRect {
         let used = packed.rects.values.map { Double($0.maxX) }.max() ?? 0
-        return CGRect(x: c.x, y: c.y, width: max(used, 320), height: ClusterLayout.headerHeight + (c.collapsed ? 0 : packed.height))
+        return CGRect(x: c.x, y: c.y, width: max(used, 320), height: ClusterLayout.headerHeight + packed.height)
     }
 
     /// Recomputes every item's rect and every cluster's frame from `clusters` and `items`.
@@ -327,15 +326,13 @@ final class CanvasNSView: NSView {
             // a cluster with none of its items in this view (a filter, the Trash, another collection) isn't drawn at all
             if ids.isEmpty { continue }
             let packed = pack(ids, for: c)
-            frames[c.id] = frame(of: c, packed: packed)
-            // folded: just the title bar, as wide as it would be open
-            if c.collapsed { continue }
             let ox = c.x, oy = c.y + ClusterLayout.headerHeight
             for id in ids {
                 guard let r = packed.rects[id] else { continue }
                 p[id] = CanvasPlacement(x: ox + r.minX, y: oy + r.minY, w: r.width, h: r.height, z: 0, at: 0)
                 owner[id] = c.id
             }
+            frames[c.id] = frame(of: c, packed: packed)
         }
         placements = p; clusterFrames = frames; memberOf = owner
         rebuildEntries()
@@ -361,7 +358,6 @@ final class CanvasNSView: NSView {
         for c in clusters where live.contains(c.id) {
             let h = headers[c.id] ?? { let n = ClusterHeaderLayer(); content.addSublayer(n); headers[c.id] = n; return n }()
             h.contentsScale = backing
-            h.collapsed = c.collapsed
             let hidden = !editable || renaming?.id == c.id
             h.isHidden = hidden
             let title = titles[c.id] ?? {
@@ -406,7 +402,7 @@ final class CanvasNSView: NSView {
     private func renameFrame(for id: String) -> NSRect {
         guard let f = clusterFrames[id] else { return .zero }
         let s = screenPoint(CGPoint(x: f.minX, y: f.minY + ClusterLayout.headerHeight))
-        return NSRect(x: s.x + ClusterHeaderLayer.arrowWidth - 5, y: s.y + 4, width: max(f.width * scale, 220) - 30 - ClusterHeaderLayer.arrowWidth, height: ClusterHeaderLayer.heightPx)
+        return NSRect(x: s.x - 5, y: s.y + 4, width: max(f.width * scale, 220) - 30, height: ClusterHeaderLayer.heightPx)
     }
 
     /// Title bars keep the same size on screen at every zoom, like Figma's frame names: each header is laid out in screen
@@ -422,7 +418,7 @@ final class CanvasNSView: NSView {
             h.setAffineTransform(CGAffineTransform(scaleX: inv, y: inv))
             h.showsGrip = f.width * scale >= 140
             let s = screenPoint(CGPoint(x: f.minX, y: f.minY + ClusterLayout.headerHeight))
-            titles[c.id]?.frame = NSRect(x: s.x + ClusterHeaderLayer.arrowWidth, y: s.y + 4, width: widthPx - 30 - ClusterHeaderLayer.arrowWidth, height: ClusterHeaderLayer.heightPx)
+            titles[c.id]?.frame = NSRect(x: s.x, y: s.y + 4, width: widthPx - 30, height: ClusterHeaderLayer.heightPx)
         }
         if let r = renaming { r.field.reposition(renameFrame(for: r.id)) }
     }
@@ -715,7 +711,7 @@ final class CanvasNSView: NSView {
         return nil
     }
 
-    private enum HeaderHit { case title(String), grip(String), arrow(String) }
+    private enum HeaderHit { case title(String), grip(String) }
 
     /// The title bar of the cluster under `p`; its right end is the grip that resizes the cluster.
     private func headerHit(atWorld p: CGPoint) -> HeaderHit? {
@@ -727,7 +723,6 @@ final class CanvasNSView: NSView {
             let bar = CGRect(x: f.minX, y: top - hitHeight, width: max(f.width, 220 / scale), height: hitHeight)
             guard bar.contains(p) else { continue }
             let grip = 30 / scale
-            if p.x < f.minX + ClusterHeaderLayer.arrowWidth / scale { return .arrow(c.id) }
             return f.width * scale >= 140 && p.x > f.maxX - grip ? .grip(c.id) : .title(c.id)
         }
         return nil
@@ -759,8 +754,6 @@ final class CanvasNSView: NSView {
                 if event.clickCount == 2 { beginRename(id); return }
                 if !selection.isEmpty { selection = []; notifySelection(); updateSelectionVisuals() }
                 drag = .cluster(BlockDrag(id: id, startWorld: w, startScreen: loc, baseClusters: clusters))
-            case .arrow(let id):
-                if event.clickCount == 1 { onToggleCollapsed?(id) }
             case .grip(let id):
                 drag = .clusterWidth(BlockDrag(id: id, startWorld: w, startScreen: loc, baseClusters: clusters))
                 NSCursor.resizeLeftRight.set()
@@ -924,8 +917,7 @@ final class CanvasNSView: NSView {
         var key: String
         var outline: CGRect
         if !forceNew, let host = d.baseClusters.last(where: { d.baseFrames[$0.id]?.contains(w) == true }) {
-            // a folded cluster takes what's dropped on its title bar at the end
-            let restVisible = host.collapsed ? [] : members(of: host).filter { !carried.contains($0) }
+            let restVisible = members(of: host).filter { !carried.contains($0) }
             let packed = ClusterLayout.pack(restVisible.map(entry), width: host.width, tile: host.tile)
             let local = CGPoint(x: w.x - host.x, y: w.y - (host.y + ClusterLayout.headerHeight))
             let visibleIndex = ClusterLayout.insertionIndex(of: local, packed: packed, order: restVisible)
@@ -938,8 +930,7 @@ final class CanvasNSView: NSView {
             key = "c:\(host.id):\(index)"
             // just the pictures: the title bar stays outside the outline
             let frame = d.baseFrames[host.id] ?? .zero
-            outline = host.collapsed ? frame
-                : CGRect(x: frame.minX, y: frame.minY + ClusterLayout.headerHeight, width: frame.width, height: max(frame.height - ClusterLayout.headerHeight, 1))
+            outline = CGRect(x: frame.minX, y: frame.minY + ClusterLayout.headerHeight, width: frame.width, height: max(frame.height - ClusterLayout.headerHeight, 1))
             d.targetID = host.id
         } else {
             let tile = d.baseClusters.first { $0.items.contains(where: carried.contains) }?.tile ?? CanvasCluster.defaultTile
@@ -985,7 +976,6 @@ final class CanvasNSView: NSView {
         let carried = Set(d.ids)
         var goal: [String: CGRect] = [:]
         for c in d.result {
-            if c.collapsed { continue }
             if let base = d.baseClusters.first(where: { $0.id == c.id }), base.items == c.items, base.x == c.x, base.y == c.y { continue }
             let ids = members(of: c)
             let packed = pack(ids, for: c)
@@ -1169,7 +1159,7 @@ final class CanvasNSView: NSView {
         let w = worldPoint(convert(event.locationInWindow, from: nil))
         window?.makeFirstResponder(self)
         if editable, let hit = headerHit(atWorld: w) {
-            switch hit { case .title(let id), .grip(let id), .arrow(let id): return clusterMenuProvider?(id) }
+            switch hit { case .title(let id), .grip(let id): return clusterMenuProvider?(id) }
         }
         guard let id = item(atWorld: w) else { return nil }
         if !selection.contains(id) {
@@ -1391,12 +1381,7 @@ final class DustLayer: CALayer {
 final class ClusterHeaderLayer: CALayer {
     static var heightPx: CGFloat { GrailsClusterTitle.lineHeight(for: .grailsDisplay(CGFloat(TypeScale.body))) }
     private let grip = CAShapeLayer()
-    private let arrow = CAShapeLayer()
     var showsGrip = true { didSet { grip.isHidden = !showsGrip } }
-    /// Points right when folded, down when open; clicking it is the fold.
-    var collapsed = false { didSet { if collapsed != oldValue { setNeedsLayout() } } }
-    /// Screen points from the cluster's left edge to its title: the arrow sits there.
-    static let arrowWidth: CGFloat = 20
 
     static func title(_ title: String, count: Int) -> NSAttributedString {
         let s = NSMutableAttributedString()
@@ -1422,13 +1407,6 @@ final class ClusterHeaderLayer: CALayer {
         grip.lineCap = .round
         grip.lineJoin = .round
         addSublayer(grip)
-        arrow.actions = none
-        arrow.fillColor = nil
-        arrow.strokeColor = NSColor.ink(.secondary).cgColor
-        arrow.lineWidth = 1.6
-        arrow.lineCap = .round
-        arrow.lineJoin = .round
-        addSublayer(arrow)
     }
 
     override init(layer: Any) { super.init(layer: layer) }
@@ -1443,14 +1421,6 @@ final class ClusterHeaderLayer: CALayer {
         p.move(to: CGPoint(x: 8, y: 4)); p.addLine(to: CGPoint(x: 4, y: 8)); p.addLine(to: CGPoint(x: 8, y: 12))
         p.move(to: CGPoint(x: 16, y: 4)); p.addLine(to: CGPoint(x: 20, y: 8)); p.addLine(to: CGPoint(x: 16, y: 12))
         grip.path = p
-        arrow.frame = CGRect(x: 0, y: (bounds.height - 12) / 2, width: 12, height: 12)
-        let a = CGMutablePath()
-        if collapsed {
-            a.move(to: CGPoint(x: 4, y: 2)); a.addLine(to: CGPoint(x: 8, y: 6)); a.addLine(to: CGPoint(x: 4, y: 10))
-        } else {
-            a.move(to: CGPoint(x: 2, y: 8)); a.addLine(to: CGPoint(x: 6, y: 4)); a.addLine(to: CGPoint(x: 10, y: 8))
-        }
-        arrow.path = a
     }
 }
 

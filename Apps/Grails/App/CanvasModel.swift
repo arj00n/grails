@@ -252,10 +252,10 @@ extension AppModel {
         commitClusters(next, label: "Change Tile Size")
     }
 
-    /// Folds a cluster to its title bar, or opens it again, in the grid and on the canvas alike.
+    /// Folds a grid section to its title, or opens it again. The canvas ignores it and shows every picture.
     func toggleClusterCollapsed(_ id: String) {
-        guard let key = canvasBoardKey else { return }
-        var next = viewMode == .canvas && canvasLoadedKey == key ? canvasClusters : sectionClusters
+        guard canvasBoardKey != nil else { return }
+        var next = sectionClusters
         guard let i = next.firstIndex(where: { $0.id == id }) else { return }
         next[i].collapsed.toggle()
         next[i].at = Date().timeIntervalSince1970
@@ -284,7 +284,8 @@ extension AppModel {
             let title = canvasClusters.first { $0.id == id }?.title ?? ""
             if let board = canvasBoardKey { showClusterNotes(board: board, id: id, title: title) }
         }
-        if let c = (viewMode == .canvas ? canvasClusters : sectionClusters).first(where: { $0.id == id }) {
+        // folding is the grid's: the canvas always shows every picture
+        if viewMode != .canvas, let c = sectionClusters.first(where: { $0.id == id }) {
             add(c.collapsed ? "Expand" : "Collapse", c.collapsed ? "chevron.down" : "chevron.right") { [self] in toggleClusterCollapsed(id) }
         }
         let sizes = NSMenu()
