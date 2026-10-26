@@ -15,6 +15,15 @@ extension AppModel {
             rebuildSections()
             return
         }
+        // a folder board follows its folders, which any reload may have changed
+        if folderBoard != nil {
+            if let clusters = await folderClusters(), key == canvasBoardKey {
+                sectionClusters = clusters; sectionKey = key
+                if viewMode == .canvas, canvasLoadedKey == key, clusters != canvasClusters { canvasClusters = clusters; bumpCanvasVersion() }
+            }
+            rebuildSections()
+            return
+        }
         if forceRead || sectionKey != key {
             let board = await store.canvasBoard(key: key)
             // a board from before clusters has one cluster at most, which never makes sections
@@ -32,8 +41,9 @@ extension AppModel {
             let visible = Set(items.map(\.id))
             var seen = Set<String>()
             var sections: [GridSection] = []
-            for c in sectionClusters {
-                let ids = c.items.filter { visible.contains($0) && !seen.contains($0) }
+            // on a folder board a picture in two folders is in both sections, as a second tile (see `TileKey`)
+            for c in folderBoard == nil ? sectionClusters : TileKey.keyed(sectionClusters) {
+                let ids = c.items.filter { visible.contains(TileKey.item($0)) && !seen.contains($0) }
                 seen.formUnion(ids)
                 sections.append(GridSection(id: c.id, title: c.title, ids: ids))
             }

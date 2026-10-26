@@ -53,7 +53,7 @@ struct GridView: NSViewRepresentable {
         cv.onLayout = { [weak c] in c?.placePinnedHeader() }
         cv.onOptionClick = { [weak c] i in
             guard let c, let s = c.item(at: i), s.kind != .section else { return }
-            c.model.toggleLike(ids: [s.id])
+            c.model.toggleLike(ids: [TileKey.item(s.id)])
         }
         c.collectionView = cv
         c.installTileGeometry()
@@ -369,7 +369,12 @@ struct GridView: NSViewRepresentable {
             flat.reserveCapacity(model.items.count + sections.count)
             for sec in sections {
                 flat.append(.sectionHeader(id: sec.id, title: sec.title, count: sec.ids.count))
-                for id in sec.ids { if let it = byID[id] { flat.append(it) } }
+                // a picture in two folders is a second tile, under its own key
+                for key in sec.ids {
+                    guard var it = byID[TileKey.item(key)] else { continue }
+                    it.id = key
+                    flat.append(it)
+                }
             }
             return flat
         }
@@ -478,7 +483,10 @@ struct GridView: NSViewRepresentable {
 
         private func applySelection() {
             guard let cv = collectionView else { return }
-            let wanted = Set(model.selection.compactMap { indexByID[$0] }.map { IndexPath(item: $0, section: 0) })
+            // the tile that was clicked stays the selected one; a selection made elsewhere shows on every tile of those items
+            let shown = Set(cv.selectionIndexPaths.compactMap { items[safe: $0.item] }.filter { $0.kind != .section }.map { TileKey.item($0.id) })
+            guard shown != model.selection else { return }
+            let wanted = Set(model.selection.isEmpty ? [] : items.indices.filter { items[$0].kind != .section && model.selection.contains(TileKey.item(items[$0].id)) }.map { IndexPath(item: $0, section: 0) })
             guard wanted != cv.selectionIndexPaths else { return }
             applying = true
             cv.selectionIndexPaths = wanted
@@ -838,8 +846,9 @@ struct GridView: NSViewRepresentable {
             guard !keep.isEmpty else { return }
             let px = shownTile * scale
             for ip in indexPaths {
-                guard let s = items[safe: ip.item], s.kind != .section, keep.contains(s.id) else { continue }
-                ThumbnailLoader.shared.prefetch(id: s.id, thumb: layout.thumbURL(s.id), pixels: px)
+                let id = items[safe: ip.item].map { TileKey.item($0.id) }
+                guard let s = items[safe: ip.item], let id, s.kind != .section, keep.contains(id) else { continue }
+                ThumbnailLoader.shared.prefetch(id: id, thumb: layout.thumbURL(id), pixels: px)
             }
         }
 
@@ -848,8 +857,8 @@ struct GridView: NSViewRepresentable {
             guard !keep.isEmpty else { return }
             var drop = Set<String>()
             for ip in indexPaths {
-                guard let s = items[safe: ip.item], s.kind != .section, !keep.contains(s.id) else { continue }
-                drop.insert(s.id)
+                guard let s = items[safe: ip.item], s.kind != .section, !keep.contains(TileKey.item(s.id)) else { continue }
+                drop.insert(TileKey.item(s.id))
             }
             ThumbnailLoader.shared.cancelPrefetches(drop)
         }
@@ -866,10 +875,10 @@ struct GridView: NSViewRepresentable {
             var keep = Set<String>()
             for a in activeLayout.layoutAttributesForElements(in: rect) {
                 guard let item = a.indexPath?.item, let s = items[safe: item], s.kind != .section else { continue }
-                keep.insert(s.id)
+                keep.insert(TileKey.item(s.id))
             }
             for case let cell as ThumbCell in cv.visibleItems() {
-                if let id = cell.itemID { keep.insert(id) }
+                if let id = cell.itemID { keep.insert(TileKey.item(id)) }
             }
             return keep
         }
@@ -913,7 +922,7 @@ struct GridView: NSViewRepresentable {
 
         private func pushSelection(_ cv: NSCollectionView) {
             guard !applying else { return }
-            let ids = Set(cv.selectionIndexPaths.compactMap { items[safe: $0.item] }.filter { $0.kind != .section }.map(\.id))
+            let ids = Set(cv.selectionIndexPaths.compactMap { items[safe: $0.item] }.filter { $0.kind != .section }.map { TileKey.item($0.id) })
             // AppKit can select the tile on right-click before the menu is built. That selection is the menu's target.
             if isContextClick { model.selectForContextMenu(ids) } else { model.selection = ids }
         }
@@ -934,20 +943,20 @@ struct GridView: NSViewRepresentable {
         /// One click opens a picture (sections are only for renaming and collapsing).
         func openItem(at index: Int) {
             guard let s = items[safe: index], s.kind != .section else { return }
-            model.openPreview(s.id)
+            model.openPreview(TileKey.item(s.id))
         }
 
         func previewSelection() {
             guard let cv = collectionView else { return }
             let first = cv.selectionIndexPaths.sorted().first(where: { items[safe: $0.item]?.kind != .section })
-            if let id = first.flatMap({ items[safe: $0.item]?.id }) { model.openPreview(id) }
+            if let id = first.flatMap({ items[safe: $0.item]?.id }) { model.openPreview(TileKey.item(id)) }
         }
 
         /// Double-clicking a section's title edits its name in place.
         func beginRenameSection(at index: Int) -> Bool {
             guard let cv = collectionView, let s = items[safe: index], s.kind == .section,
                   let cell = cv.item(at: IndexPath(item: index, section: 0)) as? ThumbCell else { return false }
-            let id = s.id
+            let id = s.id.hasPrefix("section:") ? String(s.id.dropFirst("section:".count)) : s.id
             cell.beginRenamingSection(text: s.name) { [weak self] name in self?.model.renameCluster(id, to: name) }
             return true
         }
@@ -1042,11 +1051,11 @@ struct GridView: NSViewRepresentable {
                 return menu
             }
             guard let cv = collectionView else { return nil }
-            if !model.selection.contains(s.id) {
+            if !model.selection.contains(TileKey.item(s.id)) {
                 applying = true
                 cv.selectionIndexPaths = [IndexPath(item: index, section: 0)]
                 applying = false
-                model.selectForContextMenu([s.id])
+                model.selectForContextMenu([TileKey.item(s.id)])
             }
             return model.itemContextMenu(anchor: s, canvas: false)
         }
@@ -1057,7 +1066,7 @@ struct GridView: NSViewRepresentable {
             guard let s = items[safe: indexPath.item] else { return nil }
             let url = model.originalURL(for: s)
             let onDisk = url.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
-            guard let drag = GridItemDrag.offer(itemID: s.id, isSection: s.kind == .section, original: url, fileOnDisk: onDisk) else { return nil }
+            guard let drag = GridItemDrag.offer(itemID: TileKey.item(s.id), isSection: s.kind == .section, original: url, fileOnDisk: onDisk) else { return nil }
             (cv as? GrailsCollectionView)?.dragBegan = true
             let pb = NSPasteboardItem()
             if let ids = try? JSONEncoder().encode([drag.itemID]) {

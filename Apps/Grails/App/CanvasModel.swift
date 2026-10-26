@@ -39,6 +39,56 @@ extension AppModel {
         }
     }
 
+    /// Boards whose clusters are folders: the whole library (its top-level collections) and a collection (the folders in it).
+    /// The Inbox keeps clusters of its own, since nothing in it is in a folder yet.
+    var folderBoard: FolderBoard? {
+        if canvasIsDerived { return nil }
+        switch source {
+        case .all: return .library
+        case .collection(let id): return .collection(id)
+        default: return nil
+        }
+    }
+
+    /// This board's clusters, read from its folders, with the layout saved on the board. Named clusters from before folders
+    /// become folders first (with the cluster's id, so two Macs doing it make one folder).
+    func folderClusters() async -> [CanvasCluster]? {
+        guard let store, let place = folderBoard, let key = canvasBoardKey else { return nil }
+        let stored = await store.canvasBoard(key: key)?.clusters ?? []
+        do {
+            var all = try await store.index.collections()
+            if !bucket.readOnly, migratedBoards.insert(key).inserted {
+                let strays = FolderClusters.strays(stored, folders: Set(all.map(\.id)))
+                for c in strays {
+                    _ = try await store.createCollection(id: c.id, name: c.title.trimmingCharacters(in: .whitespaces), kind: "folder", parentId: place.parent)
+                    try await store.add(ids: c.items, toCollection: c.id)
+                }
+                if !strays.isEmpty { all = try await store.index.collections(); bucket.nudge() }
+            }
+            let children = all.filter { $0.parentId == place.parent && !$0.archived }.sorted { $0.order < $1.order }
+            var folders: [FolderClusters.Folder] = []
+            for child in children {
+                var members = Set<String>()
+                for id in Self.subtree(child.id, in: all) { members.formUnion(try await store.index.itemIds(inCollection: id)) }
+                folders.append(.init(id: child.id, title: child.displayName, members: members))
+            }
+            boardFolders = Set(children.map(\.id))
+            return FolderClusters.reconcile(stored: stored, folders: folders, visible: items.map(\.id))
+        } catch {
+            return stored
+        }
+    }
+
+    /// `id` and every collection beneath it.
+    static func subtree(_ id: String, in all: [GrailsCollection]) -> Set<String> {
+        var out: Set<String> = [id]
+        var frontier = [id]
+        while let next = frontier.popLast() {
+            for c in all where c.parentId == next && out.insert(c.id).inserted { frontier.append(c.id) }
+        }
+        return out
+    }
+
     /// Makes sure the canvas has the right board loaded and every visible item belongs to a cluster.
     func syncCanvas() async {
         guard viewMode == .canvas else { return }
@@ -54,6 +104,13 @@ extension AppModel {
 
     func loadBoard() async {
         guard let store, let key = canvasBoardKey else { return }
+        if folderBoard != nil, let clusters = await folderClusters() {
+            guard key == canvasBoardKey else { return }
+            canvasClusters = clusters
+            canvasLoadedKey = key
+            bumpCanvasVersion()
+            return
+        }
         let board = await store.canvasBoard(key: key)
         var clusters = board?.clusters ?? []
         // a board from before clusters: its items become one cluster, in the order they were laid out
@@ -66,7 +123,8 @@ extension AppModel {
 
     /// New items (a paste, a teammate's save, an import) join the first cluster; a board with none gets one.
     private func adoptNewItems(announce: Bool) async {
-        guard let store, let key = canvasBoardKey else { return }
+        // a folder board is read again from its folders on every reload (see `refreshSections`)
+        guard let store, let key = canvasBoardKey, folderBoard == nil else { return }
         let ids = items.map(\.id)
         let adopted = ClusterOps.adopt(ids, into: canvasClusters)
         guard adopted != canvasClusters else { return }
@@ -86,6 +144,7 @@ extension AppModel {
     /// An edit finished on the canvas: remember it locally and save it (undoable).
     func commitClusters(_ new: [CanvasCluster], label: String) {
         guard let store, let key = canvasBoardKey else { return }
+        if folderBoard != nil { commitFolderClusters(new, label: label); return }
         canvasClusters = new
         sectionClusters = new; sectionKey = key; rebuildSections()
         bumpCanvasVersion()
@@ -97,12 +156,82 @@ extension AppModel {
         }
     }
 
+    /// An edit on a folder board: the layout is saved on the board, and moving pictures between clusters moves them between
+    /// folders. A new cluster is a new folder; renaming a cluster renames its folder.
+    private func commitFolderClusters(_ new: [CanvasCluster], label: String) {
+        guard let store, let key = canvasBoardKey, let place = folderBoard else { return }
+        let old = viewMode == .canvas && canvasLoadedKey == key ? canvasClusters : sectionClusters
+        let edit = FolderClusters.edit(from: old, to: new, folders: boardFolders)
+        if !edit.isEmpty {
+            let canonID = Canon.collection(in: collections)?.id
+            let touchesCanon = canonID.map { edit.added[$0] != nil || edit.removed[$0] != nil || edit.renamed[$0] != nil } ?? false
+            let refusal = bucket.readOnly ? "Update Grails" : touchesCanon && !canPromoteToCanon ? "Only owners and admins can change \(Canon.title)" : nil
+            if let refusal {
+                showToast(refusal)
+                bumpCanvasVersion()      // the canvas goes back to the board as it was
+                return
+            }
+        }
+        canvasClusters = new
+        sectionClusters = new; sectionKey = key; rebuildSections()
+        bumpCanvasVersion()
+        let parent = place.parent
+        let all = collections
+        Task {
+            do {
+                let (_, undo) = try await recorded(label, in: store) {
+                    for (id, ids) in edit.removed {
+                        if id == FolderClusters.looseID { if let parent { try await store.remove(ids: ids, fromCollection: parent) } }
+                        else { for c in Self.subtree(id, in: all) { try await store.remove(ids: ids, fromCollection: c) } }
+                    }
+                    for c in edit.created {
+                        let name = c.title.trimmingCharacters(in: .whitespaces)
+                        _ = try await store.createCollection(id: c.id, name: name.isEmpty ? "Untitled" : name, kind: "folder", parentId: parent)
+                        try await store.add(ids: c.items, toCollection: c.id)
+                    }
+                    for (id, ids) in edit.added {
+                        if id == FolderClusters.looseID { if let parent { try await store.add(ids: ids, toCollection: parent) } }
+                        else { try await store.add(ids: ids, toCollection: id) }
+                    }
+                    for (id, name) in edit.renamed { try await store.renameCollection(id: id, to: name) }
+                    _ = try await store.setClusters(boardKey: key, new)
+                }
+                pushUndo(undo)
+                if !edit.isEmpty {
+                    bucket.nudge()
+                    await reload()
+                }
+            } catch { errorMessage = "Couldn't save the canvas: \(error.localizedDescription)" }
+        }
+    }
+
+    /// A folder's cluster goes away with its folder. Its pictures stay in the collection that's open (or, on the whole
+    /// library, become unfiled); folders inside it move up.
+    private func deleteClusterFolder(_ id: String) {
+        guard let place = folderBoard, let folder = collections.first(where: { $0.id == id }) else { return }
+        let parent = place.parent
+        let name = folder.displayName
+        Task {
+            let done: Void? = await perform(folder.kind == "folder" ? "Delete Folder" : "Delete Collection") { store in
+                if let parent { try await store.add(ids: try await store.index.itemIds(inCollection: id), toCollection: parent) }
+                try await store.deleteCollection(id: id)
+            }
+            guard done != nil else { return }
+            bucket.nudge()
+            showToast("Deleted \(name)")
+        }
+    }
+
     // MARK: Cluster commands
 
     /// Names are edited in place on the canvas header (or the grid's section title).
-    func promptRenameCluster(_ id: String) { beginClusterRename?(id) }
+    func promptRenameCluster(_ id: String) {
+        guard folderBoard == nil || id != FolderClusters.looseID else { return }
+        beginClusterRename?(id)
+    }
 
     func renameCluster(_ id: String, to title: String) {
+        guard folderBoard == nil || id != FolderClusters.looseID else { bumpCanvasVersion(); return }
         // the grid's sections and the canvas share one list; prefer whichever is loaded for this view
         let base = sectionKey != nil && sectionKey == canvasBoardKey && !sectionClusters.isEmpty ? sectionClusters : canvasClusters
         var next = base
@@ -138,7 +267,7 @@ extension AppModel {
             if let symbol { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
             menu.addItem(item)
         }
-        add("Rename…", "pencil") { [self] in promptRenameCluster(id) }
+        if folderBoard == nil || id != FolderClusters.looseID { add("Rename…", "pencil") { [self] in promptRenameCluster(id) } }
         add("Notes", "note.text") { [self] in
             let title = canvasClusters.first { $0.id == id }?.title ?? ""
             if let board = canvasBoardKey { showClusterNotes(board: board, id: id, title: title) }
@@ -154,7 +283,25 @@ extension AppModel {
         parent.submenu = sizes
         menu.addItem(parent)
         menu.addItem(.separator())
-        add("Dissolve Cluster", "rectangle.badge.minus") { [self] in dissolveCluster(id) }
+        if folderBoard != nil {
+            // a folder board's clusters are folders: removing one deletes the folder, never its pictures
+            if let folder = collections.first(where: { $0.id == id }), folder.id != Canon.collection(in: collections)?.id {
+                add(folder.kind == "folder" ? "Delete Folder" : "Delete Collection", "trash") { [self] in deleteClusterFolder(id) }
+            }
+        } else {
+            add("Dissolve Cluster", "rectangle.badge.minus") { [self] in dissolveCluster(id) }
+        }
         return menu
+    }
+}
+
+enum FolderBoard: Equatable {
+    case library
+    case collection(String)
+
+    /// The collection whose folders are the clusters; nil for the whole library's top-level collections.
+    var parent: String? {
+        if case .collection(let id) = self { return id }
+        return nil
     }
 }

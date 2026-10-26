@@ -313,6 +313,10 @@ final class AppModel {
     var sectionsVersion = 0
     @ObservationIgnored var sectionClusters: [CanvasCluster] = []
     @ObservationIgnored var sectionKey: String?
+    /// The folders that are this board's clusters (see `FolderClusters`).
+    @ObservationIgnored var boardFolders: Set<String> = []
+    /// Boards whose named clusters were already turned into folders this session.
+    @ObservationIgnored var migratedBoards: Set<String> = []
     /// Bumped when the grid-of-record for the canvas changes from outside the canvas (board loaded, undo, teammate, arrange).
     private(set) var canvasVersion = 0
     @ObservationIgnored var canvasLoadedKey: String?
@@ -1597,7 +1601,7 @@ final class AppModel {
 
     func originalURL(for s: ItemSummary) -> URL? {
         guard let layout else { return nil }
-        return layout.itemDir(s.id).appendingPathComponent(s.ext.map { "original.\($0)" } ?? "original")
+        return layout.itemDir(TileKey.item(s.id)).appendingPathComponent(s.ext.map { "original.\($0)" } ?? "original")
     }
 }
 

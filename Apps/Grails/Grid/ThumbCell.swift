@@ -364,8 +364,10 @@ final class ThumbCell: NSCollectionViewItem {
             return
         }
         let variant = isLink ? mode : ""
-        let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(s.id) : layout.thumbURL(s.id)
-        if let hit = loader.cached(id: s.id, pixels: pixels, variant: variant) {
+        // a second tile of the same picture (see `TileKey`) has its own key but the same files
+        let item = TileKey.item(s.id)
+        let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(item) : layout.thumbURL(item)
+        if let hit = loader.cached(id: item, pixels: pixels, variant: variant) {
             show(hit)
         } else {
             view.layer?.contents = nil
@@ -373,7 +375,7 @@ final class ThumbCell: NSCollectionViewItem {
         }
         let id = s.id
         source = (id, pictureURL, isLink ? nil : original, variant)
-        op = loader.load(id: id, thumb: pictureURL, original: isLink ? nil : original, pixels: pixels, variant: variant) { [weak self] image in
+        op = loader.load(id: item, thumb: pictureURL, original: isLink ? nil : original, pixels: pixels, variant: variant) { [weak self] image in
             guard let self, self.itemID == id, let image else { return }
             self.show(image)
         }
@@ -388,7 +390,7 @@ final class ThumbCell: NSCollectionViewItem {
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         op?.cancel()
         let id = src.id
-        op = loader.load(id: id, thumb: src.thumb, original: src.original, pixels: pixels, variant: src.variant) { [weak self] image in
+        op = loader.load(id: TileKey.item(id), thumb: src.thumb, original: src.original, pixels: pixels, variant: src.variant) { [weak self] image in
             guard let self, self.itemID == id, let image else { return }
             self.show(image)
         }
