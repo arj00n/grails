@@ -98,7 +98,7 @@ public struct GrailsColorFilter: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(Space.xs)) {
             Text("Color")
-                .font(ChromeFont.body(TypeScale.section, bold: true))
+                .font(ChromeFont.title(TypeScale.section))
                 .foregroundStyle(GrailsColor.token(ChromeRole.section))
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: CGFloat(Space.xs))], alignment: .leading, spacing: CGFloat(Space.xs)) {
                 ForEach(chips, id: \.name) { chip in

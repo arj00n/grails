@@ -84,7 +84,7 @@ function load() {
   return { document, timers, showGrailsToast: sandbox.showGrailsToast };
 }
 
-test("a success toast is Geist, greys, and closed shadow, then dismisses itself", () => {
+test("a success toast is the system font, greys, and closed shadow, then dismisses itself", () => {
   const { document, timers, showGrailsToast } = load();
   const shown = showGrailsToast(document, { ok: true, text: "Saved to Grails", dismissAfter: 2600 });
   const css = shown.shadow.children[0].textContent;
@@ -97,8 +97,9 @@ test("a success toast is Geist, greys, and closed shadow, then dismisses itself"
   assert.equal(shown.label.parent, shown.card);
   assert.ok(shown.shadow.children.includes(shown.card));
   assert.ok(!shown.host.children.includes(shown.label));
-  assert.match(css, /font: 13px\/1\.5 Geist, "Geist"/);
-  assert.match(css, /font: 400 12px\/1\.2 Geist, "Geist"/);
+  assert.match(css, /font: 13px\/1\.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif/);
+  assert.match(css, /font: 400 12px\/1\.2 -apple-system, BlinkMacSystemFont, "SF Pro Text"/);
+  assert.doesNotMatch(css, /@font-face|\.ttf/);
   assert.doesNotMatch(css, /ui-monospace/);
   assert.match(css, /--text: #1A1A1A/);
   assert.match(css, /--text: #F3F4F6/);

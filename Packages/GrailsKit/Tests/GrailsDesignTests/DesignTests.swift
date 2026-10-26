@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Testing
 @testable import GrailsDesign
@@ -200,7 +201,13 @@ import Testing
 }
 
 @Suite struct TypographyTests {
-    @Test func theFacesAreDistinct() {
-        #expect(Typography.bodyName != Typography.bodyBoldName)
+    @Test func textIsSFProAndTitlesAreRounded() {
+        #expect(Typography.bodyDesign == .standard && Typography.titleDesign == .rounded && Typography.countDesign == .rounded)
+        let system = NSFont.systemFont(ofSize: 13).familyName
+        #expect(ChromeNSFont.body(13).familyName == system)
+        let title = ChromeNSFont.title(15)
+        #expect(title.fontName != ChromeNSFont.body(15).fontName)
+        #expect(title.fontName.localizedCaseInsensitiveContains("rounded"), "title is \(title.fontName)")
+        #expect(ChromeNSFont.count(11).fontName.localizedCaseInsensitiveContains("rounded"))
     }
 }

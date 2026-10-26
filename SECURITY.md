@@ -98,4 +98,4 @@ Known gap: the app doesn't yet keep the relay's create or claim token, so its `D
 
 - Swift dependencies: GRDB, swift-crypto and Sparkle, pinned in `Package.resolved`.
 - The browser extension has no third-party runtime dependencies.
-- Fonts are under the SIL Open Font Licence and paintings are public domain; see the `NOTICE.md` files.
+- No font is bundled or registered; the app, its exports and the extension use the system font. Paintings are public domain; see their `NOTICE.md`.

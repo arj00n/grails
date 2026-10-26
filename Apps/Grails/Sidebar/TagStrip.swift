@@ -121,7 +121,7 @@ private struct StripTab: View {
         GrailsControl(action: action) {
             HStack(spacing: 5) {
                 Text(label).font(.grailsBody(13)).foregroundStyle(selected || hovering ? Ink.text : Ink.secondary).lineLimit(1)
-                if let count { Text("\(count)").font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
+                if let count { Text("\(count)").font(.grailsCount(11)).foregroundStyle(Ink.secondary) }
             }
                 .padding(.horizontal, 10).frame(height: 24)
                 .background(RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).fill(selected && !tracked ? Ink.fillHover : (hovering && !selected ? Ink.fill : Ink.clear)))

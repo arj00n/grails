@@ -127,9 +127,9 @@ struct GuideView: View {
             Image(systemName: "checkmark").font(ChromeFont.symbol(9, weight: .bold)).foregroundStyle(Ink.canvas)
                 .frame(width: 18, height: 18).background(Ink.positive, in: Circle())
         case .current:
-            Text("\(n)").font(.grailsBody(CGFloat(TypeScale.help))).monospacedDigit().foregroundStyle(Ink.canvas).frame(width: 18, height: 18).background(Ink.text, in: Circle())
+            Text("\(n)").font(.grailsCount(CGFloat(TypeScale.help))).foregroundStyle(Ink.canvas).frame(width: 18, height: 18).background(Ink.text, in: Circle())
         case .pending:
-            Text("\(n)").font(.grailsBody(CGFloat(TypeScale.help))).monospacedDigit().foregroundStyle(Ink.secondary).frame(width: 18, height: 18)
+            Text("\(n)").font(.grailsCount(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).frame(width: 18, height: 18)
                 .overlay(Circle().strokeBorder(Ink.tertiary, lineWidth: 1))
         }
     }

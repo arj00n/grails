@@ -1416,7 +1416,7 @@ final class ClusterHeaderLayer: CALayer {
             .foregroundColor: NSColor.ink(title.isEmpty ? .secondary : .text),
         ]))
         s.append(NSAttributedString(string: "  \(count)", attributes: [
-            .font: NSFont.grailsDigits(11), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsCount(11), .foregroundColor: NSColor.ink(.secondary),
         ]))
         let p = NSMutableParagraphStyle()
         p.lineBreakMode = .byTruncatingTail

@@ -96,8 +96,8 @@
   let collecting = false;
 
   // ---- The app's look, inside a shadow root so the page's styles can't touch it and ours can't touch the page ------------
-  // Tokens are the app's (GrailsDesign/Tokens.swift), light and dark following the system; the fonts are the app's too, handed over by the
-  // extension's worker and registered under names of our own.
+  // Tokens are the app's (GrailsDesign/Tokens.swift), light and dark following the system; the type is the app's too: SF Pro, the
+  // system font, so nothing is bundled or registered.
   const CSS = `
     :host { all: initial; }
     .ui {
@@ -115,35 +115,14 @@
     .ui { position: fixed; right: 16px; bottom: 16px; display: flex; align-items: center; gap: 12px; padding: 12px;
           border-radius: 12px; background: var(--background); color: var(--text); border: 1px solid var(--field-border);
           box-shadow: var(--shadow); color-scheme: light dark;
-          font: 13px/1.5 "Grails Sans", -apple-system, system-ui, sans-serif; opacity: 1; transition: opacity .18s ease-out; }
-    .tag { font: 700 12px/1.2 "Grails Sans", sans-serif; color: var(--secondary); }
+          font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; opacity: 1; transition: opacity .18s ease-out; }
+    .tag { font: 600 12px/1.2 ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui, sans-serif; color: var(--secondary); }
     .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text); flex: none; }
     .dot.bad { background: var(--secondary); }
-    button { font: 13px/1 "Grails Sans", sans-serif; height: 28px; padding: 0 14px; border-radius: 8px; cursor: pointer;
+    button { font: 13px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; height: 28px; padding: 0 14px; border-radius: 8px; cursor: pointer;
              border: 1px solid var(--secondary-border); background: var(--secondary-fill); color: var(--text); }
     button:hover { background: var(--hover); }
   `;
-
-  let fontsReady = null;
-  /** Geist regular and bold, from the extension's own files, under a name that will not clash with the page. */
-  function loadFonts() {
-    fontsReady ||= (async () => {
-      try {
-        const r = await chrome.runtime.sendMessage({ type: "fonts" });
-        const face = (name, b64, weight) => {
-          const bin = atob(b64), bytes = new Uint8Array(bin.length);
-          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-          return new FontFace(name, bytes.buffer, { weight }).load().then((f) => document.fonts.add(f));
-        };
-        if (r?.sans) {
-          const jobs = [face("Grails Sans", r.sans, "400")];
-          if (r.bold) jobs.push(face("Grails Sans", r.bold, "700"));
-          await Promise.all(jobs);
-        }
-      } catch { /* the system fonts will do */ }
-    })();
-    return fontsReady;
-  }
 
   /** A card in the corner, in the app's look. Returns the pieces to fill in. */
   function makeCard(id) {
@@ -158,7 +137,6 @@
     card.className = "ui";
     root.append(style, card);
     document.documentElement.appendChild(host);
-    loadFonts();
     return { host, card };
   }
 

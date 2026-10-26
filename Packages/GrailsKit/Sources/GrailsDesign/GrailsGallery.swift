@@ -33,7 +33,7 @@ struct GrailsAppearanceColumn: View {
     var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(ChromeMetrics.sectionGap)) {
             Text(scheme == .dark ? "Dark" : "Light")
-                .font(ChromeFont.body(TypeScale.section, bold: true))
+                .font(ChromeFont.title(TypeScale.section))
                 .foregroundStyle(GrailsColor.secondary)
             states
             liveFields

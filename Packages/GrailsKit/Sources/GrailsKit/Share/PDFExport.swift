@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import CoreText
 import Foundation
@@ -123,14 +124,12 @@ extension WebExporter {
         if includeSources, let s = e.source, let link = URL(string: s) { ctx.setURL(link as CFURL, for: rect) }
     }
 
-    /// Geist Bold for a title and Geist for the rest when the app has handed them over; the system font otherwise.
+    /// SF Pro Rounded Semibold for a title and SF Pro for the rest, through the system font, as in the app.
     private static func typeface(title: Bool, size: CGFloat) -> CTFont {
-        let name = title ? "Geist-Bold" : "Geist-Regular"
-        if (title ? ExportFonts.bodyBold : ExportFonts.body) != nil {
-            let f = CTFontCreateWithName(name as CFString, size, nil)
-            if (CTFontCopyPostScriptName(f) as String) == name { return f }
-        }
-        return CTFontCreateUIFontForLanguage(title ? .emphasizedSystem : .system, size, nil) ?? CTFontCreateWithName("Helvetica" as CFString, size, nil)
+        guard title else { return NSFont.systemFont(ofSize: size) }
+        let semibold = NSFont.systemFont(ofSize: size, weight: .semibold)
+        guard let rounded = semibold.fontDescriptor.withDesign(.rounded) else { return semibold }
+        return NSFont(descriptor: rounded, size: size) ?? semibold
     }
 
     private static func draw(_ text: String, at p: CGPoint, size: CGFloat, title: Bool = false, gray: CGFloat, ctx: CGContext, maxWidth: CGFloat, rightAligned: Bool = false) {

@@ -187,8 +187,8 @@ struct SidebarHeader<Trailing: View>: View {
             GrailsControl { withGrailsSpring { expanded.toggle() } } label: {
                 HStack(spacing: 6) {
                     GrailsDisclosureChevron(expanded: expanded, size: 8, weight: .bold).frame(width: 10)
-                    Text(title)
-                    if !expanded, let count { Text("\(count)").monospacedDigit() }
+                    Text(title).font(.grailsTitle(11))
+                    if !expanded, let count { Text("\(count)").font(.grailsCount(11)) }
                 }
                 .font(.grailsBody(11))
                 .foregroundStyle(hovering ? Ink.text : Ink.secondary)
@@ -245,7 +245,7 @@ struct SidebarRow: View {
                 .overlay { if canon { CanonSparkles(selected: selected) } }
             Text(title).font(.grailsBody(13)).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : AnyShapeStyle(quiet && !hovering ? Ink.secondary : Ink.text)).lineLimit(1)
             Spacer(minLength: 4)
-            if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
+            if let count { Text(count.formatted()).font(.grailsCount(11)).foregroundStyle(Ink.secondary) }
         }
         // depth is laid out inside the fill, so every row's hover, selection and drop outline is the same rectangle
         .padding(.leading, CGFloat(SidebarRowMetrics.contentLeading(nested: nested, depth: indent)))

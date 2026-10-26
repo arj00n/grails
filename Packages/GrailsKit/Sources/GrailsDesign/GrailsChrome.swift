@@ -49,14 +49,46 @@ open class GrailsKeyView: NSView {
     }
 }
 
-public enum ChromeFont {
-    public static func body(_ size: Double, bold: Bool = false) -> Font {
-        .custom(bold ? Typography.bodyBoldName : Typography.bodyName, fixedSize: size)
+extension Typography.Design {
+    var font: Font.Design { self == .rounded ? .rounded : .default }
+    var nsFont: NSFontDescriptor.SystemDesign { self == .rounded ? .rounded : .default }
+}
+
+extension Typography.Weight {
+    var font: Font.Weight {
+        switch self {
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        }
     }
 
-    /// Geist Bold at `size`. Family and weight stay inside this function.
+    var nsFont: NSFont.Weight {
+        switch self {
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        }
+    }
+}
+
+/// SF Pro through the system font. Family, design and weight stay inside these functions.
+public enum ChromeFont {
+    /// SF Pro; `bold` is the emphasized body weight (semibold).
+    public static func body(_ size: Double, bold: Bool = false) -> Font {
+        .system(size: size, weight: (bold ? Typography.bodyEmphasisWeight : Typography.bodyWeight).font, design: Typography.bodyDesign.font)
+    }
+
+    /// SF Pro Rounded Semibold at `size`: page and sheet titles, section headers, cluster names, display moments.
     public static func title(_ size: Double) -> Font {
-        .custom(Typography.bodyBoldName, fixedSize: size)
+        .system(size: size, weight: Typography.titleWeight.font, design: Typography.titleDesign.font)
+    }
+
+    /// A count badge: SF Pro Rounded with tabular digits, so a column of counts lines up.
+    public static func count(_ size: Double) -> Font {
+        .system(size: size, weight: Typography.countWeight.font, design: Typography.countDesign.font).monospacedDigit()
     }
 
     /// SF Symbols only. Text uses `body` or `title`.
@@ -67,12 +99,35 @@ public enum ChromeFont {
 
 public enum ChromeNSFont {
     public static func body(_ size: CGFloat, bold: Bool = false) -> NSFont {
-        NSFont(name: bold ? Typography.bodyBoldName : Typography.bodyName, size: size) ?? .systemFont(ofSize: size, weight: bold ? .bold : .regular)
+        system(size, weight: bold ? Typography.bodyEmphasisWeight : Typography.bodyWeight, design: Typography.bodyDesign)
     }
 
-    /// Same face as `ChromeFont.title`. A missing registration falls back to the bold system font.
+    /// Same face as `ChromeFont.title`: SF Pro Rounded Semibold.
     public static func title(_ size: CGFloat) -> NSFont {
-        NSFont(name: Typography.bodyBoldName, size: size) ?? .systemFont(ofSize: size, weight: .bold)
+        system(size, weight: Typography.titleWeight, design: Typography.titleDesign)
+    }
+
+    /// Same face as `ChromeFont.count`: SF Pro Rounded with tabular digits.
+    public static func count(_ size: CGFloat) -> NSFont {
+        tabularDigits(system(size, weight: Typography.countWeight, design: Typography.countDesign))
+    }
+
+    /// Body text with tabular digits, for numbers that line up.
+    public static func digits(_ size: CGFloat) -> NSFont { tabularDigits(body(size)) }
+
+    private static func system(_ size: CGFloat, weight: Typography.Weight, design: Typography.Design) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight.nsFont)
+        guard design != .standard, let described = base.fontDescriptor.withDesign(design.nsFont) else { return base }
+        return NSFont(descriptor: described, size: size) ?? base
+    }
+
+    private static func tabularDigits(_ font: NSFont) -> NSFont {
+        let feature: [NSFontDescriptor.FeatureKey: Int] = [
+            .typeIdentifier: kNumberSpacingType,
+            .selectorIdentifier: kMonospacedNumbersSelector,
+        ]
+        let described = font.fontDescriptor.addingAttributes([.featureSettings: [feature]])
+        return NSFont(descriptor: described, size: font.pointSize) ?? font
     }
 }
 
@@ -507,7 +562,7 @@ public struct GrailsSection<Content: View>: View {
                             .foregroundStyle(GrailsColor.token(ChromeRole.section))
                     }
                     Text(title)
-                        .font(ChromeFont.body(TypeScale.section, bold: true))
+                        .font(ChromeFont.title(TypeScale.section))
                         .foregroundStyle(GrailsColor.token(ChromeRole.section))
                     if let tag, !tag.isEmpty {
                         Text(tag)
@@ -974,7 +1029,7 @@ private final class QuietTextField: GrailsValueField {
 /// One line for the placeholder and the typed value. The 10 pt inset is the field padding, not a second overlay.
 @MainActor
 enum FieldLine {
-    /// Geist's font box sits a point below its glyphs. Both strings use the same lift so they meet the middle of the field.
+    /// The font box sits a point below its glyphs. Both strings use the same lift so they meet the middle of the field.
     static let opticalLift: CGFloat = 1
 
     /// A pasted break would wrap the row. A single-line field keeps the characters and drops the break.
@@ -2285,7 +2340,7 @@ public struct GrailsCopyField: View {
     }
 }
 
-/// One person on the team page. The initial is Geist Bold. Pending adds a dot beside the role.
+/// One person on the team page. The initial is the title face. Pending adds a dot beside the role.
 public struct GrailsPersonRow<Actions: View>: View {
     var email: String
     var subtitle: String
@@ -2315,7 +2370,7 @@ public struct GrailsPersonRow<Actions: View>: View {
         let initial = email.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? ""
         HStack(spacing: CGFloat(Space.sm)) {
             Text(initial)
-                .font(ChromeFont.body(TypeScale.label, bold: true))
+                .font(ChromeFont.title(TypeScale.label))
                 .foregroundStyle(GrailsColor.secondary)
                 .frame(width: 30, height: 30)
                 .background(GrailsInk(.avatar), in: Circle())

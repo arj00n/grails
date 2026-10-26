@@ -15,10 +15,11 @@ test("the copy script puts the chrome tree at the resources root", () => {
       env: { ...process.env, SRC: chrome, DEST: dest },
       stdio: "pipe",
     });
-    for (const rel of ["manifest.json", "background.js", "lib/client.js", "icons/128.png", "fonts/Geist-Regular.ttf"]) {
+    for (const rel of ["manifest.json", "background.js", "lib/client.js", "icons/128.png", "popup.css"]) {
       assert.equal(fs.existsSync(path.join(dest, rel)), true, rel);
     }
     assert.equal(fs.existsSync(path.join(dest, "chrome", "manifest.json")), false);
+    assert.equal(fs.existsSync(path.join(dest, "fonts")), false);
     assert.equal(fs.existsSync(path.join(dest, "client.js")), false);
     assert.equal(fs.existsSync(path.join(dest, "README.md")), false);
     assert.deepEqual(fs.readFileSync(path.join(dest, "manifest.json")), fs.readFileSync(path.join(chrome, "manifest.json")));

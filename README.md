@@ -73,4 +73,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Licence
 
-MIT, see [LICENSE](LICENSE). The bundled fonts are under the SIL Open Font Licence and the paintings are public domain; see the `NOTICE.md` files next to them.
+MIT, see [LICENSE](LICENSE). The app uses the system font (SF Pro) and bundles none. The paintings are public domain; see the `NOTICE.md` next to them.
