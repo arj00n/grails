@@ -301,6 +301,10 @@ Don't. A sweeping sheen or shimmer, a glow, a fill on the unselected row, a loud
 
 `GrailsPending`. A small turning spinner and one line. It shows only after 300 ms.
 
+### Sidebar row
+
+`SidebarRowMetrics` is the one rectangle rule for every library sidebar row: Inbox, a collection with or without folders, a folder at any depth, a tag. The fill (hover, the selection indicator, a drop outline) is inset 8 from both sidebar edges, 28 tall, radius 7, on every row. Everything else is inside it: an 8 pt content inset, the 12 pt chevron slot, the 16 pt icon, the title. Under a section heading the content starts 16 further in, and each level of depth moves it a further 20 (the chevron slot plus its gap), so a child's arrow sits under its parent's icon. Tree rows keep the chevron slot empty when there is nothing to open, so siblings line up. Depth never moves the fill.
+
 ### Menu
 
 Menus use `GrailsMenuItem`. A title, an optional symbol, a shortcut, and an enabled flag. It is a bare button, so the menu keeps the key. A context menu that shows a shortcut uses it too. A `Divider()` inside a menu is a menu separator. Mark a divider that the scanner cannot see as `// menu`. Do not put a divider under a title. The app menu (`.commands`, `CommandMenu`, `CommandGroup`) uses `GrailsMenuItem` only. `Scripts/check-design-rules.sh` rejects `GrailsControl` and a button style there.
