@@ -26,8 +26,8 @@ import Testing
         #expect(open.panelX == 900)
     }
 
-    @Test func theLayoutPlacesThePanelBelowTheBarAndBesideTheContent() {
-        let layout = InfoSplitLayout(reveal: 1, columnWidth: 300, top: 44)
+    @Test func theLayoutPlacesThePanelBesideTheContent() {
+        let layout = InfoSplitLayout(reveal: 1, columnWidth: 300)
         #expect(layout.animatableData == 1)
         var moved = layout
         moved.animatableData = 0.5
