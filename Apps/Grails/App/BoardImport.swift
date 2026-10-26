@@ -71,31 +71,50 @@ extension AppModel {
 
     // MARK: Pairing and the extension
 
-    func allowPairing(_ request: PairingBroker.Request) {
-        apiServer?.pairing.approve(request.id)
-        pairRequest = nil
-        extensionPaired = true
-        UserDefaults.standard.set(true, forKey: "extensionPaired")
-        if let origin = PairingOrigin.parse(request.origin) { rememberExtensionPair(origin) }
-        if extensionSetup.isOpen { extensionSetup.connected = true }
-        if !extensionSetup.isOpen { showToast("Extension connected") }
-        // the guide ticks its last step, then leaves, and Grails comes back to the front
-        if guide.isShowing {
-            guide.finishAll()
-            guidePanel.refit()
-            Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(1200))
-                guidePanel.hide()
-                NSApp.activate(ignoringOtherApps: true)
-            }
+    func applyPairingDelivery(_ delivery: PairingSession.Delivery) {
+        switch delivery {
+        case .showInFront(let request):
+            PairingFront.bringToFront()
+            pairRequest = request
+        case .show(let request):
+            pairRequest = request
+        case .clear(let id):
+            if pairRequest?.id == id { pairRequest = nil }
         }
-        // a secret board that was waiting for this can now be read in the browser
-        importModel.useExtensionForSecretBoards()
-        // an import was waiting for this: the sheet gets out of the way and the import starts
-        if extensionSetup.continueImport {
-            extensionSetup.continueImport = false
-            extensionSetup.close()
-            importModel.start()
+    }
+
+    func allowPairing(_ item: PairingSheetItem, now: Date = Date()) {
+        switch item.allowAnswer(now: now) {
+        case .expired(let id):
+            dismissExpiredPairing(id, now: now)
+            return
+        case .allow(let allowance):
+            guard pairRequest?.id == allowance.id else { return }
+            apiServer?.pairing.approve(allowance.id)
+            pairRequest = nil
+            extensionPaired = true
+            UserDefaults.standard.set(true, forKey: "extensionPaired")
+            if let origin = PairingOrigin.parse(allowance.origin) { rememberExtensionPair(origin) }
+            if extensionSetup.isOpen { extensionSetup.connected = true }
+            if !extensionSetup.isOpen { showToast("Extension connected") }
+            // the guide ticks its last step, then leaves, and Grails comes back to the front
+            if guide.isShowing {
+                guide.finishAll()
+                guidePanel.refit()
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(1200))
+                    guidePanel.hide()
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+            // a secret board that was waiting for this can now be read in the browser
+            importModel.useExtensionForSecretBoards()
+            // an import was waiting for this: the sheet gets out of the way and the import starts
+            if extensionSetup.continueImport {
+                extensionSetup.continueImport = false
+                extensionSetup.close()
+                importModel.start()
+            }
         }
     }
 
@@ -106,9 +125,32 @@ extension AppModel {
         UserDefaults.standard.set(false, forKey: "extensionPaired")
     }
 
-    func denyPairing(_ request: PairingBroker.Request) {
-        apiServer?.pairing.deny(request.id)
+    func denyPairing(_ item: PairingSheetItem, now: Date = Date()) {
+        switch item.denyAnswer(now: now) {
+        case .expired(let id):
+            dismissExpiredPairing(id, now: now)
+        case .deny(let refusal):
+            apiServer?.pairing.deny(refusal.id)
+            if pairRequest?.id == refusal.id { pairRequest = nil }
+        }
+    }
+
+    /// The lifetime elapsed. Does not approve, deny, set `extensionPaired`, or toast.
+    func dismissExpiredPairing(_ id: String, now: Date = Date()) {
+        guard let current = pairRequest, current.id == id else { return }
+        guard PairingSheetItem(current, now: now) == nil else { return }
         pairRequest = nil
+    }
+
+    /// Nil is Esc, the close control, or a present that found no visible window. A live request is denied.
+    func closePairingSheet(_ next: PairingSheetItem?) {
+        guard next == nil, let current = pairRequest else { return }
+        let now = Date()
+        guard let item = PairingSheetItem(current, now: now) else {
+            dismissExpiredPairing(current.id, now: now)
+            return
+        }
+        denyPairing(item, now: now)
     }
 
     /// Opens a page in the default browser (the one the extension lives in).

@@ -65,6 +65,10 @@ struct RootView: View {
         // the order on screen is the order they opened in, not the order they are written here.
         .grailsSheet(isPresented: $model.feedbackOpen) { FeedbackCard(model: model) }
         .grailsSheet(isPresented: $model.importPanelOpen) { ImportPanel(model: model) }
+        .grailsSheet(item: Binding(
+            get: { model.pairRequest.flatMap { PairingSheetItem($0, now: Date()) } },
+            set: { model.closePairingSheet($0) }
+        )) { PairingSheet(model: model, item: $0) }
         .grailsSheet(isPresented: Binding(get: { model.welcome != nil }, set: { if !$0 { model.welcome = nil } })) {
             if let w = model.welcome { WelcomeCard(model: model, request: w) }
         }
@@ -494,9 +498,8 @@ struct RootView: View {
 
     static let settingsSlide: CGFloat = 16
 
-    /// Above whichever page is showing: the pairing ask (often answered from Settings ▸ Extensions), ⌘K, toasts and progress.
+    /// Above whichever page is showing: ⌘K, toasts and progress. The pairing ask is a grailsSheet.
     @ViewBuilder private var windowOverlays: some View {
-        if let req = model.pairRequest, !model.importPanelOpen, !model.extensionSetup.isOpen { PairPrompt(model: model, request: req) }
         if let panel = model.panel { PanelHost(model: model, panel: panel) }
         // every toast, error or not, and the progress cards under it: one column centred across the whole window
         VStack(spacing: CGFloat(ToastPlacement.stackSpacing)) {

@@ -60,9 +60,12 @@ extension AppModel {
             do {
                 let port = try await server.start(port: env["GRAILS_API_PORT"].flatMap(UInt16.init) ?? LocalAPIServer.defaultPort)
                 apiServer = server
-                server.pairing.onRequest = { [weak self] r in
+                // The callback is @Sendable and runs off the main actor. The ledger is Sendable so the closure can keep it; the hop is where the window moves.
+                let attention = PairingAttention()
+                server.pairing.onRequest = { [weak self, attention] request in
                     Task { @MainActor in
-                        self?.pairRequest = r
+                        guard let self else { return }
+                        self.applyPairingDelivery(attention.deliver(request, now: Date()))
                     }
                 }
                 server.jobs.onBoards = { [weak self] nonce, boards in Task { @MainActor in self?.importModel.listed(nonce: nonce, boards: boards) } }
@@ -171,5 +174,17 @@ extension AppModel {
         guard let png = await LinkSnapshotter.capture(url: url) else { return }
         try? await store.setSnapshot(png, for: id)
         await reload()
+    }
+}
+
+/// The pairing callback is `@Sendable` and not on the main actor, so it keeps this holder instead of a main-actor object.
+private final class PairingAttention: @unchecked Sendable {
+    private let lock = NSLock()
+    private var session = PairingSession()
+
+    func deliver(_ request: PairingBroker.Request, now: Date) -> PairingSession.Delivery {
+        lock.lock()
+        defer { lock.unlock() }
+        return session.deliver(request, now: now)
     }
 }
