@@ -1,4 +1,5 @@
 import AppKit
+import GrailsDesign
 import GrailsKit
 import QuartzCore
 
@@ -218,7 +219,7 @@ final class MasonryLayout: TileLayout {
 /// The grid with titled sections: each section is a header row followed by its tiles (squares, or each keeping its
 /// proportions, to match the grid setting). Sections are laid out one after another.
 final class SectionedLayout: TileLayout {
-    static let headerHeight: CGFloat = 60
+    static let headerHeight = CGFloat(ChromeMetrics.sectionHeaderHeight)
     static let sectionGap: CGFloat = 36
 
     /// Per item index: true for a section header.
