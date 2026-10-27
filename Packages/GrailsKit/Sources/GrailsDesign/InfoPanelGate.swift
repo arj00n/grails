@@ -72,3 +72,19 @@ public struct InfoPanelState: Equatable {
         gate.endGesture()
     }
 }
+
+/// What the info panel shows: the live value while it is open, and the value it last showed while it closes and stays closed.
+///
+/// The canvas closes its panel by clearing the selection, so without this the panel would switch to the view's totals in the
+/// same update and fade those out instead of the item it was showing. Opening shows the live value at once.
+public struct InfoPanelHold<Value: Equatable>: Equatable {
+    public private(set) var held: Value
+
+    public init(_ value: Value) { held = value }
+
+    public func shown(isOpen: Bool, live: Value) -> Value { isOpen ? live : held }
+
+    public mutating func update(isOpen: Bool, live: Value) {
+        if isOpen { held = live }
+    }
+}

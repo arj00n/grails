@@ -5,17 +5,19 @@ import SwiftUI
 /// The inspector: the one selected item in full, a count and size for several, the view's totals for none.
 struct InfoPanel: View {
     var model: AppModel
+    /// The selection the panel shows: the live one while open, the last one shown while it closes (`InfoPanelHold`).
+    var selection: Set<String>
 
-    private var selectedID: String? { model.selection.count == 1 ? model.selection.first : nil }
+    private var selectedID: String? { selection.count == 1 ? selection.first : nil }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 if let id = selectedID {
                     InfoBlock(model: model, itemID: id)
-                } else if model.selection.count > 1 {
-                    let chosen = model.selectedSummaries
-                    Text("\(model.selection.count) selected").font(.grailsTitle(CGFloat(TypeScale.title)))
+                } else if selection.count > 1 {
+                    let chosen = model.items.filter { selection.contains($0.id) }
+                    Text("\(selection.count) selected").font(.grailsTitle(CGFloat(TypeScale.title)))
                     let bytes = chosen.reduce(Int64(0)) { $0 + ($1.bytes ?? 0) }
                     if bytes > 0 { Text(ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)).font(.grailsBody(12)).monospacedDigit().foregroundStyle(Ink.secondary) }
                 } else {
