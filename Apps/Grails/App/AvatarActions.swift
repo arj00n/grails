@@ -26,19 +26,26 @@ enum AvatarMemory {
 }
 
 extension AppModel {
+    /// The signed-in person's own profile, as `myFace` and `myLook` find it: their member id, or the handle before they have one.
+    /// Two profiles can share a handle, and by handle a read or a save could land on the other one.
+    var myProfileToken: String {
+        guard !memberId.isEmpty, let layout, Members.profile(matching: memberId, in: layout) != nil else { return userHandle }
+        return memberId
+    }
+
     /// The signed-in person's photo, or nil when they use the generated blob.
     var avatarPicture: NSImage? {
         _ = memberDirectory
         guard let layout else { return nil }
-        if memberDirectory.portrait(matching: userHandle)?.usesPhoto == false { return nil }
-        return AvatarMemory.image(handle: userHandle, in: layout)
+        if memberDirectory.portrait(matching: myProfileToken)?.usesPhoto == false { return nil }
+        return AvatarMemory.image(handle: myProfileToken, in: layout)
     }
 
     /// Whether a photo file is stored for this person, shown or not.
     var hasStoredAvatarPhoto: Bool {
         _ = memberDirectory
         guard let layout else { return false }
-        return AvatarMemory.image(handle: userHandle, in: layout) != nil
+        return AvatarMemory.image(handle: myProfileToken, in: layout) != nil
     }
 
     /// Reads the member directory again after a profile or photo write, or after a synced `.members` file arrives.
@@ -108,8 +115,7 @@ extension AppModel {
             return
         }
         do {
-            // the profile `myLook` and `myFace` read: two profiles can share a handle, and by handle this could land on the other one
-            try Members.setLook(look, handle: memberId.isEmpty ? userHandle : memberId, in: layout)
+            try Members.setLook(look, handle: myProfileToken, in: layout)
             refreshMemberDirectory()
             bucket.nudge()
         } catch {
@@ -137,11 +143,11 @@ extension AppModel {
     func removeAvatarPhoto() {
         guard let layout else { return }
         do {
-            try AvatarStore.clear(handle: userHandle, in: layout)
+            try AvatarStore.clear(handle: myProfileToken, in: layout)
             if myLook.usesPhoto {
                 var look = myLook
                 look.usesPhoto = false
-                try Members.setLook(look, handle: userHandle, in: layout)
+                try Members.setLook(look, handle: myProfileToken, in: layout)
             }
             refreshMemberDirectory()
             bucket.nudge()
@@ -184,12 +190,12 @@ extension AppModel {
         case .success(let jpeg):
             let allowed = TeamPermissions.canSetAvatar(actor: bucket.role, isSelf: true)
             do {
-                let saved = try AvatarStore.write(jpeg: jpeg, handle: userHandle, in: layout, authorized: allowed, stamps: avatarStamps, now: Date())
+                let saved = try AvatarStore.write(jpeg: jpeg, handle: myProfileToken, in: layout, authorized: allowed, stamps: avatarStamps, now: Date())
                 avatarStamps = saved.stamps
                 if !myLook.usesPhoto {
                     var look = myLook
                     look.usesPhoto = true
-                    try Members.setLook(look, handle: userHandle, in: layout)
+                    try Members.setLook(look, handle: myProfileToken, in: layout)
                     bucket.nudge()
                 }
                 refreshMemberDirectory()
