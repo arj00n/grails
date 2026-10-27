@@ -8,28 +8,28 @@ import Testing
         #expect(added.text == "Added to \(Canon.title)")
         #expect(added.mark == .canon)
         #expect(added.mark.symbolName == nil)
-        #expect(added.mark.holyGrailStruck == false)
+        #expect(added.mark.holyGrailFilled == true)
 
         let removed = LibraryNotice.holyGrail(added: false, count: 1)
         #expect(removed.text == "Removed from Holy Grail")
-        #expect(removed.mark == .canonStruck)
+        #expect(removed.mark == .canonOutline)
         #expect(removed.mark.symbolName == nil)
-        #expect(removed.mark.holyGrailStruck == true)
+        #expect(removed.mark.holyGrailFilled == false)
 
         let several = LibraryNotice.holyGrail(added: true, count: 3)
         #expect(several.text == "Added 3 items to Holy Grail")
         #expect(several.mark == .canon)
         let gone = LibraryNotice.holyGrail(added: false, count: 2)
         #expect(gone.text == "Removed 2 items from Holy Grail")
-        #expect(gone.mark == .canonStruck)
+        #expect(gone.mark == .canonOutline)
     }
 
-    @Test func likeToastsUseAHeartAndASlashedHeart() {
+    @Test func likeToastsUseAFilledHeartAndAppleSlashedHeart() {
         let liked = LibraryNotice.like(on: true, count: 1)
         #expect(liked.text == "Liked")
         #expect(liked.mark == .heart)
-        #expect(liked.mark.symbolName == "heart")
-        #expect(liked.mark.holyGrailStruck == nil)
+        #expect(liked.mark.symbolName == "heart.fill")
+        #expect(liked.mark.holyGrailFilled == nil)
 
         let unliked = LibraryNotice.like(on: false, count: 1)
         #expect(unliked.text == "Unliked")

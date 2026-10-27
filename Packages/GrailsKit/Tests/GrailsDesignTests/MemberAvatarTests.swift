@@ -274,13 +274,9 @@ import Testing
             #expect(image.accessibilityDescription == "Holy Grail")
         }
         // The ring's centre is ink when filled and clear in the outline, at the sizes the app draws it.
-        // The removal toast cuts a slash through that same filled mark, so the centre opens.
         for size in [12.0, 13, 14, 40] {
             #expect(try Self.inkAtRingCentre(CanonMark.image(pointSize: size, filled: true)) > 0.9, "filled at \(size)")
             #expect(try Self.inkAtRingCentre(CanonMark.image(pointSize: size, filled: false)) < 0.1, "outline at \(size)")
-            let struck = CanonMark.image(pointSize: size, filled: true, struck: true)
-            #expect(struck.isTemplate)
-            #expect(try Self.inkAtRingCentre(struck) < 0.2, "slash opens the ring at \(size)")
         }
     }
 

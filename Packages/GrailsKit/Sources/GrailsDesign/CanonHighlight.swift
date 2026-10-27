@@ -108,17 +108,13 @@ public enum CanonStars {
 
 /// The Holy Grail mark, everywhere Holy Grail appears: a filled rosette. SF Symbols has `rosette` but no fill variant, so the filled
 /// mark is `rosette` with a disc laid in its ring. `filled: false` is the plain outline, for "Add to Holy Grail" before an item is in it.
-/// `struck: true` cuts a slash through that same mark (the "Removed from Holy Grail" toast). A line drawn on top would be the same
-/// template ink as the fill and would disappear, so the slash is erased out of the rosette.
 /// `CanonMark.image` is the same mark for AppKit menus.
 public struct CanonMark: View {
     var size: CGFloat
     var filled: Bool
-    var struck: Bool
-    public init(size: CGFloat = 12, filled: Bool = true, struck: Bool = false) {
+    public init(size: CGFloat = 12, filled: Bool = true) {
         self.size = size
         self.filled = filled
-        self.struck = struck
     }
 
     public static let symbolName = "rosette"
@@ -130,39 +126,21 @@ public struct CanonMark: View {
     static let ringCentre = 0.377, discRadius = 0.27
 
     public var body: some View {
-        Image(nsImage: Self.image(pointSize: size, filled: filled, struck: struck))
+        Image(nsImage: Self.image(pointSize: size, filled: filled))
             .renderingMode(.template)
             .accessibilityLabel("Holy Grail")
     }
 
     /// A template image of the mark, sized like the other symbols in a menu.
     /// Nonisolated, so AppKit may draw the filled image off the main thread.
-    nonisolated public static func image(pointSize: CGFloat = NSFont.menuFont(ofSize: 0).pointSize, filled: Bool = true, struck: Bool = false) -> NSImage {
+    nonisolated public static func image(pointSize: CGFloat = NSFont.menuFont(ofSize: 0).pointSize, filled: Bool = true) -> NSImage {
         let config = NSImage.SymbolConfiguration(pointSize: pointSize * opticalScale, weight: .regular)
         guard let ring = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Holy Grail")?.withSymbolConfiguration(config) else { return NSImage() }
-        let image = filled || struck ? NSImage(size: ring.size, flipped: false) { rect in
+        let image = filled ? NSImage(size: ring.size, flipped: false) { rect in
             ring.draw(in: rect)
-            if filled {
-                let r = rect.height * discRadius
-                NSColor.black.setFill()
-                NSBezierPath(ovalIn: CGRect(x: rect.midX - r, y: rect.height * (1 - ringCentre) - r, width: r * 2, height: r * 2)).fill()
-            }
-            // A stroke in the template ink would vanish on the fill. Erase the slash so the surface shows through.
-            if struck {
-                let centre = NSPoint(x: rect.midX, y: rect.height * (1 - ringCentre))
-                let dx = rect.width * 0.46
-                let dy = rect.height * 0.34
-                let slash = NSBezierPath()
-                slash.lineWidth = max(1, rect.height * 0.16)
-                slash.lineCapStyle = .round
-                slash.move(to: NSPoint(x: centre.x - dx, y: centre.y + dy))
-                slash.line(to: NSPoint(x: centre.x + dx, y: centre.y - dy))
-                NSGraphicsContext.saveGraphicsState()
-                NSGraphicsContext.current?.compositingOperation = .destinationOut
-                NSColor.black.setStroke()
-                slash.stroke()
-                NSGraphicsContext.restoreGraphicsState()
-            }
+            let r = rect.height * discRadius
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: CGRect(x: rect.midX - r, y: rect.height * (1 - ringCentre) - r, width: r * 2, height: r * 2)).fill()
             return true
         } : ring
         image.alignmentRect = ring.alignmentRect

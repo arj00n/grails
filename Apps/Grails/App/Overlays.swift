@@ -72,8 +72,8 @@ struct ToastView: View {
     var body: some View {
         // The mark's own symbol name and Holy Grail flag are what LibraryNoticeTests checks, so the screen cannot drift from them.
         Group {
-            if let struck = mark?.holyGrailStruck {
-                GrailsToast(text, holyGrailStruck: struck)
+            if let filled = mark?.holyGrailFilled {
+                GrailsToast(text, holyGrailFilled: filled)
             } else {
                 GrailsToast(text, symbol: mark?.symbolName ?? "checkmark.circle")
             }

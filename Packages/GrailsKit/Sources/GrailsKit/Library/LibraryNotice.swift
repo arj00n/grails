@@ -8,23 +8,23 @@ public struct LibraryNotice: Equatable, Sendable {
         case heartSlash
         /// The filled gold rosette.
         case canon
-        /// That same rosette with a slash cut through it.
-        case canonStruck
+        /// The outline rosette.
+        case canonOutline
 
-        /// The SF Symbol for a heart. Holy Grail is `CanonMark`, not a symbol, so this is nil.
+        /// The SF Symbol for a heart: `heart.fill` and Apple's `heart.slash`. Holy Grail is `CanonMark`, not a symbol, so this is nil.
         public var symbolName: String? {
             switch self {
-            case .heart: "heart"
+            case .heart: "heart.fill"
             case .heartSlash: "heart.slash"
-            case .canon, .canonStruck: nil
+            case .canon, .canonOutline: nil
             }
         }
 
-        /// Whether this is Holy Grail's mark, and whether the slash is cut through it.
-        public var holyGrailStruck: Bool? {
+        /// Whether this is Holy Grail's mark, and whether it is the filled one.
+        public var holyGrailFilled: Bool? {
             switch self {
-            case .canon: false
-            case .canonStruck: true
+            case .canon: true
+            case .canonOutline: false
             case .heart, .heartSlash: nil
             }
         }
@@ -53,6 +53,6 @@ public struct LibraryNotice: Equatable, Sendable {
         } else {
             text = added ? "Added \(count) items to \(Canon.title)" : "Removed \(count) items from \(Canon.title)"
         }
-        return LibraryNotice(text: text, mark: added ? .canon : .canonStruck)
+        return LibraryNotice(text: text, mark: added ? .canon : .canonOutline)
     }
 }

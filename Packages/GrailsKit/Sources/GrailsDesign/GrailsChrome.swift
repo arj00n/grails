@@ -2388,23 +2388,23 @@ public extension GrailsPersonRow where Actions == EmptyView {
 public struct GrailsToast: View {
     var text: String
     private var symbol: String
-    /// Holy Grail's filled mark instead of `symbol`. The slash is cut through that mark.
+    /// Holy Grail's mark instead of `symbol`: filled and gold, or the outline in secondary ink.
     private var holyGrail: Bool
-    private var holyGrailStruck: Bool
+    private var holyGrailFilled: Bool
 
     public init(_ text: String, symbol: String = "checkmark.circle") {
         self.text = text
         self.symbol = symbol
         self.holyGrail = false
-        self.holyGrailStruck = false
+        self.holyGrailFilled = false
     }
 
-    /// The filled gold rosette. `struck` is the removal toast: the same mark, with a slash through the ring.
-    public init(_ text: String, holyGrailStruck: Bool) {
+    /// The rosette. `filled` is the added toast, in gold; the outline is the removal toast, in secondary ink, as the inspector shows them.
+    public init(_ text: String, holyGrailFilled: Bool) {
         self.text = text
         self.symbol = ""
         self.holyGrail = true
-        self.holyGrailStruck = holyGrailStruck
+        self.holyGrailFilled = holyGrailFilled
     }
 
     public var body: some View {
@@ -2426,9 +2426,15 @@ public struct GrailsToast: View {
 
     @ViewBuilder private var mark: some View {
         if holyGrail {
-            CanonMark(size: 13, filled: true, struck: holyGrailStruck)
-                .foregroundStyle(CanonInk(selected: false))
-                .accessibilityHidden(true)
+            if holyGrailFilled {
+                CanonMark(size: 13, filled: true)
+                    .foregroundStyle(CanonInk(selected: false))
+                    .accessibilityHidden(true)
+            } else {
+                CanonMark(size: 13, filled: false)
+                    .foregroundStyle(GrailsColor.secondary)
+                    .accessibilityHidden(true)
+            }
         } else {
             Image(systemName: symbol)
                 .font(ChromeFont.symbol(13, weight: .medium))
