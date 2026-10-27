@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Where the content column ends and the info panel column begins, for a split `total` points wide.
 ///
-/// `reveal` runs 0 (closed) to 1 (open) and may pass 1 while the spring settles. The panel always starts where the content
-/// ends, so the two never overlap; an overshoot narrows the content a little further and the panel fills the extra width.
+/// `reveal` runs 0 (closed) to 1 (open). The panel always starts where the content ends, so the two never overlap; a reveal past
+/// 1 would narrow the content a little further and the panel would fill the extra width.
 public struct InfoSplitGeometry: Equatable, Sendable {
     public let contentWidth: Double
     /// The panel's leading edge, from the split's leading edge.
@@ -27,8 +27,9 @@ public struct InfoSplitGeometry: Equatable, Sendable {
 /// strip). The column runs the full height of the split, under the window's bar like the sidebar; the caller insets the
 /// panel's contents below the bar.
 ///
-/// The width springs on `grailsSpring`; the panel's contents fade on `grailsStandard`, so the fade never bounces. Reduce Motion
-/// opens and closes it at once. The content draws above the panel, so a picture flying back to its tile passes over it.
+/// The width, the contents' fade and the separator all move on one `grailsFlight` ease-out (`motion`), so nothing overshoots and
+/// they land on the same frame. Reduce Motion opens and closes it at once. The content draws above the panel, so a picture
+/// flying back to its tile passes over it.
 public struct GrailsInfoSplit<Content: View, Panel: View>: View {
     var isOpen: Bool
     var width: CGFloat
@@ -39,6 +40,10 @@ public struct GrailsInfoSplit<Content: View, Panel: View>: View {
     @Environment(\.grailsReduceMotion) private var reduceMotion
 
     public static var columnWidth: CGFloat { 300 }
+
+    /// How the column opens and closes. A spring would carry the content past its width and back, reflowing it twice, and land
+    /// after the fade; one ease-out keeps the width, the fade and the separator in step.
+    public static func motion(reduceMotion: Bool) -> Animation? { reduceMotion ? nil : .grailsFlight }
 
     public init(
         isOpen: Bool, width: CGFloat = Self.columnWidth, panelOpacity: Double = 1,
@@ -56,7 +61,7 @@ public struct GrailsInfoSplit<Content: View, Panel: View>: View {
             column
             content.zIndex(1)
         }
-        .animation(reduceMotion ? nil : .grailsSpring, value: isOpen)
+        .animation(Self.motion(reduceMotion: reduceMotion), value: isOpen)
     }
 
     private var column: some View {
@@ -64,7 +69,6 @@ public struct GrailsInfoSplit<Content: View, Panel: View>: View {
             .frame(width: width)
             .frame(maxHeight: .infinity, alignment: .top)
             .opacity(isOpen ? 1 : 0)
-            .animation(reduceMotion ? nil : .grailsStandard, value: isOpen)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .background(GrailsInk(.sidebar))
             .overlay(alignment: .leading) { Rectangle().fill(GrailsInk(.separator)).frame(width: 1) }
@@ -74,7 +78,7 @@ public struct GrailsInfoSplit<Content: View, Panel: View>: View {
     }
 }
 
-/// Places the content and the panel side by side by `InfoSplitGeometry`. `reveal` is animatable, so the spring drives the
+/// Places the content and the panel side by side by `InfoSplitGeometry`. `reveal` is animatable, so the animation drives the
 /// layout itself and the content reflows on every frame. The first subview is the panel, the second the content.
 struct InfoSplitLayout: Layout {
     var reveal: Double
