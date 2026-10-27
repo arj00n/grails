@@ -1,20 +1,25 @@
 import CoreGraphics
+import GrailsDesign
 import Testing
 @testable import GrailsKit
 
 @Suite struct SectionPinTests {
-    private let headers = [
-        CGRect(x: 12, y: 12, width: 400, height: 60),
-        CGRect(x: 12, y: 900, width: 400, height: 60),
-        CGRect(x: 12, y: 1800, width: 400, height: 60),
-    ]
+    /// The grid's section header row, as the grid lays it out.
+    private let h = CGFloat(ChromeMetrics.sectionHeaderHeight)
+    private var headers: [CGRect] {
+        [
+            CGRect(x: 12, y: 12, width: 400, height: h),
+            CGRect(x: 12, y: 900, width: 400, height: h),
+            CGRect(x: 12, y: 1800, width: 400, height: h),
+        ]
+    }
 
     @Test func theFloatingHeaderNeverOverlapsTheNextOneWhileScrolling() {
         for step in 0...2400 {
             let top = CGFloat(step)
             guard let f = SectionPins.floating(headers, visibleTop: top) else { continue }
-            let onDocument = CGRect(x: 12, y: top + f.offset, width: 400, height: 60)
-            #expect(f.offset <= 0 && f.offset > -60, "header left the top edge at \(top): \(f.offset)")
+            let onDocument = CGRect(x: 12, y: top + f.offset, width: 400, height: h)
+            #expect(f.offset <= 0 && f.offset > -h, "header left the top edge at \(top): \(f.offset)")
             if f.index + 1 < headers.count {
                 #expect(onDocument.maxY <= headers[f.index + 1].minY + 0.5, "headers overlap at \(top)")
             }
@@ -25,7 +30,7 @@ import Testing
 
     @Test func aStuckHeaderSitsExactlyOnTheTopEdge() {
         // Any scroll position inside a section, at any speed (the answer depends on the position alone).
-        for top in stride(from: CGFloat(13), through: 839, by: 0.25) {
+        for top in stride(from: CGFloat(13), through: 900 - h - 1, by: 0.25) {
             let f = SectionPins.floating(headers, visibleTop: top)
             #expect(f?.index == 0)
             #expect(f?.offset == 0, "stuck header moved off the edge at \(top)")
@@ -33,9 +38,10 @@ import Testing
     }
 
     @Test func theNextHeaderPushesTheFloatingOneUp() {
-        let f = SectionPins.floating(headers, visibleTop: 860)
+        let top = 900 - h + 20                                  // the next header is 20 into the floating one's place
+        let f = SectionPins.floating(headers, visibleTop: top)
         #expect(f?.index == 0)
-        #expect(f.map { abs($0.offset - -20) < 0.5 } == true)   // 900 - 60 - 860, just above the next header
+        #expect(f.map { abs($0.offset - -20) < 0.5 } == true)   // 900 - h - top, just above the next header
     }
 
     @Test func theOffsetIsContinuousSoThePushNeverJumps() {
