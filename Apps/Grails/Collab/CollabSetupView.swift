@@ -48,7 +48,7 @@ private struct StepTitle: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
+            Text(title).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
             if let detail { Text(detail).font(.grailsBody(12)).foregroundStyle(Ink.secondary).fixedSize(horizontal: false, vertical: true) }
         }
     }

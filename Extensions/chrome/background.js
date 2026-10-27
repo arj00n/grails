@@ -192,13 +192,6 @@ chrome.runtime.onMessage.addListener((msg, sender, respond) => {
         notify(sender.tab, false, e instanceof GrailsError ? e.message : String(e));
         respond({ ok: false, error: String(e.message || e) });
       }
-    } else if (msg.type === "fonts") {
-      const b64 = async (file) => {
-        const bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL(file))).arrayBuffer());
-        let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-        return btoa(bin);
-      };
-      try { respond({ sans: await b64("fonts/Geist-Regular.ttf"), bold: await b64("fonts/Geist-Bold.ttf") }); } catch { respond({}); }
     } else if (msg.type === "ping") {
       try { respond({ ok: true, ...(await client.ping()) }); } catch (e) { respond({ ok: false, kind: e.kind, error: e.message }); }
     } else if (msg.type === "collections") {

@@ -1,23 +1,25 @@
 # Grails UI tokens (1pt = 1 CSS px; PNGs rendered @2x)
 
 ## Font
-Geist (UI/body), Geist Bold (section headers), and Geist Mono (titles, link, invite code). Shipped files: Geist-Regular (400), Geist-Bold (700), GeistMono-Regular (400). No other weights are used.
-SwiftUI: `.custom("Geist-Regular", size:)`, `.custom("Geist-Bold", size:)`, `.custom("GeistMono-Regular", size:)`.
+SF Pro, the system font. Nothing is bundled or registered.
+SwiftUI: `ChromeFont.body` is `.system(size:weight:design: .default)`, regular (semibold when `bold`). `ChromeFont.title` is `.system(size:weight: .semibold, design: .rounded)`, SF Pro Rounded Semibold, for titles, section headers, cluster names, avatar initials and display moments. `ChromeFont.count` is SF Pro Rounded Medium with `.monospacedDigit()`, for count badges. AppKit: `ChromeNSFont` builds the same faces from `NSFont.systemFont(ofSize:weight:)`.
+CSS: text `-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif`; titles `ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, system-ui, sans-serif` at 600.
 
 ## Type
 | Role | Font | Size | Weight | Tracking | Color |
 |---|---|---|---|---|---|
-| Page title ("Team") | Geist Mono | 20 | Regular 400 | -0.02em | text |
-| Sheet title ("Invite") | Geist Mono | 15 | Regular 400 | -0.01em | text |
-| Section header ("People") | Geist | 13 | Bold 700 | 0 | text |
-| Body / field value / row title | Geist | 13 | Regular 400 | 0 | text |
-| Field label | Geist | 12 | Regular 400 | 0 | secondary |
-| Helper / meta / row subtitle | Geist | 12 | Regular 400, line-height 1.5 | 0 | secondary / tertiary |
-| Button label (primary + secondary) | Geist | 13 | Regular 400 | 0 | per button |
-| Quiet action | Geist | 12 | Regular 400 | 0 | secondary |
-| Invite link | Geist Mono | 12 | Regular 400 | -0.01em | text |
-| Invite code | Geist Mono | 15 | Regular 400 | +0.08em | text |
-| Avatar initial | Geist | 12 | Bold 700 | 0 | secondary |
+| Page title ("Team") | SF Pro Rounded | 20 | Semibold 600 | -0.02em | text |
+| Sheet title ("Invite") | SF Pro Rounded | 15 | Semibold 600 | -0.01em | text |
+| Section header ("People") | SF Pro Rounded | 13 | Semibold 600 | 0 | text |
+| Body / field value / row title | SF Pro | 13 | Regular 400 | 0 | text |
+| Field label | SF Pro | 12 | Regular 400 | 0 | secondary |
+| Helper / meta / row subtitle | SF Pro | 12 | Regular 400, line-height 1.5 | 0 | secondary / tertiary |
+| Button label (primary + secondary) | SF Pro | 13 | Regular 400 | 0 | per button |
+| Quiet action | SF Pro | 12 | Regular 400 | 0 | secondary |
+| Invite link | SF Pro | 12 | Regular 400 | 0, tabular digits | text |
+| Invite code | SF Pro | 15 | Regular 400 | 0, tabular digits | text |
+| Avatar initial | SF Pro Rounded | 12 | Semibold 600 | 0 | secondary |
+| Count badge | SF Pro Rounded | 11 | Medium 500 | 0, tabular digits | secondary |
 
 ## Colors
 | Token | Light | Dark |

@@ -5,6 +5,7 @@ struct GridSection: Equatable {
     let id: String
     let title: String
     var ids: [String]
+    var collapsed = false
 }
 
 extension AppModel {
@@ -12,6 +13,15 @@ extension AppModel {
     func refreshSections(forceRead: Bool = false) async {
         guard let store, let key = canvasBoardKey else {
             sectionClusters = []; sectionKey = nil
+            rebuildSections()
+            return
+        }
+        // a folder board follows its folders, which any reload may have changed
+        if folderBoard != nil {
+            if let clusters = await folderClusters(), key == canvasBoardKey {
+                sectionClusters = clusters; sectionKey = key
+                if viewMode == .canvas, canvasLoadedKey == key, clusters != canvasClusters { canvasClusters = clusters; bumpCanvasVersion() }
+            }
             rebuildSections()
             return
         }
@@ -32,10 +42,11 @@ extension AppModel {
             let visible = Set(items.map(\.id))
             var seen = Set<String>()
             var sections: [GridSection] = []
-            for c in sectionClusters {
-                let ids = c.items.filter { visible.contains($0) && !seen.contains($0) }
+            // on a folder board a picture in two folders is in both sections, as a second tile (see `TileKey`)
+            for c in folderBoard == nil ? sectionClusters : TileKey.keyed(sectionClusters) {
+                let ids = c.items.filter { visible.contains(TileKey.item($0)) && !seen.contains($0) }
                 seen.formUnion(ids)
-                sections.append(GridSection(id: c.id, title: c.title, ids: ids))
+                sections.append(GridSection(id: c.id, title: c.title, ids: ids, collapsed: c.collapsed))
             }
             let orphans = items.map(\.id).filter { !seen.contains($0) }
             if !orphans.isEmpty { sections[0].ids += orphans }

@@ -11,7 +11,7 @@ final class PreviewStageView: NSView {
     // MARK: Wiring
 
     private(set) var pageSet = PreviewSet([])
-    private(set) var index = 0
+    private(set) var index = 0 { didSet { arrivingFrom = 0 } }
     var sourceFor: (ItemSummary) -> PreviewSource = { _ in PreviewSource(original: nil, thumb: URL(fileURLWithPath: "/"), thumbMax: 512) }
     /// A page turn finished: the new position.
     var onCommit: ((Int) -> Void)?
@@ -29,6 +29,8 @@ final class PreviewStageView: NSView {
     /// The picture is about to fly back onto its tile. Hide the details before the first frame of that return.
     var onReturnToTile: (() -> Void)?
     var currentID: String? { pageSet[index]?.id }
+    /// The window's bar over the top of the stage. Pictures fit, centre and pan below it.
+    var topInset: CGFloat = 0 { didSet { if topInset != oldValue { needsLayout = true } } }
 
     // MARK: State
 
@@ -51,6 +53,8 @@ final class PreviewStageView: NSView {
     private var tracking = false                                    // fingers are driving the page or the dismiss
     private var pinching = false
     private var travelDirection = 1
+    /// The side the picture now on the page slides in from after the open one left the set; that side's neighbour waits.
+    private var arrivingFrom = 0
     private var link: CADisplayLink?
     private var lastTick: CFTimeInterval = 0
     private var overlay: NSView?
@@ -161,11 +165,55 @@ final class PreviewStageView: NSView {
         refresh()
     }
 
+    /// Items left the set while it is open (taken out of Holy Grail, deleted, filtered out). The picture on the page keeps its zoom
+    /// when it is still there. When it is the one that left, it fades where it was and the neighbour taking its place slides in,
+    /// like a page turn. When nothing is left, the page closes the way Esc does.
     func replaceSet(_ newSet: PreviewSet, position: Int) {
+        guard newSet.count > 0 else { close(toTile: false); return }      // its tile is leaving too
+        let oldSet = pageSet, oldIndex = index, oldID = currentID
         pageSet = newSet
-        index = min(max(position, 0), max(pageSet.count - 1, 0))
-        resetZoom()
+        index = min(max(position, 0), pageSet.count - 1)
+        if currentID != oldID {
+            removeOverlay()
+            resetZoom()
+            let from = currentID.flatMap { oldSet.position(of: $0) }.map { $0 > oldIndex ? 1 : -1 } ?? 0
+            if from != 0, !reduceMotion, !closing, !tracking {
+                fadeOutLeaving()
+                travelDirection = from
+                offsetX.value = Double(from) * Double(bounds.width + Self.gap)     // where it sat as a neighbour
+                offsetX.target = 0
+                offsetX.velocity = 0
+                arrivingFrom = from
+                startLink()
+            } else {
+                offsetX = CriticalSpring(response: 0.26)
+            }
+        }
         refresh()
+    }
+
+    /// The picture that left the set fades out in place, on the exit timing, under the one sliding in.
+    private func fadeOutLeaving() {
+        let page = pages[1]
+        guard !page.isHidden, let contents = page.contents, let root = layer else { return }
+        let ghost = CALayer()
+        ghost.contents = contents
+        ghost.contentsGravity = page.contentsGravity
+        ghost.bounds = page.bounds
+        ghost.position = page.position
+        ghost.setAffineTransform(page.affineTransform())
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        root.insertSublayer(ghost, below: pages[0])
+        let a = CABasicAnimation(keyPath: "opacity")
+        a.fromValue = 1
+        a.toValue = 0
+        a.duration = Motion.quick
+        a.timingFunction = .grailsStandard
+        ghost.opacity = 0
+        ghost.add(a, forKey: "fade")
+        CATransaction.commit()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Motion.quick + 0.02) { ghost.removeFromSuperlayer() }
     }
 
     private func refresh() {
@@ -175,6 +223,12 @@ final class PreviewStageView: NSView {
         if let item = pageSet[index] { setAccessibilityLabel("Image \(index + 1) of \(pageSet.count), \(item.name)") }
         updateArrows()
     }
+
+    /// The stage below the bar: what a picture fits into, centres in and pans against. The stage itself still runs the full height,
+    /// so a flight from a tile, a dismiss drag and a zoomed picture are not cut off at the bar.
+    private var area: CGRect { Pager.pictureArea(stage: bounds.size, top: topInset) }
+
+    private func fit(_ i: Int) -> CGRect { Pager.fitRect(image: pixelSize(i), in: area) }
 
     private func pixelSize(_ i: Int) -> CGSize {
         guard let s = pageSet[i] else { return .zero }
@@ -191,7 +245,7 @@ final class PreviewStageView: NSView {
         var pixels = Int(min(longEdge, 4096))
         // zoomed in: ask for what the zoom needs
         if zoom.value > 1.05, let item = pageSet[index] {
-            let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+            let fit = fit(index)
             pixels = Int(min(max(Double(pixels), Double(max(fit.width, fit.height) * zoom.value * scale)), 6000))
             _ = item
         }
@@ -207,7 +261,7 @@ final class PreviewStageView: NSView {
     private func fitZoomForTall(_ i: Int) -> Double {
         let size = pixelSize(i)
         guard Pager.isTall(size) else { return 1 }
-        let fit = Pager.fitRect(image: size, stage: bounds.size)
+        let fit = Pager.fitRect(image: size, in: area)
         let target = max(bounds.width - 48, 1)
         return max(1, Double(target / max(fit.width, 1)))
     }
@@ -222,22 +276,22 @@ final class PreviewStageView: NSView {
 
     /// The vertical pan that shows the top of a tall picture.
     private func tallTopPan(_ z: Double) -> CGFloat {
-        let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
-        return max((fit.height * CGFloat(z) - bounds.height) / 2, 0)
+        let fit = fit(index)
+        return max((fit.height * CGFloat(z) - area.height) / 2, 0)
     }
 
     private func currentRect() -> CGRect {
-        let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+        let fit = fit(index)
         let z = CGFloat(zoom.value)
         let size = CGSize(width: fit.width * z, height: fit.height * z)
-        let c = CGPoint(x: bounds.midX + CGFloat(panX.value), y: bounds.midY + CGFloat(panY.value))
+        let c = CGPoint(x: area.midX + CGFloat(panX.value), y: area.midY + CGFloat(panY.value))
         return CGRect(x: c.x - size.width / 2, y: c.y - size.height / 2, width: size.width, height: size.height)
     }
 
     private func clampPan() {
-        let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+        let fit = fit(index)
         let z = CGFloat(zoom.value)
-        let limitX = max((fit.width * z - bounds.width) / 2, 0), limitY = max((fit.height * z - bounds.height) / 2, 0)
+        let limitX = max((fit.width * z - area.width) / 2, 0), limitY = max((fit.height * z - area.height) / 2, 0)
         panX.value = min(max(panX.value, -Double(limitX)), Double(limitX)); panX.target = min(max(panX.target, -Double(limitX)), Double(limitX))
         panY.value = min(max(panY.value, -Double(limitY)), Double(limitY)); panY.target = min(max(panY.target, -Double(limitY)), Double(limitY))
     }
@@ -260,9 +314,10 @@ final class PreviewStageView: NSView {
         for (n, layer) in pages.enumerated() {
             let slot = n - 1
             guard let item = pageSet[index + slot] else { layer.isHidden = true; continue }
-            layer.isHidden = slot != 0 && inFlight              // neighbours wait until the picture is in place
+            layer.isHidden = (slot != 0 && inFlight)            // neighbours wait until the picture is in place
+                || (arrivingFrom != 0 && slot == -arrivingFrom)     // the one that left is fading there
             var rect: CGRect
-            if slot == 0 { rect = currentRect() } else { rect = Pager.fitRect(image: pixelSize(index + slot), stage: bounds.size) }
+            if slot == 0 { rect = currentRect() } else { rect = fit(index + slot) }
             if slot == 0, inFlight, let tile = tileStageRect {
                 // the picture as it sits on its tile (whole, not cropped), growing to its place on the page
                 rect = PreviewFlight.frame(tile: tile, page: rect, image: pixelSize(index), progress: f)
@@ -283,7 +338,7 @@ final class PreviewStageView: NSView {
 
     override func layout() {
         super.layout()
-        let y = bounds.midY - 20
+        let y = area.midY - 20
         prevButton.frame = NSRect(x: 12, y: y, width: 40, height: 40)
         nextButton.frame = NSRect(x: bounds.width - 52, y: y, width: 40, height: 40)
         clampPan()
@@ -341,7 +396,7 @@ final class PreviewStageView: NSView {
 
     private func positionOverlay() {
         guard let overlay else { return }
-        overlay.frame = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
+        overlay.frame = fit(index)
     }
 
     private func removeOverlay() {
@@ -393,6 +448,7 @@ final class PreviewStageView: NSView {
         }
         if !active {
             stopLink()
+            arrivingFrom = 0
             if let id = flightTileID, !closing { tileHide?(id, false); flightTileID = nil; tileStageRect = nil }   // landed: the tile is free again
             refresh()
         }
@@ -448,14 +504,14 @@ final class PreviewStageView: NSView {
 
     // MARK: Closing
 
-    func close(velocityY: Double = 0, direction: Double = 1) {
+    func close(velocityY: Double = 0, direction: Double = 1, toTile: Bool = true) {
         guard !closing else { return }
         closing = true
         tracking = false
         removeOverlay()
         if reduceMotion { onClose?(); return }
         // fly back to the tile (jumping it into view if you paged away from it); without one, fade and shrink away
-        if let id = currentID, let win = tileRectProvider?(id), win.width > 1, window != nil {
+        if toTile, let id = currentID, let win = tileRectProvider?(id), win.width > 1, window != nil {
             onReturnToTile?()
             tileStageRect = convert(win, from: nil)
             if let old = flightTileID, old != id { tileHide?(old, false) }
@@ -596,13 +652,13 @@ final class PreviewStageView: NSView {
     /// Pixels per point at fit (≤ 1): so "maximum zoom" can be expressed against the picture's own resolution.
     private func scaleOfFit() -> CGFloat {
         let size = pixelSize(index)
-        let fit = Pager.fitRect(image: size, stage: bounds.size)
+        let fit = Pager.fitRect(image: size, in: area)
         return size.width > 0 ? fit.width / size.width : 1
     }
 
     private func applyZoom(_ z: Double, at p: CGPoint) {
         let old = zoom.value
-        let c = CGPoint(x: bounds.midX, y: bounds.midY)
+        let c = CGPoint(x: area.midX, y: area.midY)
         let ux = (p.x - c.x - CGFloat(panX.value)) / CGFloat(old), uy = (p.y - c.y - CGFloat(panY.value)) / CGFloat(old)
         zoom.value = z
         panX.value = Double(p.x - c.x - ux * CGFloat(z)); panY.value = Double(p.y - c.y - uy * CGFloat(z))
@@ -628,14 +684,14 @@ final class PreviewStageView: NSView {
         removeOverlay()
         // finish at the zoom that keeps the point under the pointer, and glide there
         let startZ = zoom.value
-        let c = CGPoint(x: bounds.midX, y: bounds.midY)
+        let c = CGPoint(x: area.midX, y: area.midY)
         let ux = (p.x - c.x - CGFloat(panX.value)) / CGFloat(startZ), uy = (p.y - c.y - CGFloat(panY.value)) / CGFloat(startZ)
         zoom.target = target
         panX.target = Double(p.x - c.x - ux * CGFloat(target)); panY.target = Double(p.y - c.y - uy * CGFloat(target))
         if target <= 1.0001 { panX.target = 0; panY.target = 0 }
         else {
-            let fit = Pager.fitRect(image: pixelSize(index), stage: bounds.size)
-            let limitX = max((fit.width * CGFloat(target) - bounds.width) / 2, 0), limitY = max((fit.height * CGFloat(target) - bounds.height) / 2, 0)
+            let fit = fit(index)
+            let limitX = max((fit.width * CGFloat(target) - area.width) / 2, 0), limitY = max((fit.height * CGFloat(target) - area.height) / 2, 0)
             panX.target = min(max(panX.target, -Double(limitX)), Double(limitX)); panY.target = min(max(panY.target, -Double(limitY)), Double(limitY))
         }
         if reduceMotion { zoom.value = zoom.target; panX.value = panX.target; panY.value = panY.target; refresh() } else { startLink() }
@@ -711,9 +767,9 @@ final class PreviewStageView: NSView {
         case (36, .command), (76, .command): onOpenSource?(); return              // ⌘↩
         case (3, []), (29, []): fitNow(); return                                   // F, 0
         case (29, .command): fitNow(); return
-        case (18, []): toggleZoom(at: CGPoint(x: bounds.midX, y: bounds.midY)); return   // 1: 100 %
-        case (24, .command): zoomBy(1.25, at: CGPoint(x: bounds.midX, y: bounds.midY)); return
-        case (27, .command): zoomBy(0.8, at: CGPoint(x: bounds.midX, y: bounds.midY)); return
+        case (18, []): toggleZoom(at: CGPoint(x: area.midX, y: area.midY)); return   // 1: 100 %
+        case (24, .command): zoomBy(1.25, at: CGPoint(x: area.midX, y: area.midY)); return
+        case (27, .command): zoomBy(0.8, at: CGPoint(x: area.midX, y: area.midY)); return
         case (40, []): togglePlayback(); return                                    // K
         default: break
         }

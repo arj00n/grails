@@ -333,6 +333,8 @@ extension LibraryStore {
     }
 
     func persistCollection(_ c: GrailsCollection) async throws {
+        var c = c
+        c.kind = GrailsCollection.kind(parentId: c.parentId)
         noteBefore(collection: c.id)
         let url = layout.collectionURL(c.id)
         try AtomicFile.writeJSON(c, to: url)
@@ -354,6 +356,18 @@ extension LibraryStore {
         c.updatedBy = userHandle
         try await persistCollection(c)
         return c
+    }
+
+    /// Collections written before the kind followed the parent: one inside another becomes a folder, a folder at the top
+    /// level a collection. Ids and members stay. Returns how many changed.
+    @discardableResult
+    public func normalizeCollectionKinds() async throws -> Int {
+        var changed = 0
+        for c in try await index.collections() where c.kind != GrailsCollection.kind(parentId: c.parentId) {
+            _ = try await updateCollection(id: c.id) { _ in }
+            changed += 1
+        }
+        return changed
     }
 
     public func renameCollection(id: String, to name: String) async throws {

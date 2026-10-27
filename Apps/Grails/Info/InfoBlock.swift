@@ -81,7 +81,7 @@ struct InfoBlock: View {
     }
 
     private var titleOverflows: Bool {
-        TitleLines.needsMore(name, font: ChromeNSFont.display(CGFloat(TypeScale.title)), width: titleWidth)
+        TitleLines.needsMore(name, font: ChromeNSFont.title(CGFloat(TypeScale.title)), width: titleWidth)
     }
 
     private func copy(_ value: String, toast: String) {
@@ -108,7 +108,7 @@ struct InfoBlock: View {
     private func header(_ item: Item, _ info: ItemInfo) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             VStack(alignment: .leading, spacing: 4) {
-                GrailsPlainField("Item name", text: $name, axis: .vertical, size: TypeScale.title, display: true, focus: $focus, equals: .name, idle: nil, lineLimit: nameExpanded ? 1...32 : 1...TitleLines.collapsed, onSubmit: { commitName(item) })
+                GrailsPlainField("Item name", text: $name, axis: .vertical, size: TypeScale.title, title: true, focus: $focus, equals: .name, idle: nil, lineLimit: nameExpanded ? 1...32 : 1...TitleLines.collapsed, onSubmit: { commitName(item) })
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .background {
@@ -124,12 +124,54 @@ struct InfoBlock: View {
                         .accessibilityIdentifier("item-title-more")
                 }
             }
-            GrailsControl(press: .icon) { model.toggleLike(ids: [item.id]) } label: {
-                Image(systemName: item.liked ? "heart.fill" : "heart").font(ChromeFont.symbol(13)).foregroundStyle(item.liked ? Ink.text : Ink.secondary)
+            HStack(spacing: CGFloat(Space.tight)) {
+                holyGrail(item)
+                GrailsControl(press: .icon) { model.toggleLike(ids: [item.id]) } label: {
+                    Image(systemName: item.liked ? "heart.fill" : "heart").font(ChromeFont.symbol(13)).foregroundStyle(item.liked ? Ink.text : Ink.secondary)
+                }
+                .help("Like (L)")
+                .accessibilityLabel(item.liked ? "Unlike" : "Like")
             }
-            .help("Like (L)")
-            .accessibilityLabel(item.liked ? "Unlike" : "Like")
         }
+    }
+
+    /// Holy Grail beside the heart: the filled mark in gold with the sidebar row's stars when the item is in it, the grey outline
+    /// when it can be added. Members see the gold mark but can't change it (`Canon.control`).
+    @ViewBuilder private func holyGrail(_ item: Item) -> some View {
+        let isIn = Canon.collection(in: model.collections).map { item.collections[$0.id] != nil } ?? false
+        let added = "In the \(Canon.title)"
+        switch Canon.control(isIn: isIn, canPromote: model.canPromoteToCanon) {
+        case .hidden:
+            EmptyView()
+        case .state:
+            holyGrailMark(isIn: true)
+                .help(added)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(added)
+                .accessibilityIdentifier("in-holy-grail")
+        case .add:
+            GrailsControl(press: .icon) { model.promoteToCanon([item.id]) } label: { holyGrailMark(isIn: false) }
+                .help("Add to \(Canon.title)")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Add to \(Canon.title)")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityIdentifier("add-to-holy-grail")
+        case .remove:
+            GrailsControl(press: .icon) { model.removeFromCanon([item.id]) } label: { holyGrailMark(isIn: true) }
+                .help(added)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(added)
+                .accessibilityHint("Removes it from the \(Canon.title)")
+                .accessibilityAddTraits([.isButton, .isSelected])
+                .accessibilityIdentifier("remove-from-holy-grail")
+        }
+    }
+
+    private func holyGrailMark(isIn: Bool) -> some View {
+        CanonMark(size: 13, filled: isIn)
+            .foregroundStyle(isIn ? AnyShapeStyle(CanonInk(selected: false)) : AnyShapeStyle(Ink.secondary))
+            .overlay { if isIn { CanonSparkles() } }
+            .contentShape(Rectangle())
     }
 
     private func provenance(_ info: ItemInfo) -> some View {
@@ -189,52 +231,24 @@ struct InfoBlock: View {
         .id(item?.id)
     }
 
-    @ViewBuilder private func collections(_ info: ItemInfo) -> some View {
+    private func collections(_ info: ItemInfo) -> some View {
         section("Collections") {
-            VStack(alignment: .leading, spacing: 0) {
-                if let item {
-                    let canonID = Canon.collection(in: model.collections)?.id
-                    let already: Set<String> = {
-                        guard let canonID, item.collections[canonID] != nil else { return [] }
-                        return [item.id]
-                    }()
-                    let offer = Canon.offer(selected: [item.id], alreadyIn: already)
-                    if offer.shown, model.canPromoteToCanon {
-                        GrailsButton("Add to \(Canon.title)", kind: .secondary, identifier: "add-to-holy-grail") {
-                            model.promoteSelectionToCanon()
-                        }
-                        .padding(.bottom, CGFloat(Space.xs))
-                    } else if !offer.removing.isEmpty {
-                        VStack(alignment: .leading, spacing: CGFloat(Space.xs)) {
-                            HStack(spacing: CGFloat(Space.tight)) {
-                                CanonMark(size: 14)
-                                Text("In \(Canon.title)")
-                            }
-                            .font(.grailsBody(13))
-                            .foregroundStyle(Ink.secondary)
-                            .accessibilityElement(children: .ignore)
-                            .accessibilityLabel("In \(Canon.title)")
-                            .accessibilityIdentifier("in-holy-grail")
-                            if model.canPromoteToCanon {
-                                GrailsButton("Remove from \(Canon.title)", kind: .quiet, identifier: "remove-from-holy-grail") {
-                                    model.removeFromCanon(offer.removing)
-                                }
-                            }
-                        }
-                        .padding(.bottom, CGFloat(Space.xs))
-                    }
+            FlowLayout(spacing: 4) {
+                ForEach(info.collections, id: \.id) { c in
+                    LinkChip(label: c.name, action: { model.showCollection(c.id) }, content: { Text(c.name) },
+                             onRemove: removable(c.id) ? { if let id = itemID { model.removeItems([id], fromCollection: c.id) } } : nil)
+                        .transition(.grailsChip(reduceMotion: reduceMotion))
                 }
-                FlowLayout(spacing: 4) {
-                    ForEach(info.collections, id: \.id) { c in
-                        LinkChip(label: c.name) { model.showCollection(c.id) } content: { Text(c.name) }
-                            .transition(.grailsChip(reduceMotion: reduceMotion))
-                    }
-                    folderMenu
-                }
-                .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
+                folderMenu
             }
+            .animation(.grailsSpring(reduceMotion: reduceMotion), value: info.collections.map(\.id))
         }
         .id(item?.id)
+    }
+
+    /// Holy Grail has its own toggle beside the heart, for the roles that may use it.
+    private func removable(_ collectionID: String) -> Bool {
+        collectionID != Canon.collection(in: model.collections)?.id
     }
 
     private var folderMenu: some View {
@@ -371,24 +385,37 @@ struct TagToken: View {
     }
 }
 
-/// A chip that takes you somewhere (a collection). Brightens under the pointer.
+/// A chip that takes you somewhere (a collection). Brightens under the pointer, and shows an × there when it can be removed.
 struct LinkChip<Content: View>: View {
     let label: String
     let action: () -> Void
     @ViewBuilder var content: () -> Content
+    var onRemove: (() -> Void)? = nil
     @State private var hovering = false
 
     var body: some View {
-        GrailsControl(action: action) {
-            content()
-                .font(.grailsBody(12))
-                .foregroundStyle(hovering ? Ink.text : Ink.secondary)
-                .padding(.horizontal, 8).frame(height: 22)
-                .chipSurface(selected: hovering)
-                .contentShape(Rectangle())
+        HStack(spacing: 0) {
+            GrailsControl(action: action) {
+                content()
+                    .font(.grailsBody(12))
+                    .foregroundStyle(hovering ? Ink.text : Ink.secondary)
+                    .padding(.leading, 8).padding(.trailing, onRemove == nil ? 8 : 2).frame(height: 22)
+                    .contentShape(Rectangle())
+            }
+            .accessibilityLabel(label)
+            if let onRemove {
+                // the space is kept while hidden, so the chips never reflow under the pointer
+                GrailsControl(action: onRemove) {
+                    Image(systemName: "xmark").font(ChromeFont.symbol(8, weight: .semibold)).foregroundStyle(Ink.secondary)
+                        .frame(width: 18, height: 22).contentShape(Rectangle())
+                }
+                .opacity(hovering ? 1 : 0)
+                .allowsHitTesting(hovering)
+                .accessibilityLabel("Remove from \(label)")
+            }
         }
+        .chipSurface(selected: hovering)
         .hoverState($hovering)
-        .accessibilityLabel(label)
     }
 }
 
@@ -453,7 +480,7 @@ struct NoteThread: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             if let cluster, !cluster.title.isEmpty {
-                Text(cluster.title).font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).lineLimit(1)
+                Text(cluster.title).font(.grailsTitle(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary).lineLimit(1)
                     .padding(.horizontal, 10).padding(.top, 8)
             }
             if !notes.isEmpty { commentList }
@@ -580,7 +607,7 @@ struct NoteThread: View {
         let voice = note.voice ? voiceURL(note) : nil
         return HStack(alignment: .top, spacing: 8) {
             Text(monogram(shownAuthor(note)))
-                .font(.grailsBody(11, bold: true))
+                .font(.grailsTitle(11))
                 .foregroundStyle(Ink.text)
                 .frame(width: 22, height: 22)
                 .background(Ink.surface, in: Circle())

@@ -126,6 +126,7 @@ final class ThumbCell: NSCollectionViewItem {
     private let cloud = TileChromeImage(frame: .zero)
     private let avatar = MemberAvatarView()
     private let sectionLabel = GrailsClusterTitle(frame: .zero)
+    private let sectionArrow = TileChromeImage(frame: .zero)
     private(set) var isSection = false
 
     override func loadView() {
@@ -164,7 +165,7 @@ final class ThumbCell: NSCollectionViewItem {
         caption.lineBreakMode = .byTruncatingTail
         captionBar.addSubview(caption)
         v.addSubview(captionBar)
-        titleLabel.font = .grailsDisplay(CGFloat(TypeScale.body))
+        titleLabel.font = .grailsTitle(CGFloat(TypeScale.body))
         titleLabel.textColor = .ink(.text)
         titleLabel.alignment = .center
         titleLabel.maximumNumberOfLines = 4
@@ -178,11 +179,15 @@ final class ThumbCell: NSCollectionViewItem {
         v.addSubview(siteLabel)
         badge.isHidden = true
         v.addSubview(badge)
-        sectionLabel.font = .grailsDisplay(CGFloat(TypeScale.page))
+        sectionLabel.font = .grailsTitle(CGFloat(TypeScale.page))
         sectionLabel.textColor = .ink(.text)
         sectionLabel.alignment = .left
         sectionLabel.isHidden = true
         v.addSubview(sectionLabel)
+        sectionArrow.contentTintColor = .ink(.secondary)
+        sectionArrow.symbolConfiguration = .init(pointSize: 13, weight: .semibold)
+        sectionArrow.isHidden = true
+        v.addSubview(sectionArrow)
         cloud.image = NSImage(systemSymbolName: "icloud.and.arrow.down", accessibilityDescription: "Not downloaded yet")
         cloud.contentTintColor = .onImage
         cloud.shadow = heart.shadow
@@ -247,10 +252,12 @@ final class ThumbCell: NSCollectionViewItem {
         if !sectionLabel.isHidden {
             if !lite || cachedSection == nil { cachedSection = sectionLabel.intrinsicContentSize }
             let s = cachedSection ?? sectionLabel.intrinsicContentSize
-            let font = sectionLabel.font ?? NSFont.grailsDisplay(CGFloat(TypeScale.page))
+            let font = sectionLabel.font ?? NSFont.grailsTitle(CGFloat(TypeScale.page))
             let h = GrailsClusterTitle.lineHeight(for: font)
             let w = min(max(ceil(s.width), 0), max(0, b.width - 2))
-            sectionLabel.frame = NSRect(x: 2, y: max(0, b.height - 6 - h), width: w, height: h)
+            let indent = Self.sectionArrowWidth
+            sectionArrow.frame = NSRect(x: 0, y: max(0, b.height - 6 - h), width: indent - 4, height: h)
+            sectionLabel.frame = NSRect(x: indent, y: max(0, b.height - 6 - h), width: min(w, max(0, b.width - indent - 2)), height: h)
         }
     }
 
@@ -266,12 +273,19 @@ final class ThumbCell: NSCollectionViewItem {
         view.layer?.borderColor = NSColor.ink(.text).cgColor
     }
 
+    static let sectionArrowWidth: CGFloat = 26
+
+    /// The arrow, and the gap up to the title, in the cell's own coordinates.
+    func sectionArrowContains(_ p: NSPoint) -> Bool {
+        isSection && !sectionArrow.isHidden && p.x < sectionLabel.frame.minX && p.y >= sectionLabel.frame.minY - 6 && p.y <= sectionLabel.frame.maxY + 6
+    }
+
     /// A section divider: just the cluster's title and how many items it holds.
     /// The section title becomes an editable field; `commit` gets the new name.
     func beginRenamingSection(text: String, commit: @escaping (String) -> Void) {
         guard isSection else { return }
         view.layoutSubtreeIfNeeded()
-        let field = InlineTitleField(text: text, font: .grailsDisplay(CGFloat(TypeScale.page)))
+        let field = InlineTitleField(text: text, font: .grailsTitle(CGFloat(TypeScale.page)))
         sectionLabel.isHidden = true
         field.onFinish = { [weak self] new in
             self?.sectionLabel.isHidden = false
@@ -279,7 +293,7 @@ final class ThumbCell: NSCollectionViewItem {
             if let new, new.trimmingCharacters(in: .whitespaces) != text { commit(new) }
         }
         let r = sectionLabel.frame
-        field.begin(in: view, frame: NSRect(x: 0, y: max(r.minY - 3, 0), width: min(view.bounds.width, 520), height: 34))
+        field.begin(in: view, frame: NSRect(x: r.minX - 2, y: max(r.minY - 3, 0), width: min(view.bounds.width - r.minX + 2, 520), height: 34))
     }
 
     func configureSection(_ s: ItemSummary, noted: Bool = false) {
@@ -296,11 +310,11 @@ final class ThumbCell: NSCollectionViewItem {
         for v in [placeholder, heart, noteMark, captionBar, titleLabel, siteLabel, badge, cloud, avatar] as [NSView] { v.isHidden = true }
         let untitled = s.name.isEmpty
         let text = NSMutableAttributedString(string: untitled ? "Untitled" : s.name, attributes: [
-            .font: NSFont.grailsDisplay(CGFloat(TypeScale.page)),
+            .font: NSFont.grailsTitle(CGFloat(TypeScale.page)),
             .foregroundColor: NSColor.ink(untitled ? .secondary : .text),
         ])
         text.append(NSAttributedString(string: "   \(s.bytes ?? 0)", attributes: [
-            .font: NSFont.grailsBody(16), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsCount(16), .foregroundColor: NSColor.ink(.secondary),
         ]))
         if noted {
             text.append(NSAttributedString(string: "  note", attributes: [
@@ -310,6 +324,9 @@ final class ThumbCell: NSCollectionViewItem {
         sectionLabel.attributedStringValue = text
         sectionLabel.invalidateIntrinsicContentSize()
         sectionLabel.isHidden = false
+        sectionArrow.image = NSImage(systemSymbolName: s.sectionCollapsed ? ChromeIcon.chevronRight : ChromeIcon.chevronDown,
+                                     accessibilityDescription: s.sectionCollapsed ? "Expand" : "Collapse")
+        sectionArrow.isHidden = false
         (view as? TileView)?.axLabel = "Cluster: \(untitled ? "Untitled" : s.name)"
         view.needsLayout = true
     }
@@ -324,6 +341,7 @@ final class ThumbCell: NSCollectionViewItem {
         itemID = s.id
         isSection = false
         sectionLabel.isHidden = true
+        sectionArrow.isHidden = true
         if !preservePicture { view.layer?.backgroundColor = NSColor.ink(.surface).cgColor }
         cloud.isHidden = !cloudOnly
         // the picture is drawn once per person and cached; a tile only hands over the cached image
@@ -364,8 +382,10 @@ final class ThumbCell: NSCollectionViewItem {
             return
         }
         let variant = isLink ? mode : ""
-        let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(s.id) : layout.thumbURL(s.id)
-        if let hit = loader.cached(id: s.id, pixels: pixels, variant: variant) {
+        // a second tile of the same picture (see `TileKey`) has its own key but the same files
+        let item = TileKey.item(s.id)
+        let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(item) : layout.thumbURL(item)
+        if let hit = loader.cached(id: item, pixels: pixels, variant: variant) {
             show(hit)
         } else {
             view.layer?.contents = nil
@@ -373,7 +393,7 @@ final class ThumbCell: NSCollectionViewItem {
         }
         let id = s.id
         source = (id, pictureURL, isLink ? nil : original, variant)
-        op = loader.load(id: id, thumb: pictureURL, original: isLink ? nil : original, pixels: pixels, variant: variant) { [weak self] image in
+        op = loader.load(id: item, thumb: pictureURL, original: isLink ? nil : original, pixels: pixels, variant: variant) { [weak self] image in
             guard let self, self.itemID == id, let image else { return }
             self.show(image)
         }
@@ -388,7 +408,7 @@ final class ThumbCell: NSCollectionViewItem {
         let pixels = max(view.bounds.width, view.bounds.height) * scale
         op?.cancel()
         let id = src.id
-        op = loader.load(id: id, thumb: src.thumb, original: src.original, pixels: pixels, variant: src.variant) { [weak self] image in
+        op = loader.load(id: TileKey.item(id), thumb: src.thumb, original: src.original, pixels: pixels, variant: src.variant) { [weak self] image in
             guard let self, self.itemID == id, let image else { return }
             self.show(image)
         }
@@ -421,6 +441,7 @@ final class ThumbCell: NSCollectionViewItem {
         siteLabel.isHidden = true
         badge.isHidden = true
         sectionLabel.isHidden = true
+        sectionArrow.isHidden = true
         placeholder.isHidden = false
         isSection = false
         view.layer?.backgroundColor = NSColor.ink(.surface).cgColor

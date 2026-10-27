@@ -1,4 +1,5 @@
 import GrailsDesign
+import GrailsKit
 import SwiftUI
 
 struct PromptCard: View {
@@ -66,8 +67,17 @@ struct ConfirmCard: View {
 
 struct ToastView: View {
     let text: String
+    var mark: LibraryNotice.Mark?
+
     var body: some View {
-        GrailsToast(text)
-            .accessibilityIdentifier("toast")
+        // The mark's own symbol name and Holy Grail flag are what LibraryNoticeTests checks, so the screen cannot drift from them.
+        Group {
+            if let filled = mark?.holyGrailFilled {
+                GrailsToast(text, holyGrailFilled: filled)
+            } else {
+                GrailsToast(text, symbol: mark?.symbolName ?? "checkmark.circle")
+            }
+        }
+        .accessibilityIdentifier("toast")
     }
 }

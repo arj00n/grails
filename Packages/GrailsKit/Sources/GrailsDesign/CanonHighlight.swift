@@ -106,63 +106,51 @@ public enum CanonStars {
     }
 }
 
-/// Holy Grail's own mark: an eight-point rosette with a punched centre. A shape, so it stays crisp at any size and takes any fill.
-public struct CanonGlyph: Shape {
-    public init() {}
-
-    public func path(in rect: CGRect) -> Path {
-        Path(Self.cgPath(in: rect))
-    }
-
-    static func cgPath(in rect: CGRect) -> CGPath {
-        let c = CGPoint(x: rect.midX, y: rect.midY)
-        let outer = min(rect.width, rect.height) / 2
-        let inner = outer * 0.64
-        let path = CGMutablePath()
-        for i in 0..<16 {
-            let r = i.isMultiple(of: 2) ? outer : inner
-            let a = -Double.pi / 2 + Double(i) * Double.pi / 8
-            let p = CGPoint(x: c.x + r * cos(a), y: c.y + r * sin(a))
-            if i == 0 { path.move(to: p) } else { path.addLine(to: p) }
-        }
-        path.closeSubpath()
-        let hole = outer * 0.26
-        path.addEllipse(in: CGRect(x: c.x - hole, y: c.y - hole, width: hole * 2, height: hole * 2))
-        return path
-    }
-}
-
-/// The Holy Grail mark, everywhere Holy Grail appears. `CanonMark.image` is the same mark for AppKit menus.
+/// The Holy Grail mark, everywhere Holy Grail appears: a filled rosette. SF Symbols has `rosette` but no fill variant, so the filled
+/// mark is `rosette` with a disc laid in its ring. `filled: false` is the plain outline, for "Add to Holy Grail" before an item is in it.
+/// `CanonMark.image` is the same mark for AppKit menus.
 public struct CanonMark: View {
     var size: CGFloat
-    public init(size: CGFloat = 12) { self.size = size }
+    var filled: Bool
+    public init(size: CGFloat = 12, filled: Bool = true) {
+        self.size = size
+        self.filled = filled
+    }
 
-    /// Rows that take an SF Symbol name (the palette) use this name to ask for the Holy Grail mark instead.
-    public static let symbolName = "grails.canon"
+    public static let symbolName = "rosette"
+    /// The rosette's ring and ribbons stand taller and carry more ink than the heart or a folder at the same point size; at this share
+    /// of it they sit level with them.
+    public static let opticalScale = 0.88
+    /// The ring's hole in `rosette`, as shares of the image height: its centre from the top, and the disc's radius, which reaches halfway
+    /// into the ring so no gap shows. Measured from the symbol; a test checks the hole is filled.
+    static let ringCentre = 0.377, discRadius = 0.27
 
     public var body: some View {
-        CanonGlyph()
-            .fill(style: FillStyle(eoFill: true, antialiased: true))
-            .frame(width: size, height: size)
+        Image(nsImage: Self.image(pointSize: size, filled: filled))
+            .renderingMode(.template)
             .accessibilityLabel("Holy Grail")
     }
 
-    /// A template image of the mark, tinted like an SF Symbol in a menu.
-    public static func image(pointSize: CGFloat = 14) -> NSImage {
-        let image = NSImage(size: NSSize(width: pointSize, height: pointSize), flipped: false) { rect in
-            guard let ctx = NSGraphicsContext.current?.cgContext else { return false }
-            ctx.addPath(CanonGlyph.cgPath(in: rect.insetBy(dx: rect.width * 0.04, dy: rect.height * 0.04)))
-            ctx.setFillColor(NSColor.black.cgColor)
-            ctx.fillPath(using: .evenOdd)
+    /// A template image of the mark, sized like the other symbols in a menu.
+    /// Nonisolated, so AppKit may draw the filled image off the main thread.
+    nonisolated public static func image(pointSize: CGFloat = NSFont.menuFont(ofSize: 0).pointSize, filled: Bool = true) -> NSImage {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize * opticalScale, weight: .regular)
+        guard let ring = NSImage(systemSymbolName: symbolName, accessibilityDescription: "Holy Grail")?.withSymbolConfiguration(config) else { return NSImage() }
+        let image = filled ? NSImage(size: ring.size, flipped: false) { rect in
+            ring.draw(in: rect)
+            let r = rect.height * discRadius
+            NSColor.black.setFill()
+            NSBezierPath(ovalIn: CGRect(x: rect.midX - r, y: rect.height * (1 - ringCentre) - r, width: r * 2, height: r * 2)).fill()
             return true
-        }
-        image.isTemplate = true
+        } : ring
+        image.alignmentRect = ring.alignmentRect
         image.accessibilityDescription = "Holy Grail"
+        image.isTemplate = true
         return image
     }
 }
 
-/// An SF Symbol, or the Holy Grail mark when the name is `CanonMark.symbolName`.
+/// An SF Symbol at `size`, with the Holy Grail mark at its optical size.
 public struct GrailsSymbol: View {
     var name: String
     var size: CGFloat

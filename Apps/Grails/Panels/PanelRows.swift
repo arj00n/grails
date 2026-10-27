@@ -42,7 +42,9 @@ extension AppModel {
             }
         }
         add(.init(id: "cmd-newc", title: "New Collection…", symbol: "plus.rectangle.on.rectangle", accessory: key(.newCollection)) { [self] in run(.newCollection) })
-        add(.init(id: "cmd-newf", title: "New Folder…", symbol: "folder.badge.plus") { [self] in promptNewCollection(kind: "folder", parent: nil) })
+        if let open = folderParent {
+            add(.init(id: "cmd-newf", title: "New Folder in \(open.displayName)…", symbol: "folder.badge.plus") { [self] in promptNewCollection(parent: open.id) })
+        }
         add(.init(id: "cmd-news", title: "New Smart Folder…", symbol: "gearshape.2", accessory: key(.newSmartFolder)) { [self] in run(.newSmartFolder) })
         add(.init(id: "cmd-export-html", title: "Export as HTML File…", symbol: "safari", accessory: "⌥⌘E") { [self] in exportWebPage(format: .html) })
         add(.init(id: "cmd-export-pdf", title: "Export as PDF…", symbol: "doc.richtext") { [self] in exportWebPage(format: .pdf) })

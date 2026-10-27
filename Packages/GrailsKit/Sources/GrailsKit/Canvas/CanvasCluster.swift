@@ -17,12 +17,44 @@ public struct CanvasCluster: Codable, Hashable, Sendable, Identifiable {
     public var items: [String]
     /// When this cluster was last edited (seconds since 1970). Newest wins when two Macs edited the same cluster.
     public var at: Double
+    /// Folded in the grid to its title: the pictures stay members, the grid just doesn't show them. The canvas ignores it.
+    public var collapsed: Bool
 
     public static let defaultTile = 260.0
 
     public init(id: String = ULID().string, title: String = "", x: Double = 0, y: Double = 0, width: Double = 1800,
-                tile: Double = CanvasCluster.defaultTile, items: [String] = [], at: Double = Date().timeIntervalSince1970) {
+                tile: Double = CanvasCluster.defaultTile, items: [String] = [], at: Double = Date().timeIntervalSince1970, collapsed: Bool = false) {
         self.id = id; self.title = title; self.x = x; self.y = y; self.width = width; self.tile = tile; self.items = items; self.at = at
+        self.collapsed = collapsed
+    }
+
+    private enum CodingKeys: String, CodingKey { case id, title, x, y, width, tile, items, at, collapsed }
+
+    // boards from before folding have no `collapsed`; an open cluster leaves it out, so they read the same either way
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        title = try c.decode(String.self, forKey: .title)
+        x = try c.decode(Double.self, forKey: .x)
+        y = try c.decode(Double.self, forKey: .y)
+        width = try c.decode(Double.self, forKey: .width)
+        tile = try c.decode(Double.self, forKey: .tile)
+        items = try c.decode([String].self, forKey: .items)
+        at = try c.decode(Double.self, forKey: .at)
+        collapsed = try c.decodeIfPresent(Bool.self, forKey: .collapsed) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(title, forKey: .title)
+        try c.encode(x, forKey: .x)
+        try c.encode(y, forKey: .y)
+        try c.encode(width, forKey: .width)
+        try c.encode(tile, forKey: .tile)
+        try c.encode(items, forKey: .items)
+        try c.encode(at, forKey: .at)
+        if collapsed { try c.encode(collapsed, forKey: .collapsed) }
     }
 }
 

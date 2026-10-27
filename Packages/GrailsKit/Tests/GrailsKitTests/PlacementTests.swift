@@ -67,7 +67,7 @@ import Testing
         defer { try? FileManager.default.removeItem(at: root) }
         let item = TestSupport.item("poster")
         try await TestSupport.seed(store, [item])
-        let folder = try await store.createCollection(name: "Campaigns", kind: "folder")
+        let folder = try await store.createCollection(name: "Campaigns")
         let collection = try await store.createCollection(name: "Diwali", parentId: folder.id)
         try await store.add(ids: [item.id], toCollection: collection.id)
 

@@ -1,5 +1,5 @@
 // The on-page "Saved" card. Shadow DOM so the page's CSS cannot hide or restyle it.
-// GrailsDesign greys, Geist for the message, Geist Mono for the name. Light and dark follow the system.
+// GrailsDesign greys. SF Pro (the system font) for the message and the name, nothing bundled. Light and dark follow the system.
 
 function grailsToastCSS() {
   return `
@@ -12,7 +12,7 @@ function grailsToastCSS() {
       background: var(--background); color: var(--text);
       box-shadow: 0 1px 2px rgba(0,0,0,.04), 0 12px 40px rgba(0,0,0,.10);
       color-scheme: light dark;
-      font: 13px/1.5 Geist, "Geist", -apple-system, system-ui, sans-serif;
+      font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
       --background: #FFFFFF; --text: #1A1A1A; --secondary: #6B6B68;
       --field-border: #DCDCD8; --status-ok: #2DA44E; --status-error: #CF222E;
     }
@@ -25,7 +25,7 @@ function grailsToastCSS() {
     }
     .mark { width: 6px; height: 6px; border-radius: 50%; background: var(--status-ok); flex: none; }
     .toast.error .mark { background: var(--status-error); }
-    .name { font: 400 12px/1.2 "Geist Mono", ui-monospace, monospace; letter-spacing: -0.12px; color: var(--secondary); }
+    .name { font: 400 12px/1.2 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; color: var(--secondary); }
     .label { color: var(--text); }
   `;
 }

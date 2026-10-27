@@ -1,34 +1,19 @@
 import AppKit
-import CoreText
 import GrailsDesign
-import GrailsKit
 import SwiftUI
 
-/// Geist Mono for titles, Geist for the rest. Registered at launch from the app bundle.
-enum Typeface {
-    private static func data(_ file: (name: String, ext: String)) -> Data? {
-        Bundle.main.url(forResource: file.name, withExtension: file.ext).flatMap { try? Data(contentsOf: $0) }
-    }
-
-    @MainActor static func register() {
-        for file in [Typography.displayFile, Typography.bodyFile, Typography.bodyBoldFile] {
-            if let url = Bundle.main.url(forResource: file.name, withExtension: file.ext) { CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil) }
-        }
-        // exports carry the same fonts
-        ExportFonts.display = data(Typography.displayFile)
-        ExportFonts.body = data(Typography.bodyFile)
-        ExportFonts.bodyBold = data(Typography.bodyBoldFile)
-    }
-}
-
+/// SF Pro through the system font; nothing is bundled or registered. Titles are SF Pro Rounded through the title token.
 extension Font {
-    /// Geist; `bold` is its true bold.
+    /// SF Pro; `bold` is the emphasized (semibold) weight.
     static func grailsBody(_ size: CGFloat, bold: Bool = false) -> Font {
         ChromeFont.body(Double(size), bold: bold)
     }
 
-    /// Geist Mono, for titles.
-    static func grailsDisplay(_ size: CGFloat) -> Font { ChromeFont.display(Double(size)) }
+    /// SF Pro Rounded Semibold, for titles, section headers, cluster names. The caller passes a size.
+    static func grailsTitle(_ size: CGFloat) -> Font { ChromeFont.title(Double(size)) }
+
+    /// SF Pro Rounded with tabular digits, for a count badge.
+    static func grailsCount(_ size: CGFloat) -> Font { ChromeFont.count(Double(size)) }
 }
 
 extension NSFont {
@@ -36,7 +21,13 @@ extension NSFont {
         ChromeNSFont.body(size, bold: bold)
     }
 
-    static func grailsDisplay(_ size: CGFloat) -> NSFont {
-        ChromeNSFont.display(size)
+    /// SF Pro Rounded Semibold, for titles. The caller passes a size.
+    static func grailsTitle(_ size: CGFloat) -> NSFont {
+        ChromeNSFont.title(size)
+    }
+
+    /// SF Pro Rounded with tabular digits, for a count beside a title.
+    static func grailsCount(_ size: CGFloat) -> NSFont {
+        ChromeNSFont.count(size)
     }
 }

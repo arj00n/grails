@@ -127,7 +127,7 @@ final class PathBox: @unchecked Sendable {
         let (a, _) = try TestSupport.newStore(handle: "ana")
         let (b, bRoot) = try TestSupport.newStore(handle: "ben")
         let dir = TestSupport.tempDir()
-        let folder = try await a.createCollection(name: "Campaign", kind: "folder")
+        let folder = try await a.createCollection(name: "Campaign")
         let sub = try await a.createCollection(name: "Diwali", parentId: folder.id)
         let i1 = try await a.addItem(fileAt: TestSupport.makePNG(in: dir, name: "1", rgb: (1, 0, 0)), tags: ["red"], collectionIds: [sub.id]).item
         let i2 = try await a.addItem(fileAt: TestSupport.makePNG(in: dir, name: "2", rgb: (0, 1, 0)), collectionIds: [sub.id, folder.id]).item

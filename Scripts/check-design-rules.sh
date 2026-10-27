@@ -68,15 +68,46 @@ grep -q 'proxy.size.height > 0.5' "$CHROME" || fail "a hidden rule does not pain
 grep -q 'ChromeMetrics.cardHeight' "$CHROME" || fail "card height"
 grep -q 'ModalDivider.shows' "$CHROME" || fail "footer divider ignores empty sides"
 grep -q 'showsFooter: flow.step != .choose' "$SHEET" || fail "chooser hides its footer"
-grep -q 'ChromeFont.display(TypeScale.title)' "$CHROME" || fail "sheet title is geist mono"
-grep -q 'ChromeFont.display(TypeScale.page)' "$ROOT/Packages/GrailsKit/Sources/GrailsDesign/GrailsGallery.swift" || fail "page title is geist mono"
-if grep -q 'ChromeFont.body(TypeScale.title, bold: true)\|ChromeFont.body(TypeScale.page, bold: true)' "$CHROME" "$ROOT/Packages/GrailsKit/Sources/GrailsDesign/GrailsGallery.swift"; then
-  fail "a title is geist bold"
+grep -q 'ChromeFont.title(TypeScale.title)' "$CHROME" || fail "sheet title uses the title token"
+grep -q 'ChromeFont.title(TypeScale.page)' "$ROOT/Packages/GrailsKit/Sources/GrailsDesign/GrailsGallery.swift" || fail "page title uses the title token"
+grep -q 'ChromeFont.title(TypeScale.section)' "$CHROME" || fail "section header uses the title token"
+# Type is SF Pro through the system font: ChromeFont and ChromeNSFont are the only constructors, the title is SF Pro Rounded.
+TYPE="$ROOT/Packages/GrailsKit/Sources/GrailsDesign/Typography.swift"
+grep -q 'titleDesign = Design.rounded' "$TYPE" || fail "the title token is sf pro rounded"
+grep -q 'bodyDesign = Design.standard' "$TYPE" || fail "text is sf pro"
+grep -q '.system(size: size, weight: Typography.titleWeight.font, design: Typography.titleDesign.font)' "$CHROME" || fail "ChromeFont.title resolves the title token"
+grep -q 'NSFont.systemFont(ofSize: size, weight: weight.nsFont)' "$CHROME" || fail "ChromeNSFont uses the system font"
+# A title, a sheet title or a section header drawn with the body call instead of the title token.
+if grep -R --include='*.swift' -n -E 'ChromeFont\.body\(TypeScale\.(title|page|section), bold: true\)|grailsBody\((CGFloat\()?(TypeScale\.(title|page|section)|20|15)\)?, bold: true\)' \
+  "$ROOT/Apps/Grails" "$ROOT/Packages/GrailsKit/Sources"; then
+  fail "a title or section header uses the body bold call, not the title token"
 fi
-if grep -R --include='*.swift' -q 'grailsBody(20, bold: true)' "$ROOT/Apps/Grails"; then fail "a page title is geist bold"; fi
 POPUP="$ROOT/Extensions/chrome/popup.css"
-grep -q 'font-family: "Geist Mono"' "$POPUP" || fail "popup loads geist mono"
-grep -q 'h1 {.*Geist Mono' "$POPUP" || fail "popup title is geist mono"
+grep -q 'h1 {.*600 15px/1.2 ui-rounded, "SF Pro Rounded"' "$POPUP" || fail "popup title is sf pro rounded"
+grep -q 'h2 {.*600 13px/1.2 ui-rounded, "SF Pro Rounded"' "$POPUP" || fail "popup section is sf pro rounded"
+grep -q 'font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif' "$POPUP" || fail "popup text is the system font"
+# The retired face, any weight, is assembled here so a search of this script does not match itself.
+old_face="Gei""st"
+if grep -R -n -i --exclude-dir=.build --exclude-dir=node_modules -e "$old_face" \
+  "$ROOT/Apps" "$ROOT/Packages" "$ROOT/Extensions" "$ROOT/docs" "$ROOT/README.md" "$ROOT/SECURITY.md" "$ROOT/project.yml" \
+  "$ROOT/Scripts/gen-dmg-background.py" "$ROOT/Scripts/design-layout-proof.py" "$ROOT/Scripts/copy-safari-extension-resources.sh"; then
+  fail "the retired typeface returned"
+fi
+# No bundled font file and no font registration: the system font needs neither.
+fonts=$(cd "$ROOT" && git ls-files -- '*.ttf' '*.otf' '*.ttc' '*.woff' '*.woff2' 2>/dev/null || true)
+if [ -n "$fonts" ]; then echo "$fonts"; fail "a font file is bundled"; fi
+if grep -R -n --exclude-dir=.build --exclude-dir=node_modules --include='*.swift' --include='*.plist' --include='*.yml' --include='*.js' --include='*.css' --include='*.html' --include='*.py' \
+  -e 'CTFontManagerRegister' -e 'ATSApplicationFontsPath' -e 'UIAppFonts' -e '@font-face' -e 'new FontFace(' -e 'document.fonts.add' -e 'Font.custom(' -e '.custom(' -e 'NSFont(name:' -e 'CTFontCreateWithName(' \
+  "$ROOT/Apps/Grails" "$ROOT/Packages"/*/Sources "$ROOT/Extensions/chrome" "$ROOT/docs" "$ROOT/project.yml"; then
+  fail "a custom font is registered or named"
+fi
+if grep -R --include='*.swift' -n -e 'grailsDisplay' -e 'ChromeFont.display' -e 'ChromeNSFont.display' -e 'ExportFonts' -e 'Typography.displayName' -e 'Typeface.register' \
+  "$ROOT/Apps" "$ROOT/Packages"; then
+  fail "the display font or font hand-over returned"
+fi
+SIDEBAR="$ROOT/Apps/Grails/Sidebar/SidebarView.swift"
+grep -q 'SidebarRowMetrics.contentLeading(nested: nested, depth: indent)' "$SIDEBAR" || fail "sidebar depth sits inside the row fill"
+if grep -n 'static func inset(nested\|padding(.leading, inset)' "$SIDEBAR"; then fail "sidebar indent moves the row fill"; fi
 echo "PASS view rules"
 
 # App chrome goes through GrailsDesign. A raw control, a system font, a system colour, or a header rule is a miss.
@@ -88,7 +119,7 @@ patterns = [
     ("text field", re.compile(r"(?<![A-Za-z])(?:TextField|SecureField|TextEditor)\(")),
     ("appkit field", re.compile(r"\b(?:NSTextField|NSSecureTextField|NSSearchField|NSTextView)\s*\(|class\s+\w+[^{]*:\s*(?:NSTextField|NSSecureTextField|NSSearchField|NSTextView)\b")),
     ("placeholder overlay", re.compile(r"Text\(\s*verbatim:\s*placeholder\b|Text\(\s*placeholder\b")),
-    ("system font", re.compile(r"\.font\(\.system|Font\.system|Font\.custom|\.systemFont\(|monospacedSystemFont")),
+    ("system font", re.compile(r"\.font\(\.system|Font\.system|Font\.custom|\.systemFont\(|monospacedSystemFont|monospacedDigitSystemFont|design:\s*\.rounded|withDesign\(")),
     ("color literal", re.compile(r"(?<![A-Za-z])Color\(red:|(?<![A-Za-z])Color\(white:|(?<![A-Za-z])NSColor\((?:red|hue|srgbRed):|(?<![A-Za-z])CGColor\(red:")),
     ("system blue", re.compile(r"\.accentColor|Color\.accentColor|Color\.blue|systemBlue|controlAccentColor|\.foregroundStyle\(\.blue\)|\.foregroundStyle\(\.red\)|\.foregroundStyle\(\.secondary\)|\.tint\(\.blue\)")),
 ]
@@ -697,7 +728,7 @@ for path in [app] + sorted((root / "Packages").glob("*/Sources")):
             print(f"FAIL {why} {file}:{number}: {lines[number - 1].strip()}")
             failed = True
 
-# usesSingleLineMode pins Geist to a 16 pt line, so a 17 pt field draws the placeholder above the caret.
+# usesSingleLineMode pins the text to a 16 pt line, so a 17 pt field draws the placeholder above the caret.
 def single_line_mode_problems(text):
     found = []
     for number, line in enumerate(text.splitlines(), 1):
@@ -942,13 +973,18 @@ for path in app.rglob("*.swift"):
 split = (root / "Packages" / "GrailsKit" / "Sources" / "GrailsDesign" / "GrailsInfoSplit.swift").read_text()
 for needle, why in (
     ("InfoSplitLayout(reveal:", "the split is not one layout of content and panel"),
-    (".animation(reduceMotion ? nil : .grailsSpring, value: isOpen)", "the column width does not spring (or is not instant under Reduce Motion)"),
-    (".animation(reduceMotion ? nil : .grailsStandard, value: isOpen)", "the panel's fade is not the standard ease"),
+    (".animation(Self.motion(reduceMotion: reduceMotion), value: isOpen)", "the column does not open on the split's one animation"),
+    ("reduceMotion ? nil : .grailsFlight", "the column's width, fade and separator are not one ease-out (or not instant under Reduce Motion)"),
     ("content.zIndex(1)", "the content no longer draws above the panel (the flight back to a tile would pass under it)"),
+    (".transaction(value: isOpen) { $0.animation = nil }", "the panel's contents ride the column's fade (old and new contents crossfade)"),
 ):
     if needle not in split:
         print(f"FAIL {why}")
         failed = True
+# a spring would carry the content past its width and back; a second animation would land the fade apart from the width
+if ".grailsSpring" in split or split.count(".animation(") != 1:
+    print("FAIL the info column must open on one non-overshooting animation")
+    failed = True
 if failed:
     sys.exit(1)
 print("PASS info column")

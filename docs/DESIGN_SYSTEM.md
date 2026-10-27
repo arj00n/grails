@@ -1,6 +1,6 @@
 # Grails design system
 
-Read this before changing UI. The GrailsDesign package is the only source of tokens and chrome. `Scripts/check-design-rules.sh` rejects a raw button, text field, system font, system blue, colour literal, or a divider under a header in `Apps/Grails`.
+Read this before changing UI. The GrailsDesign package is the only source of tokens and chrome. `Scripts/check-design-rules.sh` rejects a raw button, text field, font constructor outside GrailsDesign, bundled or registered font, system blue, colour literal, or a divider under a header in `Apps/Grails`.
 
 The approved mockups in `docs/design/mockups/` are the source of truth. `tokens.md` lists every value. Primary is ink. The only hue besides a picture is a status dot.
 
@@ -8,7 +8,7 @@ The approved mockups in `docs/design/mockups/` are the source of truth. `tokens.
 
 Quiet. The picture is the colour. Chrome is near-monochrome.
 
-Type does the hierarchy. A title is Geist Mono. A section header is Geist Bold. A label is smaller and secondary. They are not different boxes.
+Type does the hierarchy. A title is SF Pro Rounded Semibold. A section header is the same face at a smaller size. A label is smaller and secondary. They are not different boxes.
 
 Space separates sections. A rule under a title or a section header is noise. A hairline is for a control edge, the sidebar edge, or a footer whose body actually scrolls.
 
@@ -22,7 +22,7 @@ Motion eases out and stays at or under 240 ms. Spatial motion may settle with a 
 
 Copy is short. A label names the thing. Help text is rare.
 
-Geist Mono is for titles, the invite link, and the invite code. Everything else is Geist Regular, except a section header or an avatar initial, which is Geist Bold.
+The type is SF Pro, the system font; nothing is bundled or registered. SF Pro Rounded Semibold, through the title token, is for the moments that carry a name: a page or sheet title, a section header, a cluster name, an avatar initial, the onboarding wordmark. A count badge is SF Pro Rounded with tabular digits, through the count token. Everything else is SF Pro Regular: body, list rows, controls, metadata, an invite link or code (tabular digits). A number that has to line up uses `.monospacedDigit()`.
 
 Do not restyle the dither, the painting wall, FluidDither, or SmokeField.
 
@@ -73,19 +73,21 @@ A swatch from a picture uses `GrailsHex.color`. That is data, not a chrome colou
 
 | Role | Face | Size | Tracking |
 | --- | --- | --- | --- |
-| Page title | Geist Mono | 20 | -0.02em |
-| Sheet title | Geist Mono | 15 | -0.01em |
-| Section header | Geist Bold | 13 | 0 |
-| Body, field value, row title | Geist | 13 | 0 |
-| Field label | Geist | 12 | 0, secondary |
-| Helper, meta, row subtitle | Geist | 12 | 0, secondary or tertiary |
-| Button | Geist | 13 | 0 |
-| Quiet action | Geist | 12 | 0, secondary |
-| Invite link | Geist Mono | 12 | -0.01em |
-| Invite code | Geist Mono | 15 | +0.08em |
-| Avatar initial | Geist Bold | 12 | 0, secondary |
+| Page title | SF Pro Rounded Semibold | 20 | -0.02em |
+| Sheet title | SF Pro Rounded Semibold | 15 | -0.01em |
+| Section header | SF Pro Rounded Semibold | 13 | 0 |
+| Cluster name | SF Pro Rounded Semibold | 13 on the canvas, 20 in the grid | 0 |
+| Body, field value, row title | SF Pro Regular | 13 | 0 |
+| Field label | SF Pro Regular | 12 | 0, secondary |
+| Helper, meta, row subtitle | SF Pro Regular | 12 | 0, secondary or tertiary |
+| Button | SF Pro Regular | 13 | 0 |
+| Quiet action | SF Pro Regular | 12 | 0, secondary |
+| Invite link | SF Pro Regular | 12 | 0, tabular digits |
+| Invite code | SF Pro Regular | 15 | 0, tabular digits |
+| Avatar initial | SF Pro Rounded Semibold | 12 | 0, secondary |
+| Count badge | SF Pro Rounded Medium | 11 | 0, tabular digits, secondary |
 
-`ChromeFont.body`, `ChromeFont.display`, and `ChromeFont.symbol` are the only font constructors. `display` is Geist Mono, for a title, an invite link, or an invite code. `symbol` is for SF Symbols, 14 pt, regular, small. App code may call `.grailsBody` and `.grailsDisplay`. A page title is `.grailsDisplay` at 20. A sheet title is `.grailsDisplay` at 15. A section header such as People stays `.grailsBody` at 13, bold.
+`ChromeFont.body`, `ChromeFont.title`, `ChromeFont.count`, and `ChromeFont.symbol` (and `ChromeNSFont` for AppKit) are the only font constructors; they alone call `Font.system(size:weight:design:)` and `NSFont.systemFont(ofSize:weight:)`. `body` is SF Pro Regular, semibold when `bold` (the emphasized row title or author name). `title` is SF Pro Rounded Semibold: macOS emphasizes a heading by weight, not size, and its emphasized styles are semibold; Rounded draws a little heavier than the default design, so semibold sits where a bold heading would without turning blobby at 11 to 15 pt. `count` is SF Pro Rounded Medium with tabular digits. The caller passes a size and does not pass a weight or a design. `symbol` is for SF Symbols, 14 pt, regular, small. App code may call `.grailsBody`, `.grailsTitle`, and `.grailsCount`. A page title is `.grailsTitle` at 20. A sheet title is `.grailsTitle` at 15. A section header such as People is `.grailsTitle` at 13. An invite link or code is `.grailsBody` with tabular digits. Exports and the browser extension use the same faces from CSS stacks: text `-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif`, titles `ui-rounded, "SF Pro Rounded", -apple-system, ...` at 600. No `@font-face`, no font file, no `CTFontManagerRegister…`, no `ATSApplicationFontsPath`.
 
 ## Space, radius, border, motion
 
@@ -145,7 +147,7 @@ Reduce Motion turns the bounce off. There is one source of truth: `ReduceMotion.
 | Popover | `grailsPopover` adds `grailsOverlayEntrance` from the edge the arrow points at. System menus and context menus are drawn by macOS. |
 | Overlay | `grailsOverlayEntrance(anchor:)` grows the card from 0.92 toward its anchor; a top-anchored panel also drops 8 pt. The backdrop and the exit are `.transition(.grailsFade)`: in at 0.18, out at 0.10. Never grow from above full size. |
 | Docked panel | `.grailsSlide(x:reduceMotion:)`: the fade eases, the slide springs. |
-| Info panel | A column, not an overlay: `GrailsInfoSplit` widens it from nothing on `.grailsSpring`, so the content beside it reflows on every frame; its contents fade on `.grailsStandard` and never bounce. Reduce Motion opens and closes it at once. Choosing another item replaces the tags row and the collections row in one step. The add-tag field is part of the tags row. |
+| Info panel | A column, not an overlay: `GrailsInfoSplit` widens it from nothing on `.grailsFlight`, so the content beside it reflows on every frame. Its contents fade and its separator moves on that same ease-out (`GrailsInfoSplit.motion`), so nothing overshoots and they land together; a spring here would carry the content past its width and back. What the panel shows never rides that motion: it changes in one step, and a closing panel keeps showing the item it showed open (`InfoPanelHold`), since the canvas closes it by clearing the selection. Reduce Motion opens and closes it at once. Choosing another item replaces the tags row and the collections row in one step. The add-tag field is part of the tags row. |
 | Settings page | Comes in over the library with `.grailsSlide(x: 16)`: the slide springs, the fade eases, the exit is quick. Reduce Motion leaves the fade. |
 | Toast | `grailsToastEntrance()` rises 16 pt on the spring; the toast fades with `.grailsFade`. |
 | Page switch | Choosing a collection, cluster, smart folder, All, Trash, a search or a filter swaps the main area. That is one crossfade of the whole content area and nothing else: `PageCrossfade.transition` (a `CATransition` fade, `Motion.standard`, the standard curve) on the grid's container, and `.grailsPageFade(reduceMotion:)` on what replaces the grid (the empty state and its ink band). The new page's items replace the old ones in one step (`GridSyncBatch.replace`), so no tile of the old page moves and the new page appears all at once: no stagger, no per-tile fade, no layout animation. Chrome that changes the content inset (tag strip, mention bar) follows the page on screen (`shownSource`), not the sidebar selection, and sits inside the grid's frame, so the old page fades out exactly where it was. Reduce Motion: the swap is instant. Tile press, the preview flight, and a single item added or removed keep their own motion. |
@@ -168,7 +170,7 @@ Resizing never animates. When the window resizes or zooms to full screen, every 
 
 `GrailsButton`. Kinds are primary, secondary, and quiet. `destructive` draws as secondary.
 
-Anatomy. Primary and secondary: Geist 13, optional 14 pt symbol, gap 6, height 28, padding-x 14, radius 8. An inline copy button is height 32 and width 72. Quiet: Geist 12, height 24, padding-x 8, radius 6, no fill.
+Anatomy. Primary and secondary: SF Pro 13, optional 14 pt symbol, gap 6, height 28, padding-x 14, radius 8. An inline copy button is height 32 and width 72. Quiet: SF Pro 12, height 24, padding-x 8, radius 6, no fill.
 
 | State | Primary | Secondary | Quiet |
 | --- | --- | --- | --- |
@@ -191,15 +193,15 @@ A share sheet is `ShareLink`. It may wear `GrailsButtonStyle`.
 
 `GrailsTextField` and `GrailsSecureField`. A label, then the field, then help or an error.
 
-Anatomy. Label 12 secondary, gap 6, field height 32, inset 10, radius 8, field fill, 1 px field border. Focus is the grey focus border plus a 3 pt ring. The placeholder and the typed value share one line, centred in the field. The placeholder is tertiary Geist. It is not a separate overlay.
+Anatomy. Label 12 secondary, gap 6, field height 32, inset 10, radius 8, field fill, 1 px field border. Focus is the grey focus border plus a 3 pt ring. The placeholder and the typed value share one line, centred in the field. The placeholder is tertiary SF Pro. It is not a separate overlay.
 
-Variants. Plain (`GrailsTextField`, `GrailsPlainField`, `GrailsCommandField`), secure (`GrailsSecureField`), search (`GrailsSearchField`), and multiline (`GrailsMultilineField`, `GrailsLineText`) all measure that line with `FieldKind`. A 32 pt line is centred. A taller multiline field starts its first line at the same top inset. In-place titles subclass `GrailsValueField` and stay one line. Tile captions subclass `GrailsCaption`: they are not editable, and a wrapping title keeps a normal line box at its own height. The info title does the same: it wraps in the flow, stops at four lines, and Show more reveals the rest. The Chrome extension has no text input (a select and buttons only). The field does not set `usesSingleLineMode`. That mode pins Geist to a 16 pt line, so the placeholder sits above the caret. `wraps = false` and scrolling keep one line, and a pasted break is stripped. `Scripts/check-design-rules.sh` rejects a raw `TextField`, `SecureField`, `TextEditor`, `NSTextField`, `NSSearchField`, or `NSTextView`, a placeholder overlay, and `usesSingleLineMode = true` in GrailsDesign. `FormChromeTests.everyFieldVariantSharesALine` checks placeholder and value frames for plain, secure, search, and multiline.
+Variants. Plain (`GrailsTextField`, `GrailsPlainField`, `GrailsCommandField`), secure (`GrailsSecureField`), search (`GrailsSearchField`), and multiline (`GrailsMultilineField`, `GrailsLineText`) all measure that line with `FieldKind`. A 32 pt line is centred. A taller multiline field starts its first line at the same top inset. In-place titles subclass `GrailsValueField` and stay one line. Tile captions subclass `GrailsCaption`: they are not editable, and a wrapping title keeps a normal line box at its own height. The info title does the same: it wraps in the flow, stops at four lines, and Show more reveals the rest. A multiline field names its first line's baseline (SwiftUI does not read it from the text view), so the Holy Grail mark and heart beside the title sit on its first line. `TitleActionsAlignmentTests` checks it. The Chrome extension has no text input (a select and buttons only). The field does not set `usesSingleLineMode`. That mode pins the text to a 16 pt line, so the placeholder sits above the caret. `wraps = false` and scrolling keep one line, and a pasted break is stripped. `Scripts/check-design-rules.sh` rejects a raw `TextField`, `SecureField`, `TextEditor`, `NSTextField`, `NSSearchField`, or `NSTextView`, a placeholder overlay, and `usesSingleLineMode = true` in GrailsDesign. `FormChromeTests.everyFieldVariantSharesALine` checks placeholder and value frames for plain, secure, search, and multiline.
 
 Don't. `prompt:` on the system field. A blue focus ring. A raw `TextField`. A placeholder drawn in a separate overlay.
 
 ### Segmented control
 
-`GrailsSegmented`. Height 32, track padding 2, thumb radius 6. Labels are Geist 13. The selected segment keeps the raised thumb, and its label is text. The others are secondary. A disabled option can carry a full sentence of help under the control.
+`GrailsSegmented`. Height 32, track padding 2, thumb radius 6. Labels are SF Pro 13. The selected segment keeps the raised thumb, and its label is text. The others are secondary. A disabled option can carry a full sentence of help under the control.
 
 Don't. An underline. A system `.pickerStyle(.segmented)`.
 
@@ -207,7 +209,7 @@ Don't. An underline. A system `.pickerStyle(.segmented)`.
 
 `GrailsModal`. Header, body, footer.
 
-Anatomy. Title in Geist Mono 15, tracking -0.01em. Optional subtitle in 13 secondary. A 24 pt close control, tertiary. Padding 20 top, 24 sides, 24 bottom. Title to the first field is 20. Content to the footer is 28.
+Anatomy. Title in SF Pro Rounded Semibold 15, tracking -0.01em. Optional subtitle in 13 secondary. A 24 pt close control, tertiary. Padding 20 top, 24 sides, 24 bottom. Title to the first field is 20. Content to the footer is 28.
 
 The footer is separated by space. A 1 px hairline is drawn only when the body is taller than 480 and scrolls. An empty body does not count.
 
@@ -217,13 +219,13 @@ Don't. A rule under the title. A rule on a short sheet. The steps of one flow as
 
 ### Settings
 
-Settings is a page of the main window, not a window and not a modal. It takes the place of the library: its section list where the library sidebar was (same width and fill, the sidebar edge hairline), the traffic lights, a back chevron and the title Settings in the top band, then the section's page. The page title is Geist Mono 20 with a one-line description, 36 to the first section, and no rule under either. ⌘,, the sidebar gear, and ⌘K open it; the back chevron, Esc, and ⌘[ close it. Esc goes to a modal first when one is open. The library stays mounted under the page, hidden from keys and the pointer, so closing Settings returns to the same scroll, selection, and preview. Anything Settings opens is a modal on the layer, above the page. `SettingsNavigation` holds the state and `SettingsNavigationTests` checks it.
+Settings is a page of the main window, not a window and not a modal. It takes the place of the library: its section list where the library sidebar was (same width and fill, the sidebar edge hairline), the traffic lights, a back chevron and the title Settings in the top band, then the section's page. The page title is SF Pro Rounded Semibold 20 with a one-line description, 36 to the first section, and no rule under either. ⌘,, the sidebar gear, and ⌘K open it; the back chevron, Esc, and ⌘[ close it. Esc goes to a modal first when one is open. The library stays mounted under the page, hidden from keys and the pointer, so closing Settings returns to the same scroll, selection, and preview. Anything Settings opens is a modal on the layer, above the page. `SettingsNavigation` holds the state and `SettingsNavigationTests` checks it.
 
 ### Settings group
 
 `GrailsSettingsGroup`, `GrailsSettingsRow`, `GrailsSettingsToggle`, `GrailsSettingsBlock`. Every section of every Settings page, team and storage included, is one group, so it is clear which rows belong to which label.
 
-Anatomy. A label in Geist 12, secondary, inset 8 from the card's edge, with an optional help line in tertiary. 8 below it, the card: the `group` fill, a 1 px hairline border, radius 12 (`RadiusToken.card`), 4 of padding top and bottom. Groups are 32 apart (`SettingsGroupMetrics.groupGap`). The values live in `SettingsGroupMetrics`.
+Anatomy. A label in SF Pro 12, secondary, inset 8 from the card's edge, with an optional help line in tertiary. 8 below it, the card: the `group` fill, a 1 px hairline border, radius 12 (`RadiusToken.card`), 4 of padding top and bottom. Groups are 32 apart (`SettingsGroupMetrics.groupGap`). The values live in `SettingsGroupMetrics`.
 
 Rows. `GrailsSettingsRow` puts the name (13, text) and an optional detail (12, secondary) on the left and the control on the right: a segmented control or slider 240 wide, a toggle, a status, or buttons. It is 32 tall at least, inset 16 at the sides and 8 above and below. `GrailsSettingsToggle` is a row whose control is the Grails checkbox. A row with no name holds only a right-aligned action, such as Save under a set of fields. `GrailsSettingsBlock` holds free content (fields, the people list, a note) on the same insets. Rows are separated by space. There is no rule between them and no rule under the label.
 
@@ -233,7 +235,7 @@ Don't. A `GrailsSection`, `GrailsRow`, `LabeledContent`, bare `Toggle`, `Divider
 
 ### Section header
 
-`GrailsSection`. For sheets and panels; a Settings page uses a settings group instead. A 13 pt Geist Bold header, an optional symbol, an optional tag, an optional help line, then the content. The gap under the header is 12.
+`GrailsSection`. For sheets and panels; a Settings page uses a settings group instead. A 13 pt SF Pro Rounded Semibold header (the title token), an optional symbol, an optional tag, an optional help line, then the content. The gap under the header is 12.
 
 Don't. A rule under the title.
 
@@ -265,13 +267,13 @@ Don't. A switch between photo and blob, a Save button for the look, initials or 
 
 ### Name bubble
 
-`GrailsNameBubble`, `.grailsNameBubble(_:)`, `NameBubbleView`. Hovering an avatar shows the person's display name in a small pill: Geist 11 in `canvas` on `text` (inverse of the page), radius 6, insets 7 × 3, 4 from the avatar (above it in SwiftUI, beside it on a tile, clamped inside the tile). It fades in and out on `Motion.quick` with the standard ease-out. Opacity fades never bounce, so no spring is used, and under Reduce Motion it appears at once. An empty name shows no bubble.
+`GrailsNameBubble`, `.grailsNameBubble(_:)`, `NameBubbleView`. Hovering an avatar shows the person's display name in a small pill: SF Pro 11 in `canvas` on `text` (inverse of the page), radius 6, insets 7 × 3, 4 from the avatar (above it in SwiftUI, beside it on a tile, clamped inside the tile). It fades in and out on `Motion.quick` with the standard ease-out. Opacity fades never bounce, so no spring is used, and under Reduce Motion it appears at once. An empty name shows no bubble.
 
 One `NameBubbleCoordinator` owns the open bubble for the whole app. A second avatar closes the first. A live scroll closes it at once, and so does the momentum after the fingers lift. While that scroll runs, hovers do not open a bubble. When the scroll ends, the bubble stays closed unless the pointer is still on an avatar, in which case the rest (`NameBubble.rest`, currently zero, so the resting pointer shows it then) starts over. The bubble also closes when the window resigns key, the avatar scrolls out of view, or the view goes away. A view does not keep its own hover flag for the name. `Scripts/check-design-rules.sh` rejects a `GrailsNameBubble` built outside `MemberAvatar.swift`, and an `.onHover` on that avatar.
 
 ### Holy Grail
 
-Holy Grail has its own mark, `CanonMark`: an eight-point rosette with a punched centre, drawn as a shape (`CanonGlyph`) so it is crisp at any size. `CanonMark.image()` is the same mark as a template image for AppKit menus. Rows that take an SF Symbol name use `CanonMark.symbolName`, which `GrailsSymbol` and the palette turn into the mark. It appears in the sidebar, the item inspector, "Add to Holy Grail", and the palette. The inspector shows the mark beside "In Holy Grail" when the open item is already in the set, and a secondary button "Add to Holy Grail" when it is not and the person can add it. A connected owner or admin also gets a quiet "Remove from Holy Grail" under that line. Removal drops the collection membership and can be undone.
+Holy Grail's mark, `CanonMark`, is a filled rosette: the SF Symbol `rosette` (`CanonMark.symbolName`) at regular weight with a disc laid in its ring. SF Symbols ships no `rosette.fill`, so the mark draws its own (`CanonMark.ringCentre` and `discRadius`, measured from the symbol; a test checks the ring's centre is ink). `CanonMark(filled: false)` is the plain outline. Its ring and ribbons stand taller than the heart or a folder at the same point size, so it is drawn at `CanonMark.opticalScale` (0.88) of the size asked for, which sits it level with the symbols beside it. `CanonMark.image()` is the same filled mark at the same scale as a template image for AppKit menus, and `CanonMark` draws that image, so every place shows one mark. Rows that take an SF Symbol name pass `CanonMark.symbolName`; `GrailsSymbol` draws it through `CanonMark` so it keeps that scale in the sidebar and the palette. It appears in the sidebar, the item inspector, "Add to Holy Grail", and the palette. In the inspector and the preview's info column it is an icon button in the title row, beside the heart, never in Collections. An item in the set shows the filled mark in the row's gentle gold (`CanonInk(selected: false)`) with `CanonSparkles` over it, help and label "In the Holy Grail". One that is not shows the outline mark in secondary ink, help and label "Add to Holy Grail", so added and not added read apart at a glance. `Canon.control` decides: whoever may promote toggles it, which is the owner or an admin of a team library and anyone in a folder or Drive library (`TeamPermissions.canPromoteToCanon(_:connected:)`). They add (the first add creates the set) or remove as one undoable step; a read-only library refuses with "Update Grails". Anyone else sees the filled gold mark, not a button, and nothing when the item is not in the set.
 
 In the sidebar's main section, after All, Holy Grail is one row (`GrailsCanonHighlight` behind it). It is not listed again under Collections. The row title is one line in a 240 pt sidebar. Holy Grail fits beside the mark. It has two states.
 
@@ -297,9 +299,13 @@ Don't. A sweeping sheen or shimmer, a glow, a fill on the unselected row, a loud
 
 `GrailsRow`. A 13 pt title, an optional 12 pt detail, and a trailing control.
 
-`GrailsEmpty`. A Geist Mono line and one sentence of secondary text. No illustration. It fades in and rises 4 pt.
+`GrailsEmpty`. A title-face line and one sentence of secondary text. No illustration. It fades in and rises 4 pt.
 
 `GrailsPending`. A small turning spinner and one line. It shows only after 300 ms.
+
+### Sidebar row
+
+`SidebarRowMetrics` is the one rectangle rule for every library sidebar row: Inbox, a collection with or without folders, a folder at any depth, a tag. The fill (hover, the selection indicator, a drop outline) is inset 8 from both sidebar edges, 28 tall, radius 7, on every row. Everything else is inside it: an 8 pt content inset, the 12 pt chevron slot, the 16 pt icon, the title. Under a section heading the content starts 16 further in, and each level of depth moves it a further 20 (the chevron slot plus its gap), so a child's arrow sits under its parent's icon. Tree rows keep the chevron slot empty when there is nothing to open, so siblings line up. Depth never moves the fill.
 
 ### Menu
 
@@ -323,6 +329,8 @@ Where it shows (`InfoPanelState`): the grid never shows it, so a click or the ar
 
 Every toast, an error toast included, sits in one place: centred across the whole window and `Space.xl` (24 pt) above its bottom edge (`ToastPlacement`, applied with `grailsToastPlacement()`). It centres on the window, not on the content beside the sidebar, so showing or hiding the sidebar never moves it. Progress cards stack under it in the same column, `Space.xs` apart. It keeps its motion: it rises on the spring and fades. No screen places a toast by hand.
 
+Liking, unliking, and Holy Grail use this same toast. One item says "Liked", "Unliked", "Added to Holy Grail", or "Removed from Holy Grail"; more than one says how many. Liked is `heart.fill` and Unliked is Apple's `heart.slash`, in the toast's secondary ink. Added is the filled gold `CanonMark`. Removed is the outline `CanonMark(filled: false)` in secondary ink, as the inspector shows an item that is not in the set. Nothing is struck through by hand. `LibraryNotice` chooses the words and the mark.
+
 ## Interaction
 
 These rules come from the earlier UI spec. Where they and the token sections above disagree, the tokens win.
@@ -337,7 +345,7 @@ These rules come from the earlier UI spec. Where they and the token sections abo
 
 ### What does not animate
 
-Panel show and hide (it would relayout a 20k grid every frame), selection, hover-in, symbol effects, chip scale-ins, tile image fade-ins, and a tab underline. With Reduce Motion, the preview open, close and page settles become 120 ms crossfades (fingers still track) and zoom glides snap.
+The grid never opens the info panel (it would relayout a 20k grid every frame); only the canvas and fullscreen, which move layers, animate it. Selection, hover-in, symbol effects, chip scale-ins, tile image fade-ins, and a tab underline. With Reduce Motion, the preview open, close and page settles become 120 ms crossfades (fingers still track) and zoom glides snap.
 
 ### Tiles
 

@@ -52,14 +52,14 @@ struct RowTag: View {
     }
 }
 
-/// The screen's title, Geist Mono at the sheet size, with a close button at the right.
+/// The screen's title, in the title face at the sheet size, with a close button at the right.
 struct CollabHeader: View {
     let title: String
     var close: (() -> Void)?
 
     var body: some View {
         HStack {
-            Text(title.uppercased()).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+            Text(title).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
             Spacer()
             if let close { BarButton(symbol: "xmark", help: "Close (Esc)", identifier: "collab-close", action: close) }
         }

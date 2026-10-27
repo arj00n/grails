@@ -150,7 +150,7 @@ final class AppModel {
     @ObservationIgnored private var contextMenuGeneration = 0
     private(set) var collections: [GrailsCollection] = []
     private(set) var canonItemIds: Set<String> = []
-    var canPromoteToCanon: Bool { bucket.connected && TeamPermissions.canPromoteToCanon(bucket.role) }
+    var canPromoteToCanon: Bool { TeamPermissions.canPromoteToCanon(bucket.role, connected: bucket.connected) }
     private(set) var smartFolders: [SmartFolder] = []
     private(set) var tags: [(tag: String, count: Int)] = []
     /// Tags on the items in the current view, with how many of them have each: what the tab strip offers.
@@ -175,6 +175,7 @@ final class AppModel {
     var stripTags: [String] = [] { didSet { if oldValue != stripTags { scrollResetTick += 1; reloadSoon() } } }
     /// Tags pinned to the strip, per library.
     var pinnedTags: [String] = []
+    var pinnedCollections: [String] = []
     var sort: SortChoice = .newest { didSet { if oldValue != sort { scrollResetTick += 1; reloadSoon() } } }
     private var shuffleSeed: UInt64 = 1
 
@@ -256,6 +257,8 @@ final class AppModel {
 
     var libraryPlace: LibraryPlace { collab.libraryPlace }
     var toast: String?
+    /// The mark beside `toast` for a like or a Holy Grail change. Nil keeps the plain check.
+    var toastMark: LibraryNotice.Mark?
     /// Grid asks for keyboard focus whenever this changes.
     private(set) var focusGridTick = 0
     var searchFocusTick = 0
@@ -313,6 +316,12 @@ final class AppModel {
     var sectionsVersion = 0
     @ObservationIgnored var sectionClusters: [CanvasCluster] = []
     @ObservationIgnored var sectionKey: String?
+    /// The folders that are this board's clusters (see `FolderClusters`).
+    @ObservationIgnored var boardFolders: Set<String> = []
+    /// Boards whose named clusters were already turned into folders this session.
+    @ObservationIgnored var migratedBoards: Set<String> = []
+    /// The library whose collection kinds were last brought in line (see `LibraryStore.normalizeCollectionKinds`).
+    @ObservationIgnored var kindsNormalized: String?
     /// Bumped when the grid-of-record for the canvas changes from outside the canvas (board loaded, undo, teammate, arrange).
     private(set) var canvasVersion = 0
     @ObservationIgnored var canvasLoadedKey: String?
@@ -547,6 +556,7 @@ final class AppModel {
             await bindIdentity()
             collab.recordPresence()
             pinnedTags = UserDefaults.standard.stringArray(forKey: "pinnedTags.\(libraryID)") ?? []
+            pinnedCollections = UserDefaults.standard.stringArray(forKey: "pinnedCollections.\(libraryID)") ?? []
             stripTags = []
             if remember { workspaces = Workspaces.remember(id: libraryID, path: storedPath, name: libraryName) }
             addedByFilter = nil
@@ -925,6 +935,11 @@ final class AppModel {
             guard !Task.isCancelled, generation == reloadGeneration else { return }
             if viewMode == .canvas { await syncCanvas() }
             guard !Task.isCancelled, generation == reloadGeneration else { return }
+            // once per library: collections from before kinds followed the parent (housekeeping, not an undo step)
+            if !bucket.readOnly, let root = layout?.root.path, kindsNormalized != root {
+                kindsNormalized = root
+                if let n = try? await store.normalizeCollectionKinds(), n > 0 { bucket.nudge() }
+            }
             let colls = try await store.index.collections()
             let canonMembers: Set<String>
             if let canon = Canon.collection(in: colls) {
@@ -1135,13 +1150,21 @@ final class AppModel {
         } catch { errorMessage = "Redo failed: \(error.localizedDescription)" }
     }
 
-    func showToast(_ text: String, seconds: Double = 2.2) {
+    func showToast(_ text: String, mark: LibraryNotice.Mark? = nil, seconds: Double = 2.2) {
+        toastMark = mark
         toast = text
         toastTask?.cancel()
         toastTask = Task {
             try? await Task.sleep(for: .seconds(seconds))
-            if !Task.isCancelled { toast = nil }
+            if !Task.isCancelled {
+                toast = nil
+                toastMark = nil
+            }
         }
+    }
+
+    func showNotice(_ notice: LibraryNotice, seconds: Double = 2.2) {
+        showToast(notice.text, mark: notice.mark, seconds: seconds)
     }
 
     // MARK: Import
@@ -1209,7 +1232,7 @@ final class AppModel {
         case .commandPalette: panel = .commandK
         case .zoomIn: zoom(by: 1.25)
         case .zoomOut: zoom(by: 1 / 1.25)
-        case .newCollection: promptNewCollection(kind: "collection", parent: nil)
+        case .newCollection: promptNewCollection(parent: nil)
         case .newSmartFolder: smartEditor = SmartEditorState()
         }
     }
@@ -1226,8 +1249,7 @@ final class AppModel {
         let like = !all
         Task {
             guard await perform(like ? "Like" : "Unlike", { try await $0.setLiked(like, ids: ids) }) != nil else { return }
-            let word = like ? "Liked" : "Unliked"
-            showToast(ids.count == 1 ? word : "\(word) \(ids.count) items")
+            showNotice(LibraryNotice.like(on: like, count: ids.count))
         }
     }
 
@@ -1242,9 +1264,13 @@ final class AppModel {
         }
     }
 
-    func promoteSelectionToCanon() {
+    func promoteSelectionToCanon() { promoteToCanon(Array(selection)) }
+
+    /// Adds these items to Holy Grail, creating it the first time.
+    func promoteToCanon(_ ids: [String]) {
         guard canPromoteToCanon, let store else { return }
-        let adding = Canon.offer(selected: Array(selection), alreadyIn: canonItemIds).adding
+        if bucket.readOnly { showToast("Update Grails"); return }
+        let adding = Canon.offer(selected: ids, alreadyIn: canonItemIds).adding
         guard !adding.isEmpty else { return }
         Task {
             do {
@@ -1254,6 +1280,7 @@ final class AppModel {
                 try await store.add(ids: adding, toCollection: id)
                 bucket.nudge()
                 await reload()
+                showNotice(LibraryNotice.holyGrail(added: true, count: adding.count))
             } catch {
                 errorMessage = "Couldn't add to \(Canon.title)"
             }
@@ -1262,12 +1289,33 @@ final class AppModel {
 
     func removeFromCanon(_ ids: [String]) {
         guard canPromoteToCanon, !ids.isEmpty, let canonID = Canon.collection(in: collections)?.id else { return }
+        if bucket.readOnly { showToast("Update Grails"); return }
         let removing = ids
         let collectionID = canonID
         Task {
             if await perform("Remove from \(Canon.title)", { try await $0.remove(ids: removing, fromCollection: collectionID) }) != nil {
                 bucket.nudge()
+                showNotice(LibraryNotice.holyGrail(added: false, count: removing.count))
             }
+        }
+    }
+
+    /// Takes items out of a collection and the collections inside it, which is what its grid shows. They stay in the library and everywhere else.
+    func removeItems(_ ids: [String], fromCollection cid: String) {
+        if bucket.readOnly { showToast("Update Grails"); return }
+        guard !ids.isEmpty, let collection = collections.first(where: { $0.id == cid }) else { return }
+        if Canon.collection(in: collections)?.id == cid { removeFromCanon(ids); return }
+        let name = collection.displayName
+        let label = collection.kind == "folder" ? "Remove from Folder" : "Remove from Collection"
+        let canonID = Canon.collection(in: collections)?.id
+        Task {
+            let removed: Void? = await perform(label) { store in
+                // Holy Grail keeps its own permission even when it sits inside the folder
+                for id in try await store.collectionTree(rootedAt: cid) where id != canonID { try await store.remove(ids: ids, fromCollection: id) }
+            }
+            guard removed != nil else { return }
+            bucket.nudge()
+            showToast("Removed \(ids.count) \(ids.count == 1 ? "item" : "items") from \(name)")
         }
     }
 
@@ -1316,14 +1364,16 @@ final class AppModel {
 
     // MARK: Collections
 
-    func promptNewCollection(kind: String, parent: String?, thenAdd ids: [String] = []) {
+    /// A collection at the top level, a folder inside one (see `GrailsCollection.kind(parentId:)`).
+    func promptNewCollection(parent: String?, thenAdd ids: [String] = []) {
+        let kind = GrailsCollection.kind(parentId: parent)
         prompt = PromptRequest(
             title: kind == "folder" ? "New Folder" : "New Collection", placeholder: kind == "folder" ? "Folder name" : "Collection name", confirmTitle: "Create"
         ) { [weak self] name in
             guard let self, !name.isEmpty else { return }
             Task {
                 let created = await self.perform(kind == "folder" ? "New Folder" : "New Collection") { store in
-                    let c = try await store.createCollection(name: name, kind: kind, parentId: parent)
+                    let c = try await store.createCollection(name: name, parentId: parent)
                     if !ids.isEmpty { try await store.add(ids: ids, toCollection: c.id) }
                     return c.id
                 }
@@ -1368,6 +1418,12 @@ final class AppModel {
     func setCoverFromSelection(_ c: GrailsCollection) {
         guard let id = selection.first else { showToast("Select an item first"); return }
         Task { await perform("Set Cover") { try await $0.setCover(itemId: id, for: c.id) } }
+    }
+
+    /// The collection or folder that's open, where "New Folder" puts the new one. Never Holy Grail.
+    var folderParent: GrailsCollection? {
+        guard case .collection(let id) = source, let c = collections.first(where: { $0.id == id }), !c.isCanon else { return nil }
+        return c
     }
 
     func moveCollection(_ id: String, intoFolder folder: String) {
@@ -1519,6 +1575,7 @@ final class AppModel {
         let target = action.target
         let moved = action.isMove
         let count = ids.count
+        let toCanon = collections.contains { $0.id == target && $0.isCanon }
         guard !ids.isEmpty else { return }
         Task {
             await perform(undoLabel) { store in
@@ -1528,7 +1585,11 @@ final class AppModel {
                     try await store.add(ids: ids, toCollection: target)
                 }
             }
-            showToast("\(moved ? "Moved" : "Added") \(count) \(count == 1 ? "item" : "items") to \(toastName)")
+            if toCanon {
+                showNotice(LibraryNotice.holyGrail(added: true, count: count))
+            } else {
+                showToast("\(moved ? "Moved" : "Added") \(count) \(count == 1 ? "item" : "items") to \(toastName)")
+            }
         }
     }
 
@@ -1578,7 +1639,7 @@ final class AppModel {
 
     func originalURL(for s: ItemSummary) -> URL? {
         guard let layout else { return nil }
-        return layout.itemDir(s.id).appendingPathComponent(s.ext.map { "original.\($0)" } ?? "original")
+        return layout.itemDir(TileKey.item(s.id)).appendingPathComponent(s.ext.map { "original.\($0)" } ?? "original")
     }
 }
 

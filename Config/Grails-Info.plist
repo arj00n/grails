@@ -71,7 +71,9 @@
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Grails transcribes a voice note on this Mac.</string>
 	<key>SUAllowsAutomaticUpdates</key>
-	<false/>
+	<true/>
+	<key>SUAutomaticallyUpdate</key>
+	<true/>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUFeedURL</key>

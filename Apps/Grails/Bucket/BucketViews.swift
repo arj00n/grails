@@ -253,7 +253,7 @@ struct TeamSettingsTab: View {
     }
 
     @ViewBuilder private var storage: some View {
-        GrailsSettingsRow("Used") { Text(ByteCountFormatter.string(fromByteCount: model.bucket.usage, countStyle: .file)).foregroundStyle(Ink.secondary).monospacedDigit() }
+        GrailsSettingsRow("Used") { Text(ByteCountFormatter.string(fromByteCount: model.bucket.usage, countStyle: .file)).font(.grailsBody(CGFloat(TypeScale.body))).foregroundStyle(Ink.secondary).monospacedDigit() }
         GrailsSettingsBlock {
             GrailsTextField("Cap GB", text: $cap, corrects: false)
             GrailsTextField("Max file MB", text: $maxFile, corrects: false)

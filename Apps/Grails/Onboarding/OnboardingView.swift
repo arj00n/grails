@@ -87,7 +87,7 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
             .offset(x: plate.minX, y: plate.minY)
             // the painter, bottom right, on a small plate of canvas so it reads over the painting; the centre stays clean. It cross-fades to the next one.
             ZStack(alignment: .bottomTrailing) {
-                Text(caption).font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary)
+                Text(caption).font(.grailsTitle(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary)
                     .padding(.horizontal, 8).padding(.vertical, 5)
                     .background(Ink.canvas)
                     .padding(16)
@@ -114,8 +114,8 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
         let word = Array("GRAILS")
         let typed = choosing ? word.count : min(max(Int((t - 1.0) / 0.04) + 1, 0), word.count)
         return ZStack(alignment: .leading) {
-            Text("GRAILS").font(.grailsDisplay(32)).hidden()
-            Text(String(word.prefix(typed))).font(.grailsDisplay(32)).foregroundStyle(Ink.text)
+            Text("GRAILS").font(.grailsTitle(32)).hidden()
+            Text(String(word.prefix(typed))).font(.grailsTitle(32)).foregroundStyle(Ink.text)
         }
         .accessibilityLabel("Grails")
     }
@@ -201,7 +201,7 @@ private struct ChooserCard: View {
     var body: some View {
         GrailsControl(press: .row, action: action) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+                Text(title).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
                 if let fact { Text(fact).font(.grailsBody(12)).foregroundStyle(Ink.secondary).lineLimit(1) }
                 Spacer(minLength: 0)
             }
@@ -265,7 +265,7 @@ struct LibraryStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("WHERE IT LIVES").font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
+            Text("Where it lives").font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
             VStack(alignment: .leading, spacing: 2) {
                 row(.thisMac, "This Mac", model.thisMac.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"), id: "library-this-mac")
                 ForEach(model.roots) { r in row(.root(r.id), r.name, nil, id: "library-root") }
@@ -390,9 +390,9 @@ struct ProgressColumn: View {
         VStack(alignment: .leading, spacing: 14) {
             if arriving {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("IMPORTING").font(.grailsDisplay(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary)
+                    Text("Importing").font(.grailsTitle(CGFloat(TypeScale.help))).foregroundStyle(Ink.secondary)
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("\(done.formatted()) / \(total.formatted())").font(.grailsDisplay(CGFloat(TypeScale.page))).monospacedDigit().foregroundStyle(Ink.text)
+                        Text("\(done.formatted()) / \(total.formatted())").font(.grailsCount(CGFloat(TypeScale.page))).foregroundStyle(Ink.text)
                             .accessibilityLabel("\(done) of \(total) pictures")
                             .accessibilityIdentifier("onboarding-counter")
                         ZStack(alignment: .leading) {
@@ -410,7 +410,7 @@ struct ProgressColumn: View {
                 }
                 .transition(.opacity)
             } else {
-                Text("IMPORT BOARDS").font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).transition(.opacity)
+                Text("Import boards").font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).transition(.opacity)
             }
             ImportView(model: importer, app: app, hug: !arriving, listHeight: arriving ? nil : listCap)
             ZStack(alignment: .trailing) {

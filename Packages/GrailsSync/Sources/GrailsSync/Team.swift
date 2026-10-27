@@ -216,6 +216,8 @@ public enum TeamPermissions {
     public static func canRevoke(_ role: LibraryRole) -> Bool { role != .member }
     public static func canSetLimits(_ role: LibraryRole) -> Bool { role != .member }
     public static func canPromoteToCanon(_ role: LibraryRole) -> Bool { role != .member }
+    /// A folder or Drive library has no team, so whoever has it open owns it. A team library follows the role.
+    public static func canPromoteToCanon(_ role: LibraryRole, connected: Bool) -> Bool { !connected || canPromoteToCanon(role) }
     public static func canRunSpringCleaning(_ role: LibraryRole) -> Bool { role != .member }
     public static func canEmptyTrash(_ role: LibraryRole) -> Bool { role != .member }
     public static func canConfigureBackup(_ role: LibraryRole) -> Bool { role == .owner }

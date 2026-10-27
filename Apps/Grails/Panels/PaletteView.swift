@@ -86,7 +86,7 @@ struct PaletteView: View {
 
     private func rowView(_ row: PaletteRow, highlighted: Bool) -> some View {
         HStack(spacing: 10) {
-            Group { if row.symbol == CanonMark.symbolName { CanonMark(size: 13) } else { Image(systemName: row.symbol) } }.frame(width: 22).foregroundStyle(row.tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(Ink.secondary))
+            GrailsSymbol(row.symbol, size: 13).frame(width: 22).foregroundStyle(row.tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(Ink.secondary))
             VStack(alignment: .leading, spacing: 1) {
                 Text(row.title).font(.grailsBody(13)).lineLimit(1)
                 if let sub = row.subtitle { Text(sub).font(.grailsBody(12)).foregroundStyle(Ink.secondary).lineLimit(1) }

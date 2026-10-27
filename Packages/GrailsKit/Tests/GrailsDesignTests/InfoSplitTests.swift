@@ -26,8 +26,26 @@ import Testing
         #expect(open.panelX == 900)
     }
 
-    @Test func theLayoutPlacesThePanelBelowTheBarAndBesideTheContent() {
-        let layout = InfoSplitLayout(reveal: 1, columnWidth: 300, top: 44)
+    /// One ease-out for the width, the fade and the separator: every frame stays between closed and open, so the content beside
+    /// it never reflows past its place, and the fade lands with the width.
+    @Test func openingAndClosingNeverOvershoot() {
+        #expect(GrailsInfoSplit<EmptyView, EmptyView>.motion(reduceMotion: false) == .grailsFlight)
+        #expect(GrailsInfoSplit<EmptyView, EmptyView>.motion(reduceMotion: true) == nil)
+        let c = Motion.standardCurve
+        let curve = UnitCurve.bezier(startControlPoint: UnitPoint(x: c.x1, y: c.y1), endControlPoint: UnitPoint(x: c.x2, y: c.y2))
+        var last = 0.0
+        for step in 0...60 {
+            let reveal = curve.value(at: Double(step) / 60)
+            #expect(reveal >= last - 1e-9 && reveal <= 1 + 1e-9)
+            let g = InfoSplitGeometry(total: 1200, columnWidth: 300, reveal: reveal)
+            #expect(g.panelWidth == 300)                // the column only moves; it is never stretched and redrawn
+            last = reveal
+        }
+        #expect(abs(last - 1) < 1e-9)
+    }
+
+    @Test func theLayoutPlacesThePanelBesideTheContent() {
+        let layout = InfoSplitLayout(reveal: 1, columnWidth: 300)
         #expect(layout.animatableData == 1)
         var moved = layout
         moved.animatableData = 0.5

@@ -60,6 +60,14 @@ struct SidebarView: View {
                         }
                         .accessibilityIdentifier("sidebar-canon")
                 }
+                ForEach(model.pinnedCollectionRows) { c in
+                    SidebarRow(model: model, title: c.displayName, symbol: c.kind == "folder" ? "folder" : "rectangle.stack", source: .collection(c.id))
+                        .collectionDropTarget(model: model, collection: c, targeted: $targeted)
+                        .contextMenu {
+                            GrailsControl("Unpin from Sidebar") { model.unpinCollection(c.id) }
+                            GrailsControl("Copy Link") { model.copyLink(.collection(c.id)) }
+                        }
+                }
                 SidebarRow(model: model, title: "Liked", symbol: "heart", source: .liked)
                 SidebarRow(model: model, title: "For you", symbol: "at", count: model.forYouUnread > 0 ? model.forYouUnread : nil, source: .mentions)
                 SidebarRow(model: model, title: "Untagged", symbol: "tag.slash", source: .untagged)
@@ -73,8 +81,7 @@ struct SidebarView: View {
                 if showCollections {
                     SidebarHeader(title: "Collections", expanded: $expandCollections) {
                         GrailsMenu {
-                            GrailsControl("New Collection…") { model.promptNewCollection(kind: "collection", parent: nil) }
-                            GrailsControl("New Folder…") { model.promptNewCollection(kind: "folder", parent: nil) }
+                            GrailsControl("New Collection…") { model.promptNewCollection(parent: nil) }
                             GrailsControl("New Smart Folder…") { model.run(.newSmartFolder) }
                         } label: { BarIcon(symbol: "plus", size: 22) }
                             .accessibilityIdentifier("sidebar-add")
@@ -83,10 +90,10 @@ struct SidebarView: View {
                         Group {
                             ForEach(topLevel) { CollectionNode(model: model, collection: $0, depth: 0, targeted: $targeted) }
                             if !archived.isEmpty {
-                                SidebarRow(model: model, title: "Archived", symbol: "archivebox", disclosure: $archivedOpen)
+                                SidebarRow(model: model, title: "Archived", symbol: "archivebox", disclosure: $archivedOpen, nested: true)
                                 if archivedOpen {
                                     ForEach(archived) { c in
-                                        SidebarRow(model: model, title: c.displayName, symbol: "archivebox", source: .collection(c.id), indent: 1)
+                                        SidebarRow(model: model, title: c.displayName, symbol: "archivebox", source: .collection(c.id), indent: 1, nested: true)
                                             .contextMenu { GrailsControl("Unarchive") { model.archiveCollection(c, false) } }
                                     }
                                     .transition(.grailsReveal(reduceMotion: reduceMotion))
@@ -156,7 +163,7 @@ struct SidebarView: View {
                 }
             }
             .padding(.vertical, 8)
-            .grailsSelectionTrack { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
+            .grailsSelectionTrack(glides: false) { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
             // a collection reordered, added or removed, or a tag coming and going: the rows around it move on the spring
             .animation(.grailsSpring(reduceMotion: reduceMotion), value: model.collections.map(\.id))
             .animation(.grailsSpring(reduceMotion: reduceMotion), value: model.tags.map(\.tag))
@@ -180,8 +187,8 @@ struct SidebarHeader<Trailing: View>: View {
             GrailsControl { withGrailsSpring { expanded.toggle() } } label: {
                 HStack(spacing: 6) {
                     GrailsDisclosureChevron(expanded: expanded, size: 8, weight: .bold).frame(width: 10)
-                    Text(title)
-                    if !expanded, let count { Text("\(count)").monospacedDigit() }
+                    Text(title).font(.grailsTitle(11))
+                    if !expanded, let count { Text("\(count)").font(.grailsCount(11)) }
                 }
                 .font(.grailsBody(11))
                 .foregroundStyle(hovering ? Ink.text : Ink.secondary)
@@ -214,6 +221,10 @@ struct SidebarRow: View {
     var source: Source?
     var indent = 0
     var disclosure: Binding<Bool>?
+    /// Rows under a section heading sit one step in from it, with the arrow under the heading's title.
+    var nested = false
+    /// Tree rows keep the arrow's column even with nothing to open, so siblings line up whether or not they hold folders.
+    var outline = false
     var quiet = false
     var action: (() -> Void)?
     /// Holy Grail's row: its mark in gold with a few still-quiet stars, and the gold outline when selected.
@@ -223,22 +234,24 @@ struct SidebarRow: View {
     private var selected: Bool { source != nil && model.source == source }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: CGFloat(SidebarRowMetrics.gap)) {
             if let disclosure {
                 GrailsControl(press: .icon) { withGrailsSpring { disclosure.wrappedValue.toggle() } } label: {
                     GrailsDisclosureChevron(expanded: disclosure.wrappedValue, size: 8, weight: .bold).foregroundStyle(Ink.secondary)
-                        .frame(width: 12, height: 20).contentShape(Rectangle())
+                        .frame(width: CGFloat(SidebarRowMetrics.chevronSlot), height: 20).contentShape(Rectangle())
                 }
-            } else if indent > 0 { Color.clear.frame(width: 12) }
+            } else if indent > 0 || outline { Color.clear.frame(width: CGFloat(SidebarRowMetrics.chevronSlot)) }
             GrailsSymbol(symbol, size: 12).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(selected || hovering ? Ink.text : Ink.secondary)).frame(width: 16)
                 .overlay { if canon { CanonSparkles(selected: selected) } }
             Text(title).font(.grailsBody(13)).foregroundStyle(canon ? AnyShapeStyle(CanonInk(selected: selected)) : AnyShapeStyle(quiet && !hovering ? Ink.secondary : Ink.text)).lineLimit(1)
             Spacer(minLength: 4)
-            if let count { Text(count.formatted()).font(.grailsBody(11)).monospacedDigit().foregroundStyle(Ink.secondary) }
+            if let count { Text(count.formatted()).font(.grailsCount(11)).foregroundStyle(Ink.secondary) }
         }
-        .padding(.leading, 8 + CGFloat(indent) * 14).padding(.trailing, 8)
-        .frame(height: 28)
-        // the open view's fill is the list's one sliding indicator; the row only draws hover
+        // depth is laid out inside the fill, so every row's hover, selection and drop outline is the same rectangle
+        .padding(.leading, CGFloat(SidebarRowMetrics.contentLeading(nested: nested, depth: indent)))
+        .padding(.trailing, CGFloat(SidebarRowMetrics.contentInset))
+        .frame(height: CGFloat(SidebarRowMetrics.height))
+        // the open view's fill is the list's one indicator; the row only draws hover
         .background {
             if canon {
                 GrailsCanonHighlight(selected: selected, hovering: hovering, radius: Ink.sidebarRadius)
@@ -247,7 +260,7 @@ struct SidebarRow: View {
             }
         }
         .grailsSelectionTarget(selected)
-        .padding(.horizontal, 8)
+        .padding(.horizontal, CGFloat(SidebarRowMetrics.fillInset))
         .contentShape(Rectangle())
         .grailsTapPress {
             if let action { action() } else if let source { model.source = source } else if let disclosure { withGrailsSpring { disclosure.wrappedValue.toggle() } }
@@ -260,6 +273,24 @@ struct SidebarRow: View {
 }
 
 extension AppModel {
+    /// Collections and folders pinned to the top of the sidebar, in the order they were pinned. Yours alone, per library.
+    var pinnedCollectionRows: [GrailsCollection] {
+        pinnedCollections.compactMap { id in collections.first { $0.id == id && !$0.archived && !$0.isCanon } }
+    }
+
+    func pinCollection(_ id: String) {
+        guard !pinnedCollections.contains(id) else { return }
+        withGrailsSpring { pinnedCollections.append(id) }
+        savePinnedCollections()
+    }
+
+    func unpinCollection(_ id: String) {
+        withGrailsSpring { pinnedCollections.removeAll { $0 == id } }
+        savePinnedCollections()
+    }
+
+    private func savePinnedCollections() { UserDefaults.standard.set(pinnedCollections, forKey: "pinnedCollections.\(libraryID)") }
+
     /// The team's Holy Grail, when the library has one that is not archived. The sidebar shows it once, highlighted, in the main section.
     var canonCollection: GrailsCollection? { Canon.collection(in: collections.filter { !$0.archived }) }
 }
@@ -282,7 +313,7 @@ private struct CollectionNode: View {
 
     var body: some View {
         let children = model.collections.filter { $0.parentId == collection.id && !$0.archived && $0.id != model.canonCollection?.id }
-        let hasChildren = collection.kind == "folder" || !children.isEmpty
+        let hasChildren = !children.isEmpty
         label(hasChildren: hasChildren)
         if hasChildren, open {
             ForEach(children) { CollectionNode(model: model, collection: $0, depth: depth + 1, targeted: $targeted) }
@@ -308,21 +339,21 @@ private struct CollectionNode: View {
 
     private func label(hasChildren: Bool) -> some View {
         SidebarRow(model: model, title: collection.displayName, symbol: collection.kind == "folder" ? "folder" : "rectangle.stack",
-                   source: .collection(collection.id), indent: depth, disclosure: hasChildren ? $open : nil)
+                   source: .collection(collection.id), indent: depth, disclosure: hasChildren ? $open : nil, nested: true, outline: true)
             .onDrag {
                 NSItemProvider(item: Data(collection.id.utf8) as NSData, typeIdentifier: UTType.grailsCollection.identifier)
             }
             .collectionDropTarget(model: model, collection: collection, targeted: $targeted)
             .contextMenu {
                 libraryTransferMenu
+                GrailsControl(model.pinnedCollections.contains(collection.id) ? "Unpin from Sidebar" : "Pin to Sidebar") {
+                    if model.pinnedCollections.contains(collection.id) { model.unpinCollection(collection.id) } else { model.pinCollection(collection.id) }
+                }
                 GrailsControl("Copy Link") { model.copyLink(.collection(collection.id)) }
                 GrailsControl("Rename…") { model.promptRenameCollection(collection) }
-                if collection.kind == "folder" {
-                    GrailsControl("New Collection Inside…") { model.promptNewCollection(kind: "collection", parent: collection.id) }
-                    GrailsControl("New Folder Inside…") { model.promptNewCollection(kind: "folder", parent: collection.id) }
-                }
+                GrailsControl("New Folder Inside…") { model.promptNewCollection(parent: collection.id) }
                 GrailsControl("Duplicate") { model.duplicateCollection(collection) }
-                if collection.kind != "folder" { GrailsControl("Use Selected Item as Cover") { model.setCoverFromSelection(collection) } }
+                GrailsControl("Use Selected Item as Cover") { model.setCoverFromSelection(collection) }
                 Divider()
                 GrailsControl("Archive") { model.archiveCollection(collection, true) }
                 GrailsControl("Delete…", role: .destructive) { model.confirmDeleteCollection(collection) }
@@ -341,10 +372,11 @@ extension View {
             }
             return true
         }
-        .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.horizontal, 8).allowsHitTesting(false) } }
+        .overlay { if targeted.wrappedValue == id { SidebarDropOutline() } }
     }
 
-    /// Collections and folders accept item ids. Files import onto a collection. A collection drag moves into a folder or reorders.
+    /// Collections and folders accept item ids and files alike. A collection dragged onto a sibling reorders; onto any other
+    /// row it moves inside.
     func collectionDropTarget(model: AppModel, collection: GrailsCollection, targeted: Binding<String?>) -> some View {
         let id = "c-\(collection.id)"
         return onDrop(of: DropLoader.accepted, isTargeted: Binding(get: { targeted.wrappedValue == id }, set: { targeted.wrappedValue = $0 ? id : nil })) { providers in
@@ -353,15 +385,26 @@ extension View {
                 if ItemPlacement.acceptsItemDrop(kind: collection.kind, itemIDs: d.itemIDs) {
                     model.dropItems(ids: d.itemIDs, onto: .collection(collection.id))
                 } else if let moved = d.collectionIDs.first, moved != collection.id {
-                    if collection.kind == "folder" { model.moveCollection(moved, intoFolder: collection.id) }
-                    else if let c = model.collections.first(where: { $0.id == moved }) { _ = c; model.moveCollection(moved, after: collection) }
-                } else if !d.files.isEmpty, collection.kind != "folder" {
+                    // onto a sibling it reorders; onto anything else it goes inside, and becomes a folder there
+                    if model.collections.first(where: { $0.id == moved })?.parentId == collection.parentId { model.moveCollection(moved, after: collection) }
+                    else { model.moveCollection(moved, intoFolder: collection.id) }
+                } else if !d.files.isEmpty {
                     await model.importFiles(d.files, collectionId: collection.id)
                 }
             }
             return true
         }
-        .overlay { if targeted.wrappedValue == id { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 1.5).padding(.horizontal, 8).allowsHitTesting(false) } }
+        .overlay { if targeted.wrappedValue == id { SidebarDropOutline() } }
+    }
+}
+
+/// A drop onto a sidebar row outlines that row's own rectangle: same inset and radius as its fill.
+private struct SidebarDropOutline: View {
+    var body: some View {
+        RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous)
+            .strokeBorder(Ink.focus, lineWidth: 1.5)
+            .padding(.horizontal, CGFloat(SidebarRowMetrics.fillInset))
+            .allowsHitTesting(false)
     }
 }
 

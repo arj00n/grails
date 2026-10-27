@@ -28,7 +28,7 @@ final class CanvasNSView: NSView {
     var onOptionClick: ((String) -> Void)?
     var onSearch: (() -> Void)?
     /// False in views that have no board to save to (the Trash): items can be selected and previewed but not rearranged.
-    var editable = true { didSet { if oldValue != editable { for h in headers.values { h.isHidden = !editable }; for t in titles.values { t.isHidden = !editable } } } }
+    var editable = true { didSet { if oldValue != editable { updateHeaderGeometry() } } }
 
     // MARK: Data
     var layout: LibraryLayout?
@@ -38,7 +38,8 @@ final class CanvasNSView: NSView {
     /// Where each visible item sits, from the cluster layout (world space). Everything that needs "the rect of item X" reads this.
     private(set) var placements: [String: CanvasPlacement] = [:]
     private var clusterFrames: [String: CGRect] = [:]          // world, title bar included
-    private var memberOf: [String: String] = [:]               // item id → cluster id
+    private var memberOf: [String: String] = [:]               // tile key → cluster id
+    /// Tile keys (see `TileKey`): a picture in two folders is two tiles, and selecting one tile doesn't select the other.
     private(set) var selection: Set<String> = []
 
     // MARK: Viewport
@@ -216,7 +217,7 @@ final class CanvasNSView: NSView {
     func setItems(_ list: [ItemSummary]) {
         items = Dictionary(list.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         applyLayout()
-        for (id, l) in layers { if let s = items[id] { l.summary = s } }
+        for (id, l) in layers { if let s = summary(id) { l.summary = s } }
         syncLayers()
         for l in layers.values where l.loadedBucket == 0 { loadImage(for: l, force: true) }
         publishAccessibility()
@@ -227,11 +228,11 @@ final class CanvasNSView: NSView {
     func setClusters(_ new: [CanvasCluster], boardKey key: String?, savedViewport: (CGPoint, CGFloat)?) {
         let switched = key != boardKey
         // a slice of the library (search results, a filter) re-fits whenever its set of items changes
-        let derivedChanged = key?.hasPrefix("derived:") == true && Set(new.flatMap(\.items)) != Set(clusters.flatMap(\.items))
+        let derivedChanged = key?.hasPrefix("derived:") == true && Set(new.flatMap(\.items)) != Set(clusters.flatMap(\.items).map(TileKey.item))
         boardKey = key
         // where every tile is drawn right now, so a change to the same board can glide from there instead of redrawing
         let before = switched ? [:] : drawnGeometry()
-        clusters = new
+        clusters = TileKey.keyed(new)
         applyLayout()
         if switched {
             for l in layers.values { recycle(l) }
@@ -279,10 +280,21 @@ final class CanvasNSView: NSView {
         fit(ids: nil, animated: false)
     }
 
+    /// The app's selection is item ids: a tile the person picked stays the one shown; otherwise every tile of those items is.
     func setSelection(_ ids: Set<String>) {
-        guard ids != selection else { return }
-        selection = ids
+        guard ids != selectedItems else { return }
+        selection = Set(entries.lazy.map(\.id).filter { ids.contains(TileKey.item($0)) })
         updateSelectionVisuals()
+    }
+
+    private var selectedItems: Set<String> { Set(selection.map(TileKey.item)) }
+
+    private func summary(_ key: String) -> ItemSummary? { items[TileKey.item(key)] }
+
+    /// The tile an item id from the app means: the selected one if it is selected, else its first.
+    private func tile(for id: String) -> String? {
+        if let picked = selection.first(where: { TileKey.item($0) == id }) { return picked }
+        return placements[id] != nil ? id : entries.first { TileKey.item($0.id) == id }?.id
     }
 
     // MARK: Layout
@@ -292,10 +304,10 @@ final class CanvasNSView: NSView {
         return s?.kind == .link ? 4.0 / 3.0 : 1
     }
 
-    private func members(of c: CanvasCluster) -> [String] { c.items.filter { items[$0] != nil } }
+    private func members(of c: CanvasCluster) -> [String] { c.items.filter { summary($0) != nil } }
 
     private func pack(_ ids: [String], for c: CanvasCluster) -> ClusterLayout.Packed {
-        ClusterLayout.pack(ids.map { .init(id: $0, aspect: Self.aspect(of: items[$0])) }, width: c.width, tile: c.tile)
+        ClusterLayout.pack(ids.map { .init(id: $0, aspect: Self.aspect(of: summary($0))) }, width: c.width, tile: c.tile)
     }
 
     /// The cluster's frame: as wide as its packed rows (a lone tile doesn't claim a whole row), at least wide enough for a title.
@@ -350,7 +362,10 @@ final class CanvasNSView: NSView {
             h.isHidden = hidden
             let title = titles[c.id] ?? {
                 let t = GrailsClusterTitle(frame: .zero)
-                t.font = .grailsDisplay(CGFloat(TypeScale.body))
+                t.font = .grailsTitle(CGFloat(TypeScale.body))
+                // ends in "…" when the cluster is narrower than its name, instead of being cut mid-letter
+                t.cell?.isScrollable = false
+                t.cell?.truncatesLastVisibleLine = true
                 addSubview(t)
                 titles[c.id] = t
                 return t
@@ -371,12 +386,11 @@ final class CanvasNSView: NSView {
     func beginRename(_ id: String) {
         guard editable, let c = clusters.first(where: { $0.id == id }), clusterFrames[id] != nil else { return }
         renaming?.field.finish(commit: true)
-        let field = InlineTitleField(text: c.title, font: .grailsDisplay(CGFloat(TypeScale.body)))
+        let field = InlineTitleField(text: c.title, font: .grailsTitle(CGFloat(TypeScale.body)))
         field.onFinish = { [weak self] text in
             guard let self else { return }
             self.renaming = nil
-            self.headers[id]?.isHidden = !self.editable
-            self.titles[id]?.isHidden = !self.editable
+            self.updateHeaderGeometry()
             self.window?.makeFirstResponder(self)
             if let text, text.trimmingCharacters(in: .whitespaces) != c.title { self.onRenameClusterTo?(id, text) }
         }
@@ -394,19 +408,28 @@ final class CanvasNSView: NSView {
     }
 
     /// Title bars keep the same size on screen at every zoom, like Figma's frame names: each header is laid out in screen
-    /// points and scaled by 1/zoom, pinned just above its cluster's pictures.
+    /// points and scaled by 1/zoom, pinned just above its cluster's pictures. Like Figma's, a name is cut to its cluster's
+    /// width on screen and hidden once the cluster is too narrow to show any of it, so zoomed out names never overlap.
+    /// Narrower than this on screen, a cluster shows no name (a couple of letters and an ellipsis tell you nothing).
+    private static let minTitleWidth: CGFloat = 44
+
     private func updateHeaderGeometry() {
         let inv = 1 / max(scale, 0.0001)
         for c in clusters {
             guard let f = clusterFrames[c.id], let h = headers[c.id] else { continue }
-            let widthPx = max(f.width * scale, 220)                 // a narrow cluster's name still has room
+            let widthPx = f.width * scale
+            let grip = widthPx >= 140
+            let titleWidth = widthPx - (grip ? 30 : 0)
+            let hidden = !editable || renaming?.id == c.id
+            h.isHidden = hidden || titleWidth < Self.minTitleWidth
+            titles[c.id]?.isHidden = hidden || titleWidth < Self.minTitleWidth
             h.anchorPoint = .zero
             h.bounds = CGRect(x: 0, y: 0, width: widthPx, height: ClusterHeaderLayer.heightPx)
             h.position = CGPoint(x: f.minX, y: -(f.minY + ClusterLayout.headerHeight) + 7 * inv)
             h.setAffineTransform(CGAffineTransform(scaleX: inv, y: inv))
-            h.showsGrip = f.width * scale >= 140
+            h.showsGrip = grip
             let s = screenPoint(CGPoint(x: f.minX, y: f.minY + ClusterLayout.headerHeight))
-            titles[c.id]?.frame = NSRect(x: s.x, y: s.y + 4, width: widthPx - 30, height: ClusterHeaderLayer.heightPx)
+            titles[c.id]?.frame = NSRect(x: s.x, y: s.y + 4, width: max(titleWidth, 0), height: ClusterHeaderLayer.heightPx)
         }
         if let r = renaming { r.field.reposition(renameFrame(for: r.id)) }
     }
@@ -457,7 +480,8 @@ final class CanvasNSView: NSView {
 
     func zoom(by factor: CGFloat, at screen: CGPoint) {
         viewportDirty = true
-        let next = min(max(scale * factor, Self.minScale), Self.maxScale)
+        // already further out (a saved view from before the limit): zooming out stays put rather than jumping in
+        let next = min(max(scale * factor, min(zoomOutLimit, scale)), Self.maxScale)
         guard next != scale else { return }
         let anchor = worldPoint(screen)
         scale = next
@@ -474,7 +498,7 @@ final class CanvasNSView: NSView {
 
     /// An item's rectangle in window coordinates. Off screen, it is panned (not zoomed) to the middle first.
     func windowRect(ofItem id: String) -> CGRect? {
-        guard let p = placements[id], bounds.width > 10 else { return nil }
+        guard let p = tile(for: id).flatMap({ placements[$0] }), bounds.width > 10 else { return nil }
         let world = CGRect(x: p.x, y: p.y, width: p.w, height: p.h)
         var r = screenRect(world)
         let area = CGRect(x: contentInsets.left, y: contentInsets.bottom, width: bounds.width - contentInsets.left - contentInsets.right, height: bounds.height - contentInsets.top - contentInsets.bottom)
@@ -487,20 +511,36 @@ final class CanvasNSView: NSView {
         return convert(r, to: nil)
     }
 
-    func setItemHidden(_ id: String, _ hidden: Bool) { layers[id]?.opacity = hidden ? 0 : 1 }
+    func setItemHidden(_ id: String, _ hidden: Bool) {
+        guard let key = hidden ? tile(for: id) : nil else { for (k, l) in layers where TileKey.item(k) == id { l.opacity = 1 }; return }
+        layers[key]?.opacity = 0
+    }
+
+    /// The scale that shows `box` whole inside the visible area, with `margin` on every side.
+    private func scaleToFit(_ box: CGRect, margin: CGFloat) -> CGFloat {
+        let availW = max(bounds.width - contentInsets.left - contentInsets.right, 50), availH = max(bounds.height - contentInsets.top - contentInsets.bottom, 50)
+        return min((availW - 2 * margin) / max(box.width, 1), (availH - 2 * margin) / max(box.height, 1))
+    }
+
+    /// Zooming out stops once every cluster fits in view: past that the board is only getting smaller. A small board can
+    /// still go down to 100%.
+    private var zoomOutLimit: CGFloat {
+        guard let first = clusterFrames.values.first, bounds.width > 10, bounds.height > 10 else { return Self.minScale }
+        let box = clusterFrames.values.dropFirst().reduce(first) { $0.union($1) }
+        return min(max(scaleToFit(box, margin: 70), Self.minScale), 1)
+    }
 
     /// Brings `ids` (or everything) into view with a margin.
     func fit(ids: [String]?, animated: Bool, margin: CGFloat = 70) {
         let rects: [CGRect] = ids == nil
             ? Array(clusterFrames.values)
-            : ids!.compactMap { placements[$0] }.map { CGRect(x: $0.x, y: $0.y, width: $0.w, height: $0.h) }
+            : { let wanted = Set(ids!); return entries.filter { wanted.contains($0.id) || wanted.contains(TileKey.item($0.id)) }.map(\.rect) }()
         guard let first = rects.first, bounds.width > 10, bounds.height > 10 else {
             if placements.isEmpty { origin = CGPoint(x: -60, y: -60); scale = 0.5; applyViewport() }
             return
         }
         let box = rects.dropFirst().reduce(first) { $0.union($1) }
-        let availW = max(bounds.width - contentInsets.left - contentInsets.right, 50), availH = max(bounds.height - contentInsets.top - contentInsets.bottom, 50)
-        let s = min(max(min((availW - 2 * margin) / max(box.width, 1), (availH - 2 * margin) / max(box.height, 1)), Self.minScale), 2)
+        let s = min(max(scaleToFit(box, margin: margin), Self.minScale), 2)
         let o = CGPoint(x: box.midX - focus.x / s, y: box.midY - focus.y / s)
         viewportDirty = true
         if animated { animate(to: (o, s)) } else { origin = o; scale = s; applyViewport() }
@@ -605,7 +645,8 @@ final class CanvasNSView: NSView {
             return n
         }()
         l.contentsScale = backing
-        l.summary = items[id]
+        l.summary = summary(id)
+        l.tileKey = id
         if l.superlayer == nil { content.addSublayer(l) }
         layers[id] = l
         return l
@@ -617,6 +658,7 @@ final class CanvasNSView: NSView {
         l.removeFromSuperlayer()
         l.loadOperation?.cancel()
         l.summary = nil
+        l.tileKey = nil
         l.contents = nil
         l.borderWidth = 0
         l.showsTitleCard = false
@@ -649,11 +691,11 @@ final class CanvasNSView: NSView {
         let original = (isLink || bucket <= 512) ? nil : model_originalURL(s)
         let cloud = original.map { FileAvailability.of($0) == .cloudOnly } ?? false
         let pictureURL = isLink && mode == "snapshot" ? layout.snapshotURL(s.id) : layout.thumbURL(s.id)
-        let id = s.id
+        let id = s.id, key = l.tileKey ?? id
         l.loadOperation?.cancel()
         l.loadOperation = ThumbnailLoader.shared.load(id: id, thumb: pictureURL, original: cloud ? nil : original, pixels: needed, variant: variant) { [weak self] image in
             MainActor.assumeIsolated {
-                guard let self, let l = self.layers[id], l.summary?.id == id, let image else { return }
+                guard let self, let l = self.layers[key], l.summary?.id == id, let image else { return }
                 CATransaction.begin(); CATransaction.setDisableActions(true)
                 l.contents = image
                 CATransaction.commit()
@@ -703,7 +745,8 @@ final class CanvasNSView: NSView {
             // the label row sits just above the pictures; it is a fixed size on screen, so the grab area is too
             let top = f.minY + ClusterLayout.headerHeight
             let hitHeight = max(ClusterLayout.headerHeight, 34 / scale)
-            let bar = CGRect(x: f.minX, y: top - hitHeight, width: max(f.width, 220 / scale), height: hitHeight)
+            guard headers[c.id]?.isHidden == false else { continue }
+            let bar = CGRect(x: f.minX, y: top - hitHeight, width: f.width, height: hitHeight)
             guard bar.contains(p) else { continue }
             let grip = 30 / scale
             return f.width * scale >= 140 && p.x > f.maxX - grip ? .grip(c.id) : .title(c.id)
@@ -745,7 +788,7 @@ final class CanvasNSView: NSView {
         }
 
         if let id = item(atWorld: w) {
-            if event.modifierFlags.contains(.option), !event.modifierFlags.contains(.command) { onOptionClick?(id); return }
+            if event.modifierFlags.contains(.option), !event.modifierFlags.contains(.command) { onOptionClick?(TileKey.item(id)); return }
             if event.modifierFlags.contains(.shift) {
                 var s = selection
                 if s.contains(id) { s.remove(id); selection = s; notifySelection(); updateSelectionVisuals(); return }
@@ -756,7 +799,7 @@ final class CanvasNSView: NSView {
             }
             notifySelection()
             updateSelectionVisuals()
-            if event.clickCount == 2 { onPreview?(id); return }
+            if event.clickCount == 2 { onPreview?(TileKey.item(id)); return }
             let ids = entries.filter { selection.contains($0.id) }.map(\.id)       // reading order
             guard editable else { return }
             drag = .items(ItemDrag(ids: ids, startWorld: w, startScreen: loc, baseClusters: clusters, baseFrames: clusterFrames, basePlacements: placements))
@@ -826,11 +869,11 @@ final class CanvasNSView: NSView {
         case .items(let d)?:
             if d.lifted { finishItemDrag(d) } else { notifySelection() }
         case .cluster(let d)?:
-            if d.moved { onCommitClusters?(clusters, "Move Cluster") }
+            if d.moved { commit(clusters, "Move Cluster") }
         case .clusterWidth(let d)?:
             if d.moved {
                 let next = resolveBlocks(clusters, moved: [d.id])
-                onCommitClusters?(next, "Resize Cluster")
+                commit(next, "Resize Cluster")
             }
         case .marquee?:
             notifySelection()
@@ -880,7 +923,7 @@ final class CanvasNSView: NSView {
 
     // MARK: Dragging items
 
-    private func entry(_ id: String) -> ClusterLayout.Entry { .init(id: id, aspect: Self.aspect(of: items[id])) }
+    private func entry(_ id: String) -> ClusterLayout.Entry { .init(id: id, aspect: Self.aspect(of: summary(id))) }
 
     /// While items are carried: they follow the pointer, and the cluster under it opens a slot at the pointer while the
     /// others flow around it. Over empty canvas (or with ⌥ held) they would start a new cluster there.
@@ -997,7 +1040,7 @@ final class CanvasNSView: NSView {
         let grew = Set(final.filter { c in (d.baseClusters.first { $0.id == c.id }.map { c.items.count > $0.items.count }) ?? true }.map(\.id))
         final = resolveBlocks(final, moved: grew)
         selection = Set(d.ids)
-        onCommitClusters?(final, d.ids.count > 1 ? "Move \(d.ids.count) Items" : "Move Item")
+        commit(final, d.ids.count > 1 ? "Move \(d.ids.count) Items" : "Move Item")
     }
 
     /// Puts every layer back where the layout says it belongs.
@@ -1038,7 +1081,7 @@ final class CanvasNSView: NSView {
         let tile = host?.tile ?? CanvasCluster.defaultTile
         var next = ClusterOps.move(ids, to: .newCluster(x: Double(hostFrame.maxX) + 200, y: Double(hostFrame.minY), width: tile * 4.5, tile: tile), in: clusters)
         if let new = next.last { next = resolveBlocks(next, moved: [new.id]) }
-        onCommitClusters?(next, "Group into Cluster")
+        commit(next, "Group into Cluster")
     }
 
     /// Arranges the cluster blocks into tidy rows.
@@ -1054,7 +1097,7 @@ final class CanvasNSView: NSView {
             if let s = spots[c.id] { c.x = s.x; c.y = s.y; c.at = now }
             return c
         }
-        onCommitClusters?(next, "Tidy Clusters")
+        commit(next, "Tidy Clusters")
     }
 
     /// ← / → move the selected items one place within their cluster.
@@ -1066,10 +1109,13 @@ final class CanvasNSView: NSView {
         let index = min(max(at + step, 0), rest.count)
         let next = ClusterOps.move(ids, to: .cluster(cid, index: index), in: clusters)
         guard next != clusters else { return }
-        onCommitClusters?(next, "Reorder")
+        commit(next, "Reorder")
     }
 
-    private func notifySelection() { onSelectionChange?(selection) }
+    private func notifySelection() { onSelectionChange?(selectedItems) }
+
+    /// Edits leave as item ids: a tile key never reaches the board file.
+    private func commit(_ next: [CanvasCluster], _ label: String) { onCommitClusters?(TileKey.unkeyed(next), label) }
 
     // MARK: Scroll, zoom, gestures
 
@@ -1124,7 +1170,7 @@ final class CanvasNSView: NSView {
         spaceHeld = false
         NSCursor.arrow.set()
         // a tap (no panning while held) previews the selection, like in the grid
-        if !wasPan, let id = selection.first { onPreview?(id) }
+        if !wasPan, let id = selection.first { onPreview?(TileKey.item(id)) }
     }
 
     override func selectAll(_ sender: Any?) {
@@ -1144,10 +1190,10 @@ final class CanvasNSView: NSView {
         guard let id = item(atWorld: w) else { return nil }
         if !selection.contains(id) {
             selection = [id]
-            if let onContextSelection { onContextSelection(selection) } else { notifySelection() }
+            if let onContextSelection { onContextSelection(selectedItems) } else { notifySelection() }
             updateSelectionVisuals()
         }
-        return contextMenuProvider?(id)
+        return contextMenuProvider?(TileKey.item(id))
     }
 
     // MARK: Dev benchmark (GRAILS_BENCH=1): zoom in and out, then pan in circles, while a hitch monitor counts slow frames
@@ -1201,7 +1247,7 @@ final class CanvasNSView: NSView {
             el.setAccessibilityLabel(s.name)
             el.setAccessibilityParent(self)
             el.setAccessibilityFrameInParentSpace(r)
-            el.setAccessibilitySelected(selection.contains(s.id))
+            el.setAccessibilitySelected(selection.contains(l.tileKey ?? s.id))
             return el
         }
         NSAccessibility.post(element: self, notification: .layoutChanged)
@@ -1225,7 +1271,7 @@ final class CanvasNSView: NSView {
             el.setAccessibilityLabel(s.name)
             el.setAccessibilityParent(self)
             el.setAccessibilityFrameInParentSpace(r)
-            el.setAccessibilitySelected(selection.contains(s.id))
+            el.setAccessibilitySelected(selection.contains(l.tileKey ?? s.id))
             return el
         }
     }
@@ -1241,10 +1287,10 @@ final class CanvasNSView: NSView {
 
 extension CanvasNSView: HoverVideoSurface {
     func hoverHost(for id: String) -> HoverVideo.Host? {
-        guard let l = layers[id], l.summary?.id == id, window != nil else { return nil }
+        guard let l = layers[id], l.summary?.id == TileKey.item(id), window != nil else { return nil }
         return .layer(l, .resizeAspectFill)            // tiles fill their slot, like the still
     }
-    func hoverSummary(for id: String) -> ItemSummary? { items[id] }
+    func hoverSummary(for id: String) -> ItemSummary? { summary(id) }
     func hoverOriginal(for s: ItemSummary) -> URL? { model_originalURL(s) }
 }
 
@@ -1252,6 +1298,8 @@ final class CanvasAXElement: NSAccessibilityElement {}
 
 /// One item on the board.
 final class CanvasItemLayer: CALayer {
+    /// Which tile this layer draws: the item's id, or for a second appearance of the same picture, its own key.
+    var tileKey: String?
     var summary: ItemSummary? { didSet { if summary?.id != oldValue?.id || summary?.linkDisplay != oldValue?.linkDisplay { resetImageState() }; updateTitle() } }
     var loadedBucket = 0
     var pendingBucket = 0
@@ -1357,19 +1405,22 @@ final class DustLayer: CALayer {
 
 /// The grip at the right end of a cluster's name. The name itself is a `GrailsClusterTitle`, so it uses the font's line and is not drawn by hand.
 final class ClusterHeaderLayer: CALayer {
-    static var heightPx: CGFloat { GrailsClusterTitle.lineHeight(for: .grailsDisplay(CGFloat(TypeScale.body))) }
+    static var heightPx: CGFloat { GrailsClusterTitle.lineHeight(for: .grailsTitle(CGFloat(TypeScale.body))) }
     private let grip = CAShapeLayer()
     var showsGrip = true { didSet { grip.isHidden = !showsGrip } }
 
     static func title(_ title: String, count: Int) -> NSAttributedString {
         let s = NSMutableAttributedString()
         s.append(NSAttributedString(string: title.isEmpty ? "Untitled" : title, attributes: [
-            .font: NSFont.grailsDisplay(CGFloat(TypeScale.body)),
+            .font: NSFont.grailsTitle(CGFloat(TypeScale.body)),
             .foregroundColor: NSColor.ink(title.isEmpty ? .secondary : .text),
         ]))
         s.append(NSAttributedString(string: "  \(count)", attributes: [
-            .font: NSFont.grailsBody(11), .foregroundColor: NSColor.ink(.secondary),
+            .font: NSFont.grailsCount(11), .foregroundColor: NSColor.ink(.secondary),
         ]))
+        let p = NSMutableParagraphStyle()
+        p.lineBreakMode = .byTruncatingTail
+        s.addAttribute(.paragraphStyle, value: p, range: NSRange(location: 0, length: s.length))
         return s
     }
 

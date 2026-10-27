@@ -10,7 +10,7 @@ struct ImportPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Text("Import").font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
+                Text("Import").font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text)
                 Spacer()
                 BarButton(symbol: "xmark", help: "Close (Esc)", identifier: "import-close") { model.importPanelOpen = false }
             }
@@ -75,31 +75,5 @@ struct ImportFooter: View {
         }
         .hoverState($hovering)
         .accessibilityIdentifier("import-footer")
-    }
-}
-
-/// "Chrome wants in": a small card at the top of the window until it is answered.
-struct PairPrompt: View {
-    var model: AppModel
-    let request: PairingBroker.Request
-
-    var body: some View {
-        VStack {
-            Spacer()
-            HStack(spacing: 10) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Save to Grails wants in").font(.grailsBody(13)).foregroundStyle(Ink.text)
-                    Text(request.origin).font(.grailsBody(12)).foregroundStyle(Ink.secondary).lineLimit(1)
-                }
-                Spacer(minLength: 8)
-                GrailsButton("Not now", kind: .quiet) { model.denyPairing(request) }
-                GrailsButton("Allow", kind: .primary) { model.allowPairing(request) }.accessibilityIdentifier("pair-allow")
-            }
-            .padding(.horizontal, 14).padding(.vertical, 8)
-            .surfaceCard()
-        }
-        // at the bottom, clear of the window's own buttons at the top
-        .padding(.bottom, 28)
-        .accessibilityIdentifier("pair-prompt")
     }
 }

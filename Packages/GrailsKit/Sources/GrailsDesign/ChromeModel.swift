@@ -44,31 +44,52 @@ public enum RadiusToken {
     public static let sheet = 14.0
 }
 
+/// One rectangle rule for every sidebar row: Inbox, a collection with or without folders, a folder at any depth.
+/// The fill (hover, selection, drop outline) is inset the same from both sidebar edges on every row. The chevron slot, the
+/// icon and the title sit inside it, and depth moves the content, never the fill.
+public enum SidebarRowMetrics {
+    /// The fill's inset from each sidebar edge.
+    public static let fillInset = 8.0
+    /// The content's inset from the fill's edges.
+    public static let contentInset = 8.0
+    public static let height = 28.0
+    /// The disclosure chevron's column; tree rows keep it empty when they have nothing to open, so siblings line up.
+    public static let chevronSlot = 12.0
+    public static let gap = 8.0
+    /// Rows under a section heading start one step in, so the arrow sits under the heading's title.
+    public static let nestedStep = 16.0
+    /// One level is the arrow plus its gap, so a child's arrow sits under its parent's icon.
+    public static let depthStep = chevronSlot + gap
+
+    /// Where the content starts inside the fill.
+    public static func contentLeading(nested: Bool, depth: Int) -> Double {
+        contentInset + (nested ? nestedStep : 0) + Double(max(depth, 0)) * depthStep
+    }
+}
+
 public enum TypeScale {
-    /// Geist Mono. Settings and empty pages.
+    /// Title face (SF Pro Rounded Semibold). Settings and empty pages.
     public static let page = 20.0
-    /// Geist Mono. Sheet and window titles.
+    /// Title face. Sheet and window titles.
     public static let title = 15.0
     public static let subtitle = 13.0
-    /// Geist Bold. Section headers such as People.
+    /// Title face. Section headers such as People.
     public static let section = 13.0
-    /// Geist Regular, secondary. The name of a field.
+    /// SF Pro, secondary. The name of a field.
     public static let label = 12.0
     public static let body = 13.0
     public static let button = 13.0
     public static let quiet = 12.0
     /// Helper, meta, and row subtitles.
     public static let help = 12.0
-    public static let monoLink = 12.0
-    public static let monoCode = 15.0
+    /// Invite link. SF Pro, tabular digits, no tracking.
+    public static let inviteLink = 12.0
+    /// Invite code. SF Pro, tabular digits, no tracking. Same size as a sheet title, different face.
+    public static let inviteCode = 15.0
     /// -0.02em of the page title, in points.
     public static let pageTracking = -0.4
     /// -0.01em of the sheet title, in points.
     public static let titleTracking = -0.15
-    /// -0.01em of the invite link, in points.
-    public static let monoLinkTracking = -0.12
-    /// +0.08em of the invite code, in points.
-    public static let monoCodeTracking = 1.2
 }
 
 /// Which palette token a chrome role uses. Views read `Palette`; they do not pick their own hex.
@@ -99,6 +120,9 @@ public enum ChromeMetrics {
     public static let helperGap = Space.xs
     public static let sectionGap = Space.xl
     public static let cardHeight = 40.0
+    /// The grid's section header row: the cluster's 27 pt title, 6 above the row's bottom, with a step of room above.
+    /// The smallest space token that holds it; 32 would pin the title to the row's top edge.
+    public static let sectionHeaderHeight = Space.xxxl
     /// A disabled primary keeps the ink fill, faded. It does not become an outline.
     public static let disabledPrimary = 0.4
     public static let requiredMark = "*"

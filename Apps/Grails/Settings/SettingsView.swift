@@ -53,6 +53,7 @@ struct SettingsView: View {
     @AppStorage("appearance") private var appearance = "system"
     @AppStorage(GrailsMotionPreference.key) private var motion = GrailsMotionPreference.system.rawValue
     @State private var nameDraft = ""
+    @State private var escape = SettingsEscape()
     @State private var savingName = false
     @State private var nameError: String?
     @State private var nameSaved = false
@@ -95,9 +96,6 @@ struct SettingsView: View {
         .background(Ink.canvas)
         // the page is opaque and takes every click, so nothing reaches the library under it
         .contentShape(Rectangle())
-        .background {
-            GrailsControl("") { model.escapeSettings() }.keyboardShortcut(.cancelAction).frame(width: 0, height: 0).opacity(0)
-        }
         .accessibilityIdentifier("settings-page")
         .onAppear {
             libraryNameDraft = model.libraryName
@@ -107,7 +105,8 @@ struct SettingsView: View {
                 savingName = true
             }
         }
-        .onDisappear { Task { await saveName() } }
+        .onAppear { escape.start { model.escapeSettings() } }
+        .onDisappear { escape.stop(); Task { await saveName() } }
         .onChange(of: model.libraryName) { libraryNameDraft = model.libraryName }
         .task { await model.refreshAutoTagSkipped() }
     }
@@ -123,7 +122,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(sections, id: \.self) { settingsTabButton($0) }
             }
-            .grailsSelectionTrack { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
+            .grailsSelectionTrack(glides: false) { RoundedRectangle(cornerRadius: Ink.sidebarRadius, style: .continuous).fill(Ink.fillHover) }
             .padding(.horizontal, 10)
             .padding(.top, 6)
             Spacer(minLength: 0)
@@ -138,7 +137,7 @@ struct SettingsView: View {
     private var backBar: some View {
         HStack(spacing: 6) {
             BarButton(symbol: "chevron.left", help: "Back to the library (Esc)", identifier: "settings-back") { model.closeSettings() }
-            Text("Settings").font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+            Text("Settings").font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
             Spacer(minLength: 0)
         }
         .padding(.leading, TrafficLightMetrics.shared.leading)
@@ -164,7 +163,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var pageHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(selectedTab.title).font(.grailsDisplay(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
+            Text(selectedTab.title).font(.grailsTitle(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
             Text(selectedTab.summary).font(.grailsBody(13)).foregroundStyle(Ink.secondary)
         }
         .padding(.bottom, 36)
@@ -234,7 +233,7 @@ struct SettingsView: View {
                         .frame(width: Self.controlWidth)
                 }
                 GrailsSettingsRow("Existing items") {
-                    if let p = model.autoTagProgress { Text("\(p.done) of \(p.total)").foregroundStyle(Ink.secondary).monospacedDigit() }
+                    if let p = model.autoTagProgress { Text("\(p.done) of \(p.total)").font(.grailsBody(CGFloat(TypeScale.body))).foregroundStyle(Ink.secondary).monospacedDigit() }
                     GrailsButton("Tag existing items now", kind: .secondary) { model.autoTagEverything() }
                 }
                 if !model.autoTagSkipped.isEmpty {
@@ -323,9 +322,11 @@ struct SettingsView: View {
             }
             GrailsSettingsGroup("Updates") {
                 GrailsSettingsToggle("Check automatically", isOn: Binding(get: { updater.checksAutomatically }, set: { updater.setChecksAutomatically($0) }))
+                GrailsSettingsToggle("Install automatically", isOn: Binding(get: { updater.installsAutomatically }, set: { updater.setInstallsAutomatically($0) }))
+                    .disabled(!updater.checksAutomatically)
                 GrailsSettingsRow("Last checked") {
                     if let d = updater.lastChecked {
-                        Text(d.formatted(.relative(presentation: .named))).foregroundStyle(Ink.secondary).monospacedDigit()
+                        Text(d.formatted(.relative(presentation: .named))).font(.grailsBody(CGFloat(TypeScale.body))).foregroundStyle(Ink.secondary).monospacedDigit()
                     }
                     GrailsButton("Check now", kind: .secondary, enabled: updater.canCheck) { updater.checkForUpdates() }
                 }
@@ -367,6 +368,32 @@ struct SettingsView: View {
         Task { await saveName() }
         let draft = libraryNameDraft
         Task { @MainActor in await model.renameLibrary(to: draft) }
+    }
+}
+
+/// Esc anywhere on the page goes back, a text field included (the name saves on the way out). A shortcut being recorded
+/// takes Esc itself, and a modal over the page keeps it (see `escapeSettings`).
+@MainActor
+private final class SettingsEscape {
+    private var monitor: Any?
+
+    func start(_ onEscape: @escaping @MainActor () -> Void) {
+        guard monitor == nil else { return }
+        monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask).subtracting([.numericPad, .function])
+            guard event.keyCode == 53, flags.isEmpty else { return event }
+            let handled = MainActor.assumeIsolated {
+                guard !ShortcutsSettings.recordingActive, !GrailsModalLayer.shared.hasOpenModal else { return false }
+                onEscape()
+                return true
+            }
+            return handled ? nil : event
+        }
+    }
+
+    func stop() {
+        if let monitor { NSEvent.removeMonitor(monitor) }
+        monitor = nil
     }
 }
 
@@ -463,6 +490,8 @@ struct ShortcutsSettings: View {
     @State private var recording: ShortcutAction?
     @State private var message: String?
     @State private var monitor: Any?
+    /// While a shortcut is being recorded, Esc cancels the recording instead of closing Settings.
+    static var recordingActive = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(SettingsGroupMetrics.groupGap)) {
@@ -491,6 +520,7 @@ struct ShortcutsSettings: View {
         stopRecording()
         recording = a
         message = nil
+        Self.recordingActive = true
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
             let code = event.keyCode
             let shortcut = Shortcut(event: event)
@@ -507,6 +537,7 @@ struct ShortcutsSettings: View {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
         recording = nil
+        Self.recordingActive = false
     }
 }
 

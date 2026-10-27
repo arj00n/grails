@@ -102,4 +102,17 @@ import Testing
         #expect(PreviewInfoFade.opacity(flight: 0.4, dismiss: 0, returningToTile: false) == 0)
         #expect(PreviewInfoFade.opacity(flight: 1, dismiss: 1.0 / 3.0, returningToTile: false) == 0)
     }
+
+    /// The canvas closes its panel by clearing the selection: the closing panel keeps the item, it does not swap to the totals.
+    @Test func aClosingPanelKeepsShowingWhatItShowedOpen() {
+        var hold = InfoPanelHold<Set<String>>([])
+        #expect(hold.shown(isOpen: true, live: ["a"]) == ["a"])
+        hold.update(isOpen: true, live: ["a"])
+        hold.update(isOpen: true, live: ["b"])
+        // the close: selection and visibility change in one update
+        hold.update(isOpen: false, live: [])
+        #expect(hold.shown(isOpen: false, live: []) == ["b"])
+        // opening on another item shows it at once, not the held one
+        #expect(hold.shown(isOpen: true, live: ["c"]) == ["c"])
+    }
 }

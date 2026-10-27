@@ -49,16 +49,49 @@ open class GrailsKeyView: NSView {
     }
 }
 
+extension Typography.Design {
+    var font: Font.Design { self == .rounded ? .rounded : .default }
+    var nsFont: NSFontDescriptor.SystemDesign { self == .rounded ? .rounded : .default }
+}
+
+extension Typography.Weight {
+    var font: Font.Weight {
+        switch self {
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        }
+    }
+
+    var nsFont: NSFont.Weight {
+        switch self {
+        case .regular: .regular
+        case .medium: .medium
+        case .semibold: .semibold
+        case .bold: .bold
+        }
+    }
+}
+
+/// SF Pro through the system font. Family, design and weight stay inside these functions.
 public enum ChromeFont {
+    /// SF Pro; `bold` is the emphasized body weight (semibold).
     public static func body(_ size: Double, bold: Bool = false) -> Font {
-        .custom(bold ? Typography.bodyBoldName : Typography.bodyName, fixedSize: size)
+        .system(size: size, weight: (bold ? Typography.bodyEmphasisWeight : Typography.bodyWeight).font, design: Typography.bodyDesign.font)
     }
 
-    public static func display(_ size: Double) -> Font {
-        .custom(Typography.displayName, fixedSize: size)
+    /// SF Pro Rounded Semibold at `size`: page and sheet titles, section headers, cluster names, display moments.
+    public static func title(_ size: Double) -> Font {
+        .system(size: size, weight: Typography.titleWeight.font, design: Typography.titleDesign.font)
     }
 
-    /// SF Symbols only. Text uses `body` or `display`.
+    /// A count badge: SF Pro Rounded with tabular digits, so a column of counts lines up.
+    public static func count(_ size: Double) -> Font {
+        .system(size: size, weight: Typography.countWeight.font, design: Typography.countDesign.font).monospacedDigit()
+    }
+
+    /// SF Symbols only. Text uses `body` or `title`.
     public static func symbol(_ size: CGFloat, weight: Font.Weight = .regular) -> Font {
         .system(size: size, weight: weight)
     }
@@ -66,11 +99,35 @@ public enum ChromeFont {
 
 public enum ChromeNSFont {
     public static func body(_ size: CGFloat, bold: Bool = false) -> NSFont {
-        NSFont(name: bold ? Typography.bodyBoldName : Typography.bodyName, size: size) ?? .systemFont(ofSize: size, weight: bold ? .bold : .regular)
+        system(size, weight: bold ? Typography.bodyEmphasisWeight : Typography.bodyWeight, design: Typography.bodyDesign)
     }
 
-    public static func display(_ size: CGFloat) -> NSFont {
-        NSFont(name: Typography.displayName, size: size) ?? .monospacedSystemFont(ofSize: size, weight: .regular)
+    /// Same face as `ChromeFont.title`: SF Pro Rounded Semibold.
+    public static func title(_ size: CGFloat) -> NSFont {
+        system(size, weight: Typography.titleWeight, design: Typography.titleDesign)
+    }
+
+    /// Same face as `ChromeFont.count`: SF Pro Rounded with tabular digits.
+    public static func count(_ size: CGFloat) -> NSFont {
+        tabularDigits(system(size, weight: Typography.countWeight, design: Typography.countDesign))
+    }
+
+    /// Body text with tabular digits, for numbers that line up.
+    public static func digits(_ size: CGFloat) -> NSFont { tabularDigits(body(size)) }
+
+    private static func system(_ size: CGFloat, weight: Typography.Weight, design: Typography.Design) -> NSFont {
+        let base = NSFont.systemFont(ofSize: size, weight: weight.nsFont)
+        guard design != .standard, let described = base.fontDescriptor.withDesign(design.nsFont) else { return base }
+        return NSFont(descriptor: described, size: size) ?? base
+    }
+
+    private static func tabularDigits(_ font: NSFont) -> NSFont {
+        let feature: [NSFontDescriptor.FeatureKey: Int] = [
+            .typeIdentifier: kNumberSpacingType,
+            .selectorIdentifier: kMonospacedNumbersSelector,
+        ]
+        let described = font.fontDescriptor.addingAttributes([.featureSettings: [feature]])
+        return NSFont(descriptor: described, size: font.pointSize) ?? font
     }
 }
 
@@ -505,7 +562,7 @@ public struct GrailsSection<Content: View>: View {
                             .foregroundStyle(GrailsColor.token(ChromeRole.section))
                     }
                     Text(title)
-                        .font(ChromeFont.body(TypeScale.section, bold: true))
+                        .font(ChromeFont.title(TypeScale.section))
                         .foregroundStyle(GrailsColor.token(ChromeRole.section))
                     if let tag, !tag.isEmpty {
                         Text(tag)
@@ -703,7 +760,7 @@ private struct QuietField: NSViewRepresentable {
     var promptColor: NSColor
     var pointSize: CGFloat = CGFloat(TypeScale.body)
     var bold: Bool = false
-    var display: Bool = false
+    var title: Bool = false
     var grabsFocus: Bool = false
     var focused: FocusState<Bool>.Binding
     var onSubmit: () -> Void
@@ -744,7 +801,7 @@ private struct QuietField: NSViewRepresentable {
         init(_ parent: QuietField) { self.parent = parent }
 
         func configure(_ field: QuietTextField) {
-            let font = parent.display ? ChromeNSFont.display(parent.pointSize) : ChromeNSFont.body(parent.pointSize, bold: parent.bold)
+            let font = parent.title ? ChromeNSFont.title(parent.pointSize) : ChromeNSFont.body(parent.pointSize, bold: parent.bold)
             field.isBordered = false
             field.isBezeled = false
             field.drawsBackground = false
@@ -890,7 +947,7 @@ open class GrailsClusterTitle: NSTextField {
     }
 
     open override var intrinsicContentSize: NSSize {
-        let font = self.font ?? ChromeNSFont.display(CGFloat(TypeScale.body))
+        let font = self.font ?? ChromeNSFont.title(CGFloat(TypeScale.body))
         let shown = attributedStringValue.length > 0 ? attributedStringValue : NSAttributedString(string: stringValue.isEmpty ? " " : stringValue, attributes: [.font: font])
         return NSSize(width: Self.fittedWidth(of: shown, cell: cell), height: Self.lineHeight(for: font))
     }
@@ -972,7 +1029,7 @@ private final class QuietTextField: GrailsValueField {
 /// One line for the placeholder and the typed value. The 10 pt inset is the field padding, not a second overlay.
 @MainActor
 enum FieldLine {
-    /// Geist's font box sits a point below its glyphs. Both strings use the same lift so they meet the middle of the field.
+    /// The font box sits a point below its glyphs. Both strings use the same lift so they meet the middle of the field.
     static let opticalLift: CGFloat = 1
 
     /// A pasted break would wrap the row. A single-line field keeps the characters and drops the break.
@@ -1854,7 +1911,7 @@ public struct GrailsEmpty: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: CGFloat(Space.xs)) {
             Text(title)
-                .font(ChromeFont.display(TypeScale.title))
+                .font(ChromeFont.title(TypeScale.title))
                 .tracking(TypeScale.titleTracking)
                 .foregroundStyle(GrailsColor.text)
             if let detail, !detail.isEmpty {
@@ -1877,7 +1934,7 @@ public struct GrailsPlainField<Focus: Hashable>: View {
     var axis: Axis
     var size: Double
     var bold: Bool
-    var display: Bool
+    var title: Bool
     var focus: FocusState<Focus>.Binding
     var equals: Focus
     var idle: Focus
@@ -1887,13 +1944,13 @@ public struct GrailsPlainField<Focus: Hashable>: View {
     @Environment(\.colorScheme) private var scheme
     @FocusState private var lineFocused: Bool
 
-    public init(_ placeholder: String = "", text: Binding<String>, axis: Axis = .horizontal, size: Double = TypeScale.body, bold: Bool = false, display: Bool = false, focus: FocusState<Focus>.Binding, equals: Focus, idle: Focus, lineLimit: ClosedRange<Int> = 1...1, onSubmit: @escaping () -> Void = {}) {
+    public init(_ placeholder: String = "", text: Binding<String>, axis: Axis = .horizontal, size: Double = TypeScale.body, bold: Bool = false, title: Bool = false, focus: FocusState<Focus>.Binding, equals: Focus, idle: Focus, lineLimit: ClosedRange<Int> = 1...1, onSubmit: @escaping () -> Void = {}) {
         self.placeholder = placeholder
         self._text = text
         self.axis = axis
         self.size = size
         self.bold = bold
-        self.display = display
+        self.title = title
         self.focus = focus
         self.equals = equals
         self.idle = idle
@@ -1902,7 +1959,7 @@ public struct GrailsPlainField<Focus: Hashable>: View {
     }
 
     private var multiline: Bool { axis == .vertical || lineLimit.upperBound > 1 }
-    private var face: Font { display ? ChromeFont.display(size) : ChromeFont.body(size, bold: bold) }
+    private var face: Font { title ? ChromeFont.title(size) : ChromeFont.body(size, bold: bold) }
 
     public var body: some View {
         Group {
@@ -1913,9 +1970,10 @@ public struct GrailsPlainField<Focus: Hashable>: View {
                     .lineLimit(lineLimit)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: multiline ? .topLeading : .leading)
             } else if multiline {
-                MultilineHost(text: $text, placeholder: placeholder, size: size, bold: bold, display: display, horizontalInset: 0, maxLines: lineLimit.upperBound, identifier: "", textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), focused: lineFocused, submitsOnReturn: true, onSubmit: onSubmit, onFocus: { lineFocused = $0 })
+                MultilineHost(text: $text, placeholder: placeholder, size: size, bold: bold, title: title, horizontalInset: 0, maxLines: lineLimit.upperBound, identifier: "", textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), focused: lineFocused, submitsOnReturn: true, onSubmit: onSubmit, onFocus: { lineFocused = $0 })
+                    .onFirstLine()
             } else {
-                QuietField(text: $text, placeholder: placeholder, secure: false, corrects: true, identifier: "", textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), pointSize: CGFloat(size), bold: bold, display: display, focused: $lineFocused, onSubmit: onSubmit)
+                QuietField(text: $text, placeholder: placeholder, secure: false, corrects: true, identifier: "", textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), pointSize: CGFloat(size), bold: bold, title: title, focused: $lineFocused, onSubmit: onSubmit)
             }
         }
         .onAppear { lineFocused = focus.wrappedValue == equals }
@@ -2104,6 +2162,7 @@ public struct GrailsMultilineField: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         } else {
             MultilineHost(text: $text, placeholder: placeholder, size: size, bold: bold, horizontalInset: horizontalInset, maxLines: maxLines, identifier: identifier, textColor: QuietInk.color(.text, scheme), promptColor: QuietInk.color(.tertiary, scheme), focused: focused.wrappedValue, submitsOnReturn: false, onSubmit: onSubmit, onFocus: { focused.wrappedValue = $0 })
+                .onFirstLine()
         }
     }
 }
@@ -2113,7 +2172,7 @@ private struct MultilineHost: NSViewRepresentable {
     var placeholder: String
     var size: Double
     var bold: Bool
-    var display: Bool = false
+    var title: Bool = false
     var horizontalInset: CGFloat
     var maxLines: Int
     var identifier: String
@@ -2154,10 +2213,18 @@ private struct MultilineHost: NSViewRepresentable {
         }
     }
 
+    private var font: NSFont { title ? ChromeNSFont.title(CGFloat(size)) : ChromeNSFont.body(CGFloat(size), bold: bold) }
+
+    /// SwiftUI doesn't read an NSView's baseline, so a `.firstTextBaseline` row would line up with the field's top edge.
+    /// This names the first line's baseline: the shared top inset plus the line's own baseline.
+    func onFirstLine() -> some View {
+        let baseline = FieldLine.topInset(font: font) + NSLayoutManager().defaultBaselineOffset(for: font)
+        return alignmentGuide(.firstTextBaseline) { _ in baseline }
+    }
+
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: GrailsLineText, context: Context) -> CGSize? {
         let width = proposal.width ?? nsView.bounds.width
         guard width > 1 else { return nil }
-        let font = display ? ChromeNSFont.display(CGFloat(size)) : ChromeNSFont.body(CGFloat(size), bold: bold)
         let measured = Self.textHeight(text: text.isEmpty ? " " : text, font: font, width: width, horizontalInset: horizontalInset, maxLines: maxLines)
         return CGSize(width: width, height: measured)
     }
@@ -2177,8 +2244,7 @@ private struct MultilineHost: NSViewRepresentable {
             view.textColor = parent.textColor
             view.prompt = parent.placeholder
             view.promptColor = parent.promptColor
-            let font = parent.display ? ChromeNSFont.display(CGFloat(parent.size)) : ChromeNSFont.body(CGFloat(parent.size), bold: parent.bold)
-            view.useSharedLine(font: font, horizontalInset: parent.horizontalInset)
+            view.useSharedLine(font: parent.font, horizontalInset: parent.horizontalInset)
             view.textContainer?.maximumNumberOfLines = parent.maxLines
             view.textContainer?.lineBreakMode = parent.maxLines > 0 ? .byTruncatingTail : .byWordWrapping
             if !parent.identifier.isEmpty { view.setAccessibilityIdentifier(parent.identifier) }
@@ -2214,8 +2280,8 @@ public struct GrailsCodeDisplay: View {
     public var body: some View {
         HStack(spacing: CGFloat(Space.xs)) {
             Text(hidden ? "••• •••" : Self.grouped(code))
-                .font(ChromeFont.display(TypeScale.monoCode))
-                .tracking(TypeScale.monoCodeTracking)
+                .font(ChromeFont.body(TypeScale.inviteCode))
+                .monospacedDigit()
                 .foregroundStyle(GrailsColor.text)
                 .accessibilityLabel(hidden ? "Invite code hidden" : "Invite code \(code)")
             GrailsIconButton(hidden ? ChromeIcon.reveal : ChromeIcon.conceal, label: hidden ? "Show code" : "Hide code") {
@@ -2232,25 +2298,21 @@ public struct GrailsCodeDisplay: View {
     }
 }
 
-/// A read-only field with an inline secondary Copy button. Mono is for an invite link or code.
+/// A read-only field with an inline secondary Copy button. Digits are tabular.
 public struct GrailsCopyField: View {
     var label: String
     var value: String
-    var mono: Bool
     var size: Double
-    var tracking: Double
     var identifier: String
     var accessory: String?
     var accessoryLabel: String
     var onAccessory: (() -> Void)?
     var onCopy: () -> Void
 
-    public init(_ label: String, value: String, mono: Bool = false, size: Double = TypeScale.body, tracking: Double = 0, identifier: String = "", accessory: String? = nil, accessoryLabel: String = "", onAccessory: (() -> Void)? = nil, onCopy: @escaping () -> Void) {
+    public init(_ label: String, value: String, size: Double = TypeScale.body, identifier: String = "", accessory: String? = nil, accessoryLabel: String = "", onAccessory: (() -> Void)? = nil, onCopy: @escaping () -> Void) {
         self.label = label
         self.value = value
-        self.mono = mono
         self.size = size
-        self.tracking = tracking
         self.identifier = identifier
         self.accessory = accessory
         self.accessoryLabel = accessoryLabel
@@ -2267,8 +2329,8 @@ public struct GrailsCopyField: View {
             HStack(spacing: CGFloat(Space.xs)) {
                 HStack(spacing: CGFloat(Space.xs)) {
                     Text(verbatim: value)
-                        .font(mono ? ChromeFont.display(size) : ChromeFont.body(size))
-                        .tracking(tracking)
+                        .font(ChromeFont.body(size))
+                        .monospacedDigit()
                         .foregroundStyle(GrailsColor.text)
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -2287,7 +2349,7 @@ public struct GrailsCopyField: View {
     }
 }
 
-/// One person on the team page. The initial is Geist Bold. Pending adds a dot beside the role.
+/// One person on the team page. The initial is the title face. Pending adds a dot beside the role.
 public struct GrailsPersonRow<Actions: View>: View {
     var email: String
     var subtitle: String
@@ -2317,7 +2379,7 @@ public struct GrailsPersonRow<Actions: View>: View {
         let initial = email.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() } ?? ""
         HStack(spacing: CGFloat(Space.sm)) {
             Text(initial)
-                .font(ChromeFont.body(TypeScale.label, bold: true))
+                .font(ChromeFont.title(TypeScale.label))
                 .foregroundStyle(GrailsColor.secondary)
                 .frame(width: 30, height: 30)
                 .background(GrailsInk(.avatar), in: Circle())
@@ -2378,18 +2440,29 @@ public extension GrailsPersonRow where Actions == EmptyView {
 
 public struct GrailsToast: View {
     var text: String
-    var symbol: String
+    private var symbol: String
+    /// Holy Grail's mark instead of `symbol`: filled and gold, or the outline in secondary ink.
+    private var holyGrail: Bool
+    private var holyGrailFilled: Bool
 
     public init(_ text: String, symbol: String = "checkmark.circle") {
         self.text = text
         self.symbol = symbol
+        self.holyGrail = false
+        self.holyGrailFilled = false
+    }
+
+    /// The rosette. `filled` is the added toast, in gold; the outline is the removal toast, in secondary ink, as the inspector shows them.
+    public init(_ text: String, holyGrailFilled: Bool) {
+        self.text = text
+        self.symbol = ""
+        self.holyGrail = true
+        self.holyGrailFilled = holyGrailFilled
     }
 
     public var body: some View {
         HStack(spacing: CGFloat(Space.xs)) {
-            Image(systemName: symbol)
-                .font(ChromeFont.symbol(13, weight: .medium))
-                .foregroundStyle(symbol == ChromeIcon.error ? GrailsColor.destructive : GrailsColor.secondary)
+            mark
             Text(text)
                 .font(ChromeFont.body(TypeScale.button))
                 .foregroundStyle(GrailsColor.text)
@@ -2402,6 +2475,24 @@ public struct GrailsToast: View {
         .overlay(RoundedRectangle(cornerRadius: CGFloat(RadiusToken.card), style: .continuous).strokeBorder(GrailsColor.hairline, lineWidth: 1))
         // caps the width offered to the text, so a long message wraps; the card still hugs a short one
         .frame(maxWidth: 420)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if holyGrail {
+            if holyGrailFilled {
+                CanonMark(size: 13, filled: true)
+                    .foregroundStyle(CanonInk(selected: false))
+                    .accessibilityHidden(true)
+            } else {
+                CanonMark(size: 13, filled: false)
+                    .foregroundStyle(GrailsColor.secondary)
+                    .accessibilityHidden(true)
+            }
+        } else {
+            Image(systemName: symbol)
+                .font(ChromeFont.symbol(13, weight: .medium))
+                .foregroundStyle(symbol == ChromeIcon.error ? GrailsColor.destructive : GrailsColor.secondary)
+        }
     }
 }
 
@@ -2688,7 +2779,7 @@ public struct GrailsModal<Content: View, Footer: View>: View {
         HStack(alignment: .top, spacing: CGFloat(Space.sm)) {
             VStack(alignment: .leading, spacing: 8) {
                 Text(title)
-                    .font(ChromeFont.display(TypeScale.title))
+                    .font(ChromeFont.title(TypeScale.title))
                     .tracking(TypeScale.titleTracking)
                     .foregroundStyle(GrailsColor.text)
                 if let subtitle, !subtitle.isEmpty {

@@ -160,7 +160,8 @@ public struct Item: Codable, Hashable, Sendable, Identifiable {
 public struct GrailsCollection: Codable, Hashable, Sendable, Identifiable {
     public var schema: Int
     public var id: String
-    /// "folder" (contains other collections) or "collection" (contains items)
+    /// "collection" at the top level (a project), "folder" inside a collection or another folder. Follows `parentId`: the
+    /// store sets it on every write (see `kind(parentId:)`).
     public var kind: String
     public var name: String
     public var parentId: String?
@@ -170,6 +171,8 @@ public struct GrailsCollection: Codable, Hashable, Sendable, Identifiable {
     public var updatedAt: Date
     public var updatedBy: String
     public var extras: [String: JSONValue]
+
+    public static func kind(parentId: String?) -> String { parentId == nil ? "collection" : "folder" }
 
     public init(
         id: String = ULID().string, kind: String = "collection", name: String, parentId: String? = nil,

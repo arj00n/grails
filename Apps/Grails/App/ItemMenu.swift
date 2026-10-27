@@ -39,6 +39,9 @@ extension AppModel {
         add(allLiked ? "Unlike" : "Like", allLiked ? "heart.slash" : "heart") { [self] in run(.like) }
         add("Edit Tags…", "tag") { [self] in run(.tag) }
         add("Move to Collection…", "rectangle.stack") { [self] in run(.move) }
+        if case .collection(let cid) = source, cid != Canon.collection(in: collections)?.id, let open = collections.first(where: { $0.id == cid }) {
+            add("Remove from \(open.displayName)", "minus.circle") { [self] in removeItems(selected.map(\.id), fromCollection: cid) }
+        }
         let holyGrail = Canon.offer(selected: Array(selection), alreadyIn: canonItemIds)
         if canPromoteToCanon, holyGrail.shown {
             add("Add to \(Canon.title)", CanonMark.symbolName) { [self] in promoteSelectionToCanon() }

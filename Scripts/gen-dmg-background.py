@@ -14,12 +14,23 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import inkfield
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FONTS = os.path.join(ROOT, "Apps/Grails/Resources/Fonts")
+# SF Pro, the system font, read from macOS at build time; nothing is bundled.
+SYSTEM_FONTS = "/System/Library/Fonts"
 W, H = 660, 400                 # the window's content, in points
 S = 2                           # retina
 U = 4 * S                       # one dither pixel, in output pixels (4 pt)
 APP_X, APPS_X, ICON_Y = 165, 495, 190    # icon centres in points (the build script uses the same)
 
+
+
+def system_font(file, size, style):
+    """SF Pro or SF Pro Rounded at `style` (a named instance of the variable system font)."""
+    font = ImageFont.truetype(os.path.join(SYSTEM_FONTS, file), size)
+    try:
+        font.set_variation_by_name(style)
+    except (OSError, ValueError):
+        pass
+    return font
 
 def smooth(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1)
@@ -77,9 +88,9 @@ def render():
     plate(out, t, cw // 2 - 62, ch - 27, cw // 2 + 62, ch - 5)
     img = Image.fromarray(out).resize((W * S, H * S), Image.NEAREST)
     d = ImageDraw.Draw(img)
-    title = ImageFont.truetype(os.path.join(FONTS, "GeistMono-Regular.ttf"), 26 * S)
-    bold = ImageFont.truetype(os.path.join(FONTS, "Geist-Bold.ttf"), 15 * S)
-    body = ImageFont.truetype(os.path.join(FONTS, "Geist-Regular.ttf"), 11 * S)
+    title = system_font("SFNSRounded.ttf", 26 * S, "Semibold")
+    bold = system_font("SFNSRounded.ttf", 15 * S, "Semibold")
+    body = system_font("SFNS.ttf", 11 * S, "Regular")
     cx = W * S // 2
     text_centered(d, cx, 28 * S, "GRAILS", title, (255, 255, 255))
     text_centered(d, cx, (H - 87) * S, "Drag Grails to Applications", bold, (255, 255, 255))

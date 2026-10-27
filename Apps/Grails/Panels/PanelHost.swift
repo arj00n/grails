@@ -55,10 +55,10 @@ struct NotePanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if case .cluster(let board, let id, let title) = model.noteTarget {
-                Text("Note").font(.grailsDisplay(CGFloat(TypeScale.title)))
+                Text("Note").font(.grailsTitle(CGFloat(TypeScale.title)))
                 NoteThread(model: model, cluster: (board, id, title))
             } else if batch {
-                Text("Add a note to \(ids.count) items").font(.grailsDisplay(CGFloat(TypeScale.title)))
+                Text("Add a note to \(ids.count) items").font(.grailsTitle(CGFloat(TypeScale.title)))
                 GrailsFieldChrome("Note", focused: focused) {
                     GrailsPlainField(text: $text, axis: .vertical, size: 14, focus: $focused, equals: true, idle: false, lineLimit: 3...8)
                         .accessibilityIdentifier("note-field")
@@ -71,7 +71,7 @@ struct NotePanel: View {
                         .keyboardShortcut(.return, modifiers: .command)
                 }
             } else {
-                Text("Note").font(.grailsDisplay(CGFloat(TypeScale.title)))
+                Text("Note").font(.grailsTitle(CGFloat(TypeScale.title)))
                 NoteThread(model: model, itemID: ids.first)
             }
         }

@@ -18,7 +18,7 @@ struct InviteView: View {
             CollabHeader(title: "Invite", close: onClose)
             HStack(alignment: .firstTextBaseline) {
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(model.libraryName).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+                    Text(model.libraryName).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
                     Text(place.label).font(.grailsBody(12)).foregroundStyle(Ink.secondary).lineLimit(1)
                 }
                 Spacer()

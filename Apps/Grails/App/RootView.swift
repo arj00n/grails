@@ -9,6 +9,8 @@ struct RootView: View {
     @AppStorage("appearance") private var appearance = "system"
     @Environment(\.grailsReduceMotion) private var reduceMotion
     @State private var dropTargeted = false
+    /// The selection the info panel last showed while open, so closing it fades that item out (`InfoPanelHold`).
+    @State private var infoHold = InfoPanelHold<Set<String>>([])
     @State private var searchFocused = false
 
     static let sidebarWidth: CGFloat = 240
@@ -65,6 +67,10 @@ struct RootView: View {
         // the order on screen is the order they opened in, not the order they are written here.
         .grailsSheet(isPresented: $model.feedbackOpen) { FeedbackCard(model: model) }
         .grailsSheet(isPresented: $model.importPanelOpen) { ImportPanel(model: model) }
+        .grailsSheet(item: Binding(
+            get: { model.pairRequest.flatMap { PairingSheetItem($0, now: Date()) } },
+            set: { model.closePairingSheet($0) }
+        )) { PairingSheet(model: model, item: $0) }
         .grailsSheet(isPresented: Binding(get: { model.welcome != nil }, set: { if !$0 { model.welcome = nil } })) {
             if let w = model.welcome { WelcomeCard(model: model, request: w) }
         }
@@ -271,10 +277,11 @@ struct RootView: View {
             } panel: {
                 // only the canvas has a library panel; the grid never builds one
                 if model.viewMode == .canvas {
-                    InfoPanel(model: model)
+                    InfoPanel(model: model, selection: infoHold.shown(isOpen: model.showInfo, live: model.selection))
                         .overlay(alignment: .top) { if model.stripVisible { Rectangle().fill(Ink.hairline).frame(height: 1) } }
                 }
             }
+            .onChange(of: model.showInfo ? model.selection : nil) { infoHold.update(isOpen: model.showInfo, live: model.selection) }
         }
         .padding(.leading, model.sidebarVisible ? Self.sidebarWidth : 0)
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }
@@ -354,7 +361,7 @@ struct RootView: View {
                 Text(model.mentionClusters.isEmpty ? "Nothing for you yet" : "On a cluster")
                 if !model.mentionClusters.isEmpty { mentionChips }
             } else if libraryIsEmpty {
-                Text("Nothing here yet").font(.grailsDisplay(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
+                Text("Nothing here yet").font(.grailsTitle(CGFloat(TypeScale.page))).tracking(TypeScale.pageTracking).foregroundStyle(Ink.text)
                 Text("Bring in a board you already love, or paste anything worth keeping.")
                     .font(.grailsBody(14)).foregroundStyle(Ink.secondary).multilineTextAlignment(.center).frame(maxWidth: 360)
                 HStack(spacing: 8) {
@@ -368,7 +375,7 @@ struct RootView: View {
                 Text("Nothing here yet")
             }
         }
-        .font(.grailsDisplay(CGFloat(TypeScale.page)))
+        .font(.grailsTitle(CGFloat(TypeScale.page)))
         .tracking(TypeScale.pageTracking)
         .foregroundStyle(Ink.secondary)
     }
@@ -443,7 +450,7 @@ struct RootView: View {
                 .padding(.leading, 10).padding(.trailing, 5).frame(height: 28)
                 .background(Ink.fill, in: RoundedRectangle(cornerRadius: Ink.radius, style: .continuous))
             } else {
-                Text(model.title).font(.grailsDisplay(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
+                Text(model.title).font(.grailsTitle(CGFloat(TypeScale.title))).foregroundStyle(Ink.text).lineLimit(1)
             }
             Text(model.countLabel).font(.grailsBody(12)).foregroundStyle(Ink.tertiary).lineLimit(1).layoutPriority(-1)
         }
@@ -494,13 +501,12 @@ struct RootView: View {
 
     static let settingsSlide: CGFloat = 16
 
-    /// Above whichever page is showing: the pairing ask (often answered from Settings ▸ Extensions), ⌘K, toasts and progress.
+    /// Above whichever page is showing: ⌘K, toasts and progress. The pairing ask is a grailsSheet.
     @ViewBuilder private var windowOverlays: some View {
-        if let req = model.pairRequest, !model.importPanelOpen, !model.extensionSetup.isOpen { PairPrompt(model: model, request: req) }
         if let panel = model.panel { PanelHost(model: model, panel: panel) }
         // every toast, error or not, and the progress cards under it: one column centred across the whole window
         VStack(spacing: CGFloat(ToastPlacement.stackSpacing)) {
-            if let t = model.toast { ToastView(text: t).grailsToastEntrance().id(t).transition(.grailsFade) }
+            if let t = model.toast { ToastView(text: t, mark: model.toastMark).grailsToastEntrance().id(t).transition(.grailsFade) }
             if let p = model.importProgress {
                 ProgressCard(label: "Importing \(p.done) of \(p.total)…", done: p.done, total: p.total)
             }

@@ -28,7 +28,7 @@ require manifest.json
 require background.js
 require lib/client.js
 require icons/128.png
-require fonts/Geist-Regular.ttf
+require popup.css
 
 if [ -f "$DEST/chrome/manifest.json" ]; then
   echo "copy-safari-extension-resources: nested chrome/manifest.json" >&2
