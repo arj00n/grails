@@ -22,9 +22,11 @@ Motion eases out and stays at or under 240 ms. Spatial motion may settle with a 
 
 Copy is short. A label names the thing. Help text is rare.
 
-The type is SF Pro, the system font; nothing is bundled or registered. SF Pro Rounded Semibold, through the title token, is for the moments that carry a name: a page or sheet title, a section header, a cluster name, an avatar initial, the onboarding wordmark. A count badge is SF Pro Rounded with tabular digits, through the count token. Everything else is SF Pro Regular: body, list rows, controls, metadata, an invite link or code (tabular digits). A number that has to line up uses `.monospacedDigit()`.
+The type is SF Pro, the system font; nothing is bundled or registered. SF Pro Rounded Semibold, through the title token, is for the moments that carry a name: a page or sheet title, a section header, a cluster name, an avatar initial. A count badge is SF Pro Rounded with tabular digits, through the count token. Everything else is SF Pro Regular: body, list rows, controls, metadata, an invite link or code (tabular digits). A number that has to line up uses `.monospacedDigit()`.
 
 Do not restyle the dither, the painting wall, FluidDither, or SmokeField.
+
+The wordmark on the Hello title plate is not type. It is `GrailsWordmark`: the 70 × 14 pixel letters in `Wordmark.bitmap`, at 2 pt a cell, every letter cell printed. The cells are an ordered dither of two inks from the painting showing (`Wordmark.inks`: the most saturated palette colour that clears 3:1 on the plate, and a second one at 4.5:1 set apart from it). A slow shimmer moves which cell takes which ink, and when the wall turns, each cell takes the next painting's inks on the wall's own grain and timeline. Reduce Motion holds it still and swaps inks with a quick fade. Its accessible name is "Grails". `WordmarkTests` checks the inks on every painting in both appearances.
 
 ## Reuse before you build
 

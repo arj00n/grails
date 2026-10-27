@@ -54,7 +54,7 @@ struct OnboardingDemo {
                 let sched = PaintingWall.schedule(t: t, count: engine.specs.count, reduceMotion: reduceMotion)
                 let caption = engine.specs[PaintingWall.captionIndex(sched)].caption
                 snap({ dark in
-                    HelloFrame(t: t, size: size, caption: caption, wall: {
+                    HelloFrame(t: t, size: size, caption: caption, paintings: engine.specs, wall: {
                         if let img = engine.render(size: size, t: t, dark: dark, reduceMotion: reduceMotion) { Image(decorative: img, scale: 1).resizable() }
                     })
                 }, name, size: size)
@@ -74,7 +74,7 @@ struct OnboardingDemo {
         await until(5) { !model.found.isEmpty }
         await wait(400)
         check(model.found.map(\.name) == ["Team Inspo"], "the library in the synced drive is found: \(model.found.map(\.name))")
-        snap({ _ in HelloFrame(t: 10, size: size, caption: "", choosing: true, wall: { Color.clear }, chooser: { ChooserCards(model: model) }) }, "choose")
+        snap({ _ in HelloFrame(t: 10, size: size, caption: "", paintings: PaintingWallEngine.shared?.specs ?? [], choosing: true, wall: { Color.clear }, chooser: { ChooserCards(model: model) }) }, "choose")
         snap(ZStack { LibraryStep(model: model) }, "where")
         await liveWindow("choose")
 

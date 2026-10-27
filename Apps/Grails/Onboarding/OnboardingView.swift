@@ -59,11 +59,13 @@ var reduceMotionOn: Bool { ReduceMotion.isOn }
 // MARK: Hello and Choose
 
 /// The title plate over the painting wall; when `choosing`, the painting, Start and the caption fade away and the options fade in around the same
-/// title, which doesn't move. Pure in `t`, so a headless snapshot can ask for any moment.
+/// wordmark, which doesn't move. Pure in `t`, so a headless snapshot can ask for any moment.
 struct HelloFrame<Wall: View, Chooser: View>: View {
     let t: Double
     let size: CGSize
     var caption: String
+    /// The wall's paintings, so the wordmark prints in the colours of the one showing.
+    var paintings: [PaintingWall.Spec] = []
     var choosing = false
     @ViewBuilder var wall: Wall
     @ViewBuilder var chooser: Chooser
@@ -109,21 +111,18 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
         .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
-    /// Typed on at 40 ms a letter, starting after a second; once chosen it is simply there.
+    /// Develops out of the plate a second in, then shimmers in the inks of the painting behind it and turns with the wall.
     private var title: some View {
-        let word = Array("GRAILS")
-        let typed = choosing ? word.count : min(max(Int((t - 1.0) / 0.04) + 1, 0), word.count)
-        return ZStack(alignment: .leading) {
-            Text("GRAILS").font(.grailsTitle(32)).hidden()
-            Text(String(word.prefix(typed))).font(.grailsTitle(32)).foregroundStyle(Ink.text)
-        }
-        .accessibilityLabel("Grails")
+        let s = PaintingWall.schedule(t: t, count: paintings.count, reduceMotion: reduceMotionOn)
+        func palette(_ i: Int) -> [String] { paintings.indices.contains(i) ? paintings[i].palette : [] }
+        return GrailsWordmark(t: t, palette: palette(s.progress == nil ? s.index : s.next), from: s.progress.map { _ in palette(s.index) },
+                              progress: s.progress, develop: choosing ? 1 : Wordmark.develop(t: t), reduceMotion: reduceMotionOn)
     }
 }
 
 extension HelloFrame where Chooser == EmptyView {
-    init(t: Double, size: CGSize, caption: String, @ViewBuilder wall: () -> Wall, start: @escaping () -> Void = {}) {
-        self.init(t: t, size: size, caption: caption, choosing: false, wall: wall, chooser: { EmptyView() }, start: start)
+    init(t: Double, size: CGSize, caption: String, paintings: [PaintingWall.Spec] = [], @ViewBuilder wall: () -> Wall, start: @escaping () -> Void = {}) {
+        self.init(t: t, size: size, caption: caption, paintings: paintings, choosing: false, wall: wall, chooser: { EmptyView() }, start: start)
     }
 }
 
@@ -237,7 +236,7 @@ private struct HelloChooseStep: View {
                 let specs = PaintingWallEngine.shared?.specs ?? []
                 let shown = PaintingWall.captionIndex(PaintingWall.schedule(t: t, count: specs.count, reduceMotion: reduceMotionOn))
                 // After Hello the wall stays down. Turning it back on for a later step fades the launch screen in under that step.
-                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "", choosing: model.step != .hello,
+                HelloFrame(t: t, size: geo.size, caption: specs.indices.contains(shown) ? specs[shown].caption : "", paintings: specs, choosing: model.step != .hello,
                            wall: {
                                if wallLive {
                                    PaintingWallBackground(epoch: epoch, reduceMotion: reduceMotionOn)
