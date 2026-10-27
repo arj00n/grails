@@ -125,4 +125,23 @@ import Testing
         #expect(back.look?.character == 77)
         #expect(Members.profiles(in: layout).count == 1)
     }
+
+    /// Two profiles under one handle (an owner's Mac and an older one). A look saved for this person's member id lands on the
+    /// profile their avatar is drawn from, not on the namesake that a handle lookup finds first.
+    @Test func aLookSavedByMemberIdSkipsANamesake() throws {
+        let root = TestSupport.tempDir("look-namesake")
+        let layout = LibraryLayout(root: root)
+        try FileManager.default.createDirectory(at: Members.folder(layout), withIntermediateDirectories: true)
+        for id in ["m-ada-old", "m-ada"] {
+            try Members.save(MemberRecord(handle: "ada", firstSeen: now, lastSeen: now, name: "ada", id: id), in: layout)
+        }
+        let first = try #require(Members.profile(matching: "ada", in: layout))
+        let mine = first.id == "m-ada" ? "m-ada-old" : "m-ada"
+        let namesake = first.id
+
+        try Members.setLook(AvatarLook(usesPhoto: false, tint: 4, character: 99), handle: mine, in: layout, now: now)
+        #expect(Members.profile(matching: mine, in: layout)?.look == AvatarLook(usesPhoto: false, tint: 4, character: 99))
+        #expect(Members.profile(matching: namesake, in: layout)?.look == nil, "the namesake keeps its own look")
+        #expect(MemberDirectory.load(in: layout).portrait(matching: mine)?.look?.tint == 4)
+    }
 }
