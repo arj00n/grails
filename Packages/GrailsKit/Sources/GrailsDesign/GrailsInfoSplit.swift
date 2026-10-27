@@ -28,7 +28,7 @@ public struct InfoSplitGeometry: Equatable, Sendable {
 /// panel's contents below the bar.
 ///
 /// The width, the contents' fade and the separator all move on one `grailsFlight` ease-out (`motion`), so nothing overshoots and
-/// they land on the same frame. Reduce Motion opens and closes it at once. The content draws above the panel, so a picture
+/// they land on the same frame. The panel's own contents never ride that motion. Reduce Motion opens and closes it at once. The content draws above the panel, so a picture
 /// flying back to its tile passes over it.
 public struct GrailsInfoSplit<Content: View, Panel: View>: View {
     var isOpen: Bool
@@ -66,6 +66,8 @@ public struct GrailsInfoSplit<Content: View, Panel: View>: View {
 
     private var column: some View {
         panel
+            // what the panel shows changes in one step: on the column's ease-out, the old contents would fade out over the new
+            .transaction(value: isOpen) { $0.animation = nil }
             .frame(width: width)
             .frame(maxHeight: .infinity, alignment: .top)
             .opacity(isOpen ? 1 : 0)

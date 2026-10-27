@@ -9,6 +9,8 @@ struct RootView: View {
     @AppStorage("appearance") private var appearance = "system"
     @Environment(\.grailsReduceMotion) private var reduceMotion
     @State private var dropTargeted = false
+    /// The selection the info panel last showed while open, so closing it fades that item out (`InfoPanelHold`).
+    @State private var infoHold = InfoPanelHold<Set<String>>([])
     @State private var searchFocused = false
 
     static let sidebarWidth: CGFloat = 240
@@ -271,10 +273,11 @@ struct RootView: View {
             } panel: {
                 // only the canvas has a library panel; the grid never builds one
                 if model.viewMode == .canvas {
-                    InfoPanel(model: model)
+                    InfoPanel(model: model, selection: infoHold.shown(isOpen: model.showInfo, live: model.selection))
                         .overlay(alignment: .top) { if model.stripVisible { Rectangle().fill(Ink.hairline).frame(height: 1) } }
                 }
             }
+            .onChange(of: model.showInfo ? model.selection : nil) { infoHold.update(isOpen: model.showInfo, live: model.selection) }
         }
         .padding(.leading, model.sidebarVisible ? Self.sidebarWidth : 0)
         .overlay { if dropTargeted { RoundedRectangle(cornerRadius: Ink.radius, style: .continuous).strokeBorder(Ink.focus, lineWidth: 2).padding(4).allowsHitTesting(false) } }

@@ -945,6 +945,7 @@ for needle, why in (
     (".animation(Self.motion(reduceMotion: reduceMotion), value: isOpen)", "the column does not open on the split's one animation"),
     ("reduceMotion ? nil : .grailsFlight", "the column's width, fade and separator are not one ease-out (or not instant under Reduce Motion)"),
     ("content.zIndex(1)", "the content no longer draws above the panel (the flight back to a tile would pass under it)"),
+    (".transaction(value: isOpen) { $0.animation = nil }", "the panel's contents ride the column's fade (old and new contents crossfade)"),
 ):
     if needle not in split:
         print(f"FAIL {why}")
