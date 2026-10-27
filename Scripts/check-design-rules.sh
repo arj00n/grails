@@ -973,13 +973,17 @@ for path in app.rglob("*.swift"):
 split = (root / "Packages" / "GrailsKit" / "Sources" / "GrailsDesign" / "GrailsInfoSplit.swift").read_text()
 for needle, why in (
     ("InfoSplitLayout(reveal:", "the split is not one layout of content and panel"),
-    (".animation(reduceMotion ? nil : .grailsSpring, value: isOpen)", "the column width does not spring (or is not instant under Reduce Motion)"),
-    (".animation(reduceMotion ? nil : .grailsStandard, value: isOpen)", "the panel's fade is not the standard ease"),
+    (".animation(Self.motion(reduceMotion: reduceMotion), value: isOpen)", "the column does not open on the split's one animation"),
+    ("reduceMotion ? nil : .grailsFlight", "the column's width, fade and separator are not one ease-out (or not instant under Reduce Motion)"),
     ("content.zIndex(1)", "the content no longer draws above the panel (the flight back to a tile would pass under it)"),
 ):
     if needle not in split:
         print(f"FAIL {why}")
         failed = True
+# a spring would carry the content past its width and back; a second animation would land the fade apart from the width
+if ".grailsSpring" in split or split.count(".animation(") != 1:
+    print("FAIL the info column must open on one non-overshooting animation")
+    failed = True
 if failed:
     sys.exit(1)
 print("PASS info column")
