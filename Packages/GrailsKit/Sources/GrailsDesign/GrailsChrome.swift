@@ -2440,18 +2440,29 @@ public extension GrailsPersonRow where Actions == EmptyView {
 
 public struct GrailsToast: View {
     var text: String
-    var symbol: String
+    private var symbol: String
+    /// Holy Grail's mark instead of `symbol`: filled and gold, or the outline in secondary ink.
+    private var holyGrail: Bool
+    private var holyGrailFilled: Bool
 
     public init(_ text: String, symbol: String = "checkmark.circle") {
         self.text = text
         self.symbol = symbol
+        self.holyGrail = false
+        self.holyGrailFilled = false
+    }
+
+    /// The rosette. `filled` is the added toast, in gold; the outline is the removal toast, in secondary ink, as the inspector shows them.
+    public init(_ text: String, holyGrailFilled: Bool) {
+        self.text = text
+        self.symbol = ""
+        self.holyGrail = true
+        self.holyGrailFilled = holyGrailFilled
     }
 
     public var body: some View {
         HStack(spacing: CGFloat(Space.xs)) {
-            Image(systemName: symbol)
-                .font(ChromeFont.symbol(13, weight: .medium))
-                .foregroundStyle(symbol == ChromeIcon.error ? GrailsColor.destructive : GrailsColor.secondary)
+            mark
             Text(text)
                 .font(ChromeFont.body(TypeScale.button))
                 .foregroundStyle(GrailsColor.text)
@@ -2464,6 +2475,24 @@ public struct GrailsToast: View {
         .overlay(RoundedRectangle(cornerRadius: CGFloat(RadiusToken.card), style: .continuous).strokeBorder(GrailsColor.hairline, lineWidth: 1))
         // caps the width offered to the text, so a long message wraps; the card still hugs a short one
         .frame(maxWidth: 420)
+    }
+
+    @ViewBuilder private var mark: some View {
+        if holyGrail {
+            if holyGrailFilled {
+                CanonMark(size: 13, filled: true)
+                    .foregroundStyle(CanonInk(selected: false))
+                    .accessibilityHidden(true)
+            } else {
+                CanonMark(size: 13, filled: false)
+                    .foregroundStyle(GrailsColor.secondary)
+                    .accessibilityHidden(true)
+            }
+        } else {
+            Image(systemName: symbol)
+                .font(ChromeFont.symbol(13, weight: .medium))
+                .foregroundStyle(symbol == ChromeIcon.error ? GrailsColor.destructive : GrailsColor.secondary)
+        }
     }
 }
 

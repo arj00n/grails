@@ -329,6 +329,8 @@ Where it shows (`InfoPanelState`): the grid never shows it, so a click or the ar
 
 Every toast, an error toast included, sits in one place: centred across the whole window and `Space.xl` (24 pt) above its bottom edge (`ToastPlacement`, applied with `grailsToastPlacement()`). It centres on the window, not on the content beside the sidebar, so showing or hiding the sidebar never moves it. Progress cards stack under it in the same column, `Space.xs` apart. It keeps its motion: it rises on the spring and fades. No screen places a toast by hand.
 
+Liking, unliking, and Holy Grail use this same toast. One item says "Liked", "Unliked", "Added to Holy Grail", or "Removed from Holy Grail"; more than one says how many. Liked is `heart.fill` and Unliked is Apple's `heart.slash`, in the toast's secondary ink. Added is the filled gold `CanonMark`. Removed is the outline `CanonMark(filled: false)` in secondary ink, as the inspector shows an item that is not in the set. Nothing is struck through by hand. `LibraryNotice` chooses the words and the mark.
+
 ## Interaction
 
 These rules come from the earlier UI spec. Where they and the token sections above disagree, the tokens win.

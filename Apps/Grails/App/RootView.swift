@@ -503,7 +503,7 @@ struct RootView: View {
         if let panel = model.panel { PanelHost(model: model, panel: panel) }
         // every toast, error or not, and the progress cards under it: one column centred across the whole window
         VStack(spacing: CGFloat(ToastPlacement.stackSpacing)) {
-            if let t = model.toast { ToastView(text: t).grailsToastEntrance().id(t).transition(.grailsFade) }
+            if let t = model.toast { ToastView(text: t, mark: model.toastMark).grailsToastEntrance().id(t).transition(.grailsFade) }
             if let p = model.importProgress {
                 ProgressCard(label: "Importing \(p.done) of \(p.total)…", done: p.done, total: p.total)
             }
