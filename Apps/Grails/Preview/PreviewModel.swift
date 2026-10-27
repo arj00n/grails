@@ -70,12 +70,17 @@ extension AppModel {
         }
     }
 
-    /// Something was deleted or filtered out while the preview was open: carry on at the next item, or close if nothing is left.
+    /// Something was deleted or filtered out while the preview was open: carry on at the next item. When nothing is left, the stage
+    /// gets the empty set and closes itself, so the page leaves on its close motion rather than vanishing.
     func refreshPreviewSet() {
         guard var set = previewSet, let id = previewID, let position = set.position(of: id) else { return }
         let alive = Set(items.map(\.id))
         guard set.items.contains(where: { !alive.contains($0.id) }) else { return }
-        guard let next = set.drop(where: { !alive.contains($0) }, keepingPosition: position), let s = set[next] else { closePreview(); return }
+        guard let next = set.drop(where: { !alive.contains($0) }, keepingPosition: position), let s = set[next] else {
+            previewSet = set
+            previewSetVersion += 1
+            return
+        }
         previewSet = set
         previewSetVersion += 1
         previewID = s.id
