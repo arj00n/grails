@@ -108,7 +108,8 @@ extension AppModel {
             return
         }
         do {
-            try Members.setLook(look, handle: userHandle, in: layout)
+            // the profile `myLook` and `myFace` read: two profiles can share a handle, and by handle this could land on the other one
+            try Members.setLook(look, handle: memberId.isEmpty ? userHandle : memberId, in: layout)
             refreshMemberDirectory()
             bucket.nudge()
         } catch {
