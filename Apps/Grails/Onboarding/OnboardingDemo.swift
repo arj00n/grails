@@ -259,7 +259,7 @@ extension OnboardingDemo {
 
 
 extension OnboardingDemo {
-    /// The wordmark alone at 2×, one flame pixel per device pixel: a second of flames at 10 frames a second on two paintings, a turn
+    /// The wordmark alone at 2×: a second of flames at 10 frames a second on two paintings, a turn
     /// between them, and Reduce Motion; then the milliseconds a frame of flames costs.
     func wordmark(_ engine: PaintingWallEngine) -> String {
         let a = engine.specs[1].palette, b = engine.specs[5].palette
@@ -267,7 +267,7 @@ extension OnboardingDemo {
             for (scheme, suffix) in [(ColorScheme.light, "light"), (.dark, "dark")] {
                 let content = GrailsWordmark(t: t, palette: palette, from: from, progress: progress, reduceMotion: reduceMotion)
                     .padding(12).background(Ink.canvas)
-                    .environment(\.colorScheme, scheme).environment(\.displayScale, 2)
+                    .environment(\.colorScheme, scheme)
                 let r = ImageRenderer(content: content)
                 r.scale = 2
                 guard let cg = r.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { continue }
@@ -285,11 +285,11 @@ extension OnboardingDemo {
         var times: [Double] = []
         for k in 0..<60 {
             let start = CFAbsoluteTimeGetCurrent()
-            _ = Wordmark.image(Wordmark.pixels(t: 20 + Double(k) / 30, sub: 6, inks: inks, from: from, e: 0.5, reduceMotion: false), sub: 6)
+            _ = Wordmark.image(Wordmark.pixels(t: 20 + Double(k) / 30, inks: inks, from: from, e: 0.5, reduceMotion: false))
             times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
         }
         times.sort()
-        return "wordmark at 2x (420 x 84): flame frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms"
+        return "wordmark (210 x 42): flame frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms"
     }
 }
 

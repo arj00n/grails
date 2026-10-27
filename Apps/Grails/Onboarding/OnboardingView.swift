@@ -111,7 +111,7 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
         .frame(width: size.width, height: size.height, alignment: .topLeading)
     }
 
-    /// Develops out of the plate a second in, then burns with flames in the colours of the painting behind it and turns with the wall.
+    /// Develops out of the plate a second in, then burns with the empty-screen flames in a colour of the painting behind it and turns with the wall.
     private var title: some View {
         let s = PaintingWall.schedule(t: t, count: paintings.count, reduceMotion: reduceMotionOn)
         func palette(_ i: Int) -> [String] { paintings.indices.contains(i) ? paintings[i].palette : [] }
