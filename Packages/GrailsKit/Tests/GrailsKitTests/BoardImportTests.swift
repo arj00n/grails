@@ -82,6 +82,11 @@ import Testing
         return b
     }
 
+    /// Each URL serves its own file. The library keeps one item per content hash, so pins that all served the same bytes would
+    /// count as added only while their saves overlapped, and as "already in the library" whenever one finished first.
+    /// Bytes after a PNG's end are ignored by decoders.
+    static func picture(_ png: Data, for url: URL) -> Data { png + Data(url.absoluteString.utf8) }
+
     /// A router for the stubbed network: Are.na pages, images, link pages.
     func network(pages: [Data], png: Data, failing: Set<String> = [], counter: Counter = Counter()) -> LinkFetcher.Loader {
         { req in
@@ -92,7 +97,7 @@ import Testing
                 return (pages[min(page, pages.count) - 1], Self.response(url))
             }
             if failing.contains(url.absoluteString) { return (Data(), Self.response(url, 404)) }
-            if url.host == "cdn.test" || url.host == "i.pinimg.com" { return (png, Self.response(url, type: "image/png")) }
+            if url.host == "cdn.test" || url.host == "i.pinimg.com" { return (Self.picture(png, for: url), Self.response(url, type: "image/png")) }
             return (Data("<html><head><title>A page</title></head></html>".utf8), Self.response(url, type: "text/html"))
         }
     }
@@ -146,7 +151,7 @@ import Testing
                 let n = calls.all.count
                 return n <= 2 ? (Data(), Self.response(url, 504)) : (page, Self.response(url))
             }
-            return (png, Self.response(url, type: "image/png"))
+            return (Self.picture(png, for: url), Self.response(url, type: "image/png"))
         }
         var importer = BoardImporter(loader: flaky)
         importer.retryDelays = [.milliseconds(5), .milliseconds(5), .milliseconds(5)]
@@ -252,7 +257,7 @@ import Testing
             if url.host == "www.pinterest.com" { return (Data(Self.feed.utf8), Self.response(url, type: "application/rss+xml")) }
             if url.host == "widgets.pinterest.com" { return (Self.widgetJSON, Self.response(url)) }
             if failing.contains(url.absoluteString) { return (Data(), Self.response(url, 403)) }
-            return (png, Self.response(url, type: "image/png"))
+            return (Self.picture(png, for: url), Self.response(url, type: "image/png"))
         }
     }
 
