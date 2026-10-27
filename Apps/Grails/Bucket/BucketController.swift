@@ -785,16 +785,23 @@ final class BucketController {
         }
     }
 
+    static let makingInvite = "Making new invite…"
+
+    /// One row action from the click: make the new invite, then revoke the old one. A failure stays on the row.
     func resend(_ invite: ListedInvite) async {
-        guard BucketKeychain.loadCloudflare() != nil, role == .owner else {
-            inviteError = "Couldn't create the invite"
-            return
-        }
-        let current = team?.role(of: invite.email) ?? .member
-        let granted: LibraryRole = current == .owner ? .member : current
-        await issueInvite(email: invite.email, role: granted)
-        guard share != nil else { return }
-        await revoke(invite)
+        await GrailsAsyncActions.run(invite.id, on: self, \.actions, steps: [
+            GrailsActionStep(Self.makingInvite) { [self] in
+                share = nil
+                guard BucketKeychain.loadCloudflare() != nil, role == .owner else { return "Couldn't create the invite" }
+                let current = team?.role(of: invite.email) ?? .member
+                let granted: LibraryRole = current == .owner ? .member : current
+                await issueInvite(email: invite.email, role: granted)
+                guard share == nil else { return nil }
+                defer { inviteError = nil }
+                return inviteError ?? "Couldn't create the invite"
+            },
+            GrailsActionStep("Revoking old invite…") { [self] in await revokeStep(invite) },
+        ])
     }
 
     func webLink(for invite: ListedInvite) async -> URL? {
@@ -812,33 +819,33 @@ final class BucketController {
     }
 
     func revoke(_ invite: ListedInvite) async {
-        guard canInvite, let client else { return }
-        guard actions.begin(invite.id, label: "Revoking…") else { return }
-        guard let login = BucketKeychain.loadCloudflare() else {
-            actions.fail(invite.id, message: "Couldn't revoke the Cloudflare token")
-            return
-        }
+        guard canInvite, client != nil else { return }
+        await GrailsAsyncActions.run(invite.id, on: self, \.actions, steps: [
+            GrailsActionStep("Revoking…") { [self] in await revokeStep(invite) },
+        ])
+    }
+
+    /// Revokes the invite and its Cloudflare token. Returns the failure for the row, or nil.
+    private func revokeStep(_ invite: ListedInvite) async -> String? {
+        guard canInvite, let client else { return "Couldn't revoke the invite" }
+        guard let login = BucketKeychain.loadCloudflare() else { return "Couldn't revoke the Cloudflare token" }
         do {
             let signer = try BucketKeychain.deviceKey()
             try await InviteRevocation.commit(invite, store: client, signer: signer)
             let context = await engine?.revokeContext() ?? RevokeContext()
-            guard context.mintedTokenIDs.contains(invite.tokenId) else {
-                actions.fail(invite.id, message: "Couldn't revoke the Cloudflare token")
-                return
-            }
+            guard context.mintedTokenIDs.contains(invite.tokenId) else { return "Couldn't revoke the Cloudflare token" }
             let api = CloudflareR2(accountID: login.accountID, apiToken: login.token)
             do {
                 _ = try await TokenRevocation.apply(store: client, context: context) { id in try await api.deleteToken(id: id) }
             } catch let failure as TokenRevocationFailure {
                 let count = failure.failed.count
-                actions.fail(invite.id, message: "Couldn't revoke \(count) Cloudflare \(count == 1 ? "token" : "tokens")")
-                return
+                return "Couldn't revoke \(count) Cloudflare \(count == 1 ? "token" : "tokens")"
             }
             invites.removeAll { $0.id == invite.id }
-            actions.succeed(invite.id)
             await refreshSideData()
+            return nil
         } catch {
-            actions.fail(invite.id, message: "Couldn't revoke the invite")
+            return "Couldn't revoke the invite"
         }
     }
 

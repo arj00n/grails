@@ -1667,6 +1667,41 @@ public struct GrailsAsyncActions: Equatable, Sendable {
     public func statusLabel(_ key: String) -> String? { rows[key]?.label }
 
     public func failure(_ key: String) -> String? { rows[key]?.failure }
+
+    /// Renames a running row's step. A row that is not running is left alone.
+    public mutating func relabel(_ key: String, label: String) {
+        guard rows[key]?.running == true else { return }
+        rows[key]?.label = label
+    }
+}
+
+/// One step of a row action: what the row says while it runs, and the work, which returns a failure message or nil.
+public struct GrailsActionStep {
+    public var label: String
+    public var run: @MainActor () async -> String?
+
+    public init(_ label: String, run: @escaping @MainActor () async -> String?) {
+        self.label = label
+        self.run = run
+    }
+}
+
+extension GrailsAsyncActions {
+    /// Runs steps as one row action: busy from the first step to the last, each step's label shown in turn.
+    /// A second run while busy does nothing. The first failure stops it and stays on the row, under that step's label, for Retry.
+    @MainActor @discardableResult
+    public static func run<Host: AnyObject>(_ key: String, on host: Host, _ actions: ReferenceWritableKeyPath<Host, GrailsAsyncActions>, steps: [GrailsActionStep]) async -> Bool {
+        guard let first = steps.first, host[keyPath: actions].begin(key, label: first.label) else { return false }
+        for step in steps {
+            host[keyPath: actions].relabel(key, label: step.label)
+            if let failure = await step.run() {
+                host[keyPath: actions].fail(key, message: failure)
+                return false
+            }
+        }
+        host[keyPath: actions].succeed(key)
+        return true
+    }
 }
 
 /// An arc that turns once every `Motion.spinnerPeriod`. Linear, driven by the clock, so it keeps no animation state of its own.
