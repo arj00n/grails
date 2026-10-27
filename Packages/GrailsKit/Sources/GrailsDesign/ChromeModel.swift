@@ -99,7 +99,7 @@ public enum ChromeMetrics {
     public static let helperGap = Space.xs
     public static let sectionGap = Space.xl
     public static let cardHeight = 40.0
-    /// The grid's section header row: the cluster's 27 pt Geist Mono title, 6 above the row's bottom, with a step of room above.
+    /// The grid's section header row: the cluster's 27 pt title, 6 above the row's bottom, with a step of room above.
     /// The smallest space token that holds it; 32 would pin the title to the row's top edge.
     public static let sectionHeaderHeight = Space.xxxl
     /// A disabled primary keeps the ink fill, faded. It does not become an outline.
