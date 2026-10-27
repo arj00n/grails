@@ -11,7 +11,7 @@ final class PreviewStageView: NSView {
     // MARK: Wiring
 
     private(set) var pageSet = PreviewSet([])
-    private(set) var index = 0
+    private(set) var index = 0 { didSet { arrivingFrom = 0 } }
     var sourceFor: (ItemSummary) -> PreviewSource = { _ in PreviewSource(original: nil, thumb: URL(fileURLWithPath: "/"), thumbMax: 512) }
     /// A page turn finished: the new position.
     var onCommit: ((Int) -> Void)?
@@ -53,6 +53,8 @@ final class PreviewStageView: NSView {
     private var tracking = false                                    // fingers are driving the page or the dismiss
     private var pinching = false
     private var travelDirection = 1
+    /// The side the picture now on the page slides in from after the open one left the set; that side's neighbour waits.
+    private var arrivingFrom = 0
     private var link: CADisplayLink?
     private var lastTick: CFTimeInterval = 0
     private var overlay: NSView?
@@ -163,11 +165,55 @@ final class PreviewStageView: NSView {
         refresh()
     }
 
+    /// Items left the set while it is open (taken out of Holy Grail, deleted, filtered out). The picture on the page keeps its zoom
+    /// when it is still there. When it is the one that left, it fades where it was and the neighbour taking its place slides in,
+    /// like a page turn. When nothing is left, the page closes the way Esc does.
     func replaceSet(_ newSet: PreviewSet, position: Int) {
+        guard newSet.count > 0 else { close(toTile: false); return }      // its tile is leaving too
+        let oldSet = pageSet, oldIndex = index, oldID = currentID
         pageSet = newSet
-        index = min(max(position, 0), max(pageSet.count - 1, 0))
-        resetZoom()
+        index = min(max(position, 0), pageSet.count - 1)
+        if currentID != oldID {
+            removeOverlay()
+            resetZoom()
+            let from = currentID.flatMap { oldSet.position(of: $0) }.map { $0 > oldIndex ? 1 : -1 } ?? 0
+            if from != 0, !reduceMotion, !closing, !tracking {
+                fadeOutLeaving()
+                travelDirection = from
+                offsetX.value = Double(from) * Double(bounds.width + Self.gap)     // where it sat as a neighbour
+                offsetX.target = 0
+                offsetX.velocity = 0
+                arrivingFrom = from
+                startLink()
+            } else {
+                offsetX = CriticalSpring(response: 0.26)
+            }
+        }
         refresh()
+    }
+
+    /// The picture that left the set fades out in place, on the exit timing, under the one sliding in.
+    private func fadeOutLeaving() {
+        let page = pages[1]
+        guard !page.isHidden, let contents = page.contents, let root = layer else { return }
+        let ghost = CALayer()
+        ghost.contents = contents
+        ghost.contentsGravity = page.contentsGravity
+        ghost.bounds = page.bounds
+        ghost.position = page.position
+        ghost.setAffineTransform(page.affineTransform())
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        root.insertSublayer(ghost, below: pages[0])
+        let a = CABasicAnimation(keyPath: "opacity")
+        a.fromValue = 1
+        a.toValue = 0
+        a.duration = Motion.quick
+        a.timingFunction = .grailsStandard
+        ghost.opacity = 0
+        ghost.add(a, forKey: "fade")
+        CATransaction.commit()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Motion.quick + 0.02) { ghost.removeFromSuperlayer() }
     }
 
     private func refresh() {
@@ -268,7 +314,8 @@ final class PreviewStageView: NSView {
         for (n, layer) in pages.enumerated() {
             let slot = n - 1
             guard let item = pageSet[index + slot] else { layer.isHidden = true; continue }
-            layer.isHidden = slot != 0 && inFlight              // neighbours wait until the picture is in place
+            layer.isHidden = (slot != 0 && inFlight)            // neighbours wait until the picture is in place
+                || (arrivingFrom != 0 && slot == -arrivingFrom)     // the one that left is fading there
             var rect: CGRect
             if slot == 0 { rect = currentRect() } else { rect = fit(index + slot) }
             if slot == 0, inFlight, let tile = tileStageRect {
@@ -401,6 +448,7 @@ final class PreviewStageView: NSView {
         }
         if !active {
             stopLink()
+            arrivingFrom = 0
             if let id = flightTileID, !closing { tileHide?(id, false); flightTileID = nil; tileStageRect = nil }   // landed: the tile is free again
             refresh()
         }
@@ -456,14 +504,14 @@ final class PreviewStageView: NSView {
 
     // MARK: Closing
 
-    func close(velocityY: Double = 0, direction: Double = 1) {
+    func close(velocityY: Double = 0, direction: Double = 1, toTile: Bool = true) {
         guard !closing else { return }
         closing = true
         tracking = false
         removeOverlay()
         if reduceMotion { onClose?(); return }
         // fly back to the tile (jumping it into view if you paged away from it); without one, fade and shrink away
-        if let id = currentID, let win = tileRectProvider?(id), win.width > 1, window != nil {
+        if toTile, let id = currentID, let win = tileRectProvider?(id), win.width > 1, window != nil {
             onReturnToTile?()
             tileStageRect = convert(win, from: nil)
             if let old = flightTileID, old != id { tileHide?(old, false) }
