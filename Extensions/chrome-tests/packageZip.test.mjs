@@ -8,16 +8,18 @@ import path from "node:path";
 
 const chrome = new URL("../chrome/", import.meta.url).pathname;
 
-test("the packaged zip contains the 0.2.9 option-click fix", () => {
+test("the packaged zip carries this tree's version and the option-click fix", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "grails-zip-"));
-  const zip = path.join(dir, "save-to-grails-0.2.9.zip");
+  const zip = path.join(dir, "save-to-grails.zip");
   execFileSync("zip", ["-qr", zip, ".", "-x", "README.md"], { cwd: chrome });
   const out = path.join(dir, "unpacked");
   fs.mkdirSync(out);
   execFileSync("unzip", ["-q", zip, "-d", out]);
 
   const manifest = JSON.parse(fs.readFileSync(path.join(out, "manifest.json"), "utf8"));
-  assert.equal(manifest.version, "0.2.9");
+  const source = JSON.parse(fs.readFileSync(path.join(chrome, "manifest.json"), "utf8"));
+  assert.equal(manifest.version, source.version);
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/);
   assert.deepEqual(manifest.host_permissions, ["http://127.0.0.1/*", "http://*/*", "https://*/*"]);
   assert.equal(manifest.content_scripts[0].world, "MAIN");
   assert.deepEqual(manifest.content_scripts[0].js, ["lib/altStop.js"]);
