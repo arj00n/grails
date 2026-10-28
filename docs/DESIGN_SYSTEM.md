@@ -22,9 +22,11 @@ Motion eases out and stays at or under 240 ms. Spatial motion may settle with a 
 
 Copy is short. A label names the thing. Help text is rare.
 
-The type is SF Pro, the system font; nothing is bundled or registered. SF Pro Rounded Semibold, through the title token, is for the moments that carry a name: a page or sheet title, a section header, a cluster name, an avatar initial, the onboarding wordmark. A count badge is SF Pro Rounded with tabular digits, through the count token. Everything else is SF Pro Regular: body, list rows, controls, metadata, an invite link or code (tabular digits). A number that has to line up uses `.monospacedDigit()`.
+The type is SF Pro, the system font; nothing is bundled or registered. SF Pro Rounded Semibold, through the title token, is for the moments that carry a name: a page or sheet title, a section header, a cluster name, an avatar initial. A count badge is SF Pro Rounded with tabular digits, through the count token. Everything else is SF Pro Regular: body, list rows, controls, metadata, an invite link or code (tabular digits). A number that has to line up uses `.monospacedDigit()`.
 
 Do not restyle the dither, the painting wall, FluidDither, or SmokeField.
+
+The wordmark on the Hello title plate is not type. It is `GrailsWordmark`: the 70 × 14 pixel letters in `Wordmark.bitmap`, at 2 pt a cell (140 × 28 pt, the Get Started button's height), in the text ink: near-black on the light plate, near-white on the dark one. Inside the letters burn the empty-screen band's flames: the same formula, loop and threshold map (`DitherBand.flame`, `DitherBand.bayer`, which `FluidDitherView` draws too), run fuller in the bottom two thirds of the letters at 1 pt a flame pixel, two to a cell. The letter edges stay on the cells, and the top third is plain ink. The flame colour comes from the painting showing (`Wordmark.inks`): the coloured palette ink furthest from the text ink, at 3:1 or more on the plate and 2:1 from the ink. When the wall turns, each flame pixel takes the next painting's colour on the wall's own grain and timeline. Reduce Motion holds the flames still and swaps colours with a quick fade. It sits `Space.xl` above Get Started, the two centred on the plate as one group. Its accessible name is "Grails". `WordmarkTests` checks the flame and the ink against the plate on every painting in both appearances.
 
 ## Reuse before you build
 

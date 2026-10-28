@@ -23,19 +23,7 @@ final class FluidField {
     deinit { [u, v, u0, v0, d, d0, p, div].forEach { $0.deallocate() } }
 
     /// The ordered-dither thresholds, 0..1.
-    static let bayer: [Float] = {
-        var m: [[Int]] = [[0]]
-        while m.count < 8 {
-            let k = m.count
-            var next = Array(repeating: Array(repeating: 0, count: k * 2), count: k * 2)
-            for y in 0..<(k * 2) { for x in 0..<(k * 2) {
-                let base = m[y % k][x % k] * 4
-                next[y][x] = base + [0, 2, 3, 1][(y < k ? 0 : 2) + (x < k ? 0 : 1)]
-            } }
-            m = next
-        }
-        return (0..<64).map { (Float(m[$0 / 8][$0 % 8]) + 0.5) / 64 }
-    }()
+    static let bayer = DitherBand.bayer
 
     func resize(_ newW: Int, _ newH: Int) {
         let nw = max(newW, 24), nh = max(newH, 12)
@@ -246,24 +234,10 @@ final class FluidDitherView: NSView {
         if pixels.count != count { pixels = [UInt8](repeating: 255, count: count) }
         let (ink, paper) = colours()
         let bayer = FluidField.bayer
-        let turn = phase * 2 * Float.pi
-        let span = Float(h - 1)
         for y in 0..<h {
-            let floor = Float(y) / span
             let tb = (y & 7) << 3
             for x in 0..<w {
-                let xF = Float(x)
-                let height = 0.38 + 0.62 * max(0, sin(xF * 0.09 + turn) * sin(xF * 0.041 + 1.6))
-                let along = (1 - floor) / height
-                var density: Float = 0
-                if along < 1 {
-                    let body = 1 - along
-                    let lick = 0.5 + 0.5 * sin(Float(y) * 0.45 + turn * 2 + xF * 0.13)
-                    density = body * body * (0.42 + 0.58 * lick)
-                    density *= 0.72 + 0.28 * sin(turn * 3 + xF * 0.2)
-                }
-                density = min(max(density, 0), 1)
-                density = density * density * (3 - 2 * density) * 0.94
+                let density = DitherBand.flame(x: x, y: y, rows: h, phase: phase)
                 let on = density > bayer[tb | (x & 7)]
                 let o = (y * w + x) * 4
                 let c = on ? ink : paper

@@ -54,7 +54,7 @@ struct OnboardingDemo {
                 let sched = PaintingWall.schedule(t: t, count: engine.specs.count, reduceMotion: reduceMotion)
                 let caption = engine.specs[PaintingWall.captionIndex(sched)].caption
                 snap({ dark in
-                    HelloFrame(t: t, size: size, caption: caption, wall: {
+                    HelloFrame(t: t, size: size, caption: caption, paintings: engine.specs, wall: {
                         if let img = engine.render(size: size, t: t, dark: dark, reduceMotion: reduceMotion) { Image(decorative: img, scale: 1).resizable() }
                     })
                 }, name, size: size)
@@ -65,6 +65,7 @@ struct OnboardingDemo {
             hello("hello-reduce-motion", t: 10, reduceMotion: true)
             say(shimmerReport(engine))
             say(bench(engine))
+            say(wordmark(engine))
         }
         check(model.step == .hello, "starts on Hello")
 
@@ -74,7 +75,7 @@ struct OnboardingDemo {
         await until(5) { !model.found.isEmpty }
         await wait(400)
         check(model.found.map(\.name) == ["Team Inspo"], "the library in the synced drive is found: \(model.found.map(\.name))")
-        snap({ _ in HelloFrame(t: 10, size: size, caption: "", choosing: true, wall: { Color.clear }, chooser: { ChooserCards(model: model) }) }, "choose")
+        snap({ _ in HelloFrame(t: 10, size: size, caption: "", paintings: PaintingWallEngine.shared?.specs ?? [], choosing: true, wall: { Color.clear }, chooser: { ChooserCards(model: model) }) }, "choose")
         snap(ZStack { LibraryStep(model: model) }, "where")
         await liveWindow("choose")
 
@@ -256,6 +257,41 @@ extension OnboardingDemo {
     }
 }
 
+
+extension OnboardingDemo {
+    /// The wordmark alone at 2×: a second of flames at 10 frames a second on two paintings, a turn
+    /// between them, and Reduce Motion; then the milliseconds a frame of flames costs.
+    func wordmark(_ engine: PaintingWallEngine) -> String {
+        let a = engine.specs[1].palette, b = engine.specs[5].palette
+        func mark(_ name: String, t: Double, palette: [String], from: [String]? = nil, progress: Double? = nil, reduceMotion: Bool = false) {
+            for (scheme, suffix) in [(ColorScheme.light, "light"), (.dark, "dark")] {
+                let content = GrailsWordmark(t: t, palette: palette, from: from, progress: progress, reduceMotion: reduceMotion)
+                    .padding(12).background(Ink.canvas)
+                    .environment(\.colorScheme, scheme)
+                let r = ImageRenderer(content: content)
+                r.scale = 2
+                guard let cg = r.cgImage, let png = NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]) else { continue }
+                try? png.write(to: URL(fileURLWithPath: "\(dir)/mark-\(name)-\(suffix).png"))
+            }
+        }
+        for k in 0..<10 {
+            mark("\(engine.specs[1].id)-\(k)", t: 20 + Double(k) / 10, palette: a)
+            mark("\(engine.specs[5].id)-\(k)", t: 20 + Double(k) / 10, palette: b)
+        }
+        for p in [0.25, 0.5, 0.75] { mark("turn-\(Int(p * 100))", t: 22, palette: b, from: a, progress: p) }
+        mark("reduce-motion", t: 10, palette: a, reduceMotion: true)
+        let plate = Palette.hex(.canvas, dark: true), ink = Palette.hex(.text, dark: true)
+        let inks = Wordmark.inks(palette: a, dark: true, plate: plate, ink: ink), from = Wordmark.inks(palette: b, dark: true, plate: plate, ink: ink)
+        var times: [Double] = []
+        for k in 0..<60 {
+            let start = CFAbsoluteTimeGetCurrent()
+            _ = Wordmark.image(Wordmark.pixels(t: 20 + Double(k) / 30, inks: inks, from: from, e: 0.5, reduceMotion: false))
+            times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
+        }
+        times.sort()
+        return "wordmark (140 x 28): flame frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms"
+    }
+}
 
 extension OnboardingDemo {
     /// How much of the picture changes while a painting holds: the share of pixels that differ after 1 s and after 3 s (should be a few percent).
