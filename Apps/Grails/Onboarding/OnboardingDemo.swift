@@ -289,7 +289,7 @@ extension OnboardingDemo {
             times.append((CFAbsoluteTimeGetCurrent() - start) * 1000)
         }
         times.sort()
-        return "wordmark (210 x 42): flame frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms"
+        return "wordmark (140 x 28): flame frame median \(String(format: "%.2f", times[30])) ms, p95 \(String(format: "%.2f", times[56])) ms"
     }
 }
 

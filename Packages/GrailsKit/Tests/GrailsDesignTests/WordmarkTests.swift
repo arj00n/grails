@@ -15,7 +15,7 @@ import Testing
     @Test func theBitmapIsSeventyByFourteen() {
         #expect(Wordmark.bitmap.count == Wordmark.rows)
         #expect(Wordmark.bitmap.allSatisfy { $0.count == Wordmark.columns && $0.allSatisfy { $0 == "#" || $0 == "." } })
-        #expect(Wordmark.size == CGSize(width: 210, height: 42))
+        #expect(Wordmark.size == CGSize(width: 140, height: 28))
     }
 
     @Test func theLetterEdgesStayOnTheCells() {

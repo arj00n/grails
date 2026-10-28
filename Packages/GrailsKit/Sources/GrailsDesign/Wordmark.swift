@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The Grails wordmark on the title plate: pixel letters in solid text ink, with dithered flames rising inside them in a colour of the
 /// painting behind. The flames are the empty-screen band's (`DitherBand.flame`, same loop and threshold map), run in the bottom two
-/// thirds of the letters at 1 pt a flame pixel, three to a letter cell; the letter edges stay on the cells and the top third is plain
+/// thirds of the letters at 1 pt a flame pixel, two to a letter cell; the letter edges stay on the cells and the top third is plain
 /// ink. When the wall turns into the next painting each flame pixel takes the new colour on the wall's own grain (`Dither.noise`).
 /// Everything here is pure in `t`, so each part can be checked without a screen. See docs/DESIGN_SYSTEM.md.
 public enum Wordmark {
@@ -25,11 +25,11 @@ public enum Wordmark {
         "..######....##......##..##......##....######....##########....######..",
     ]
     public static let columns = 70, rows = 14
-    /// Points per letter cell: the wall's own pixel, so the letters sit on the same grain as the painting around the plate.
-    public static let cell = 3.0
+    /// Points per letter cell: two, so the mark sits on the plate at the button's height and stays on whole pixels.
+    public static let cell = 2.0
     public static var size: CGSize { CGSize(width: Double(columns) * cell, height: Double(rows) * cell) }
     /// Flame pixels per letter cell: 1 pt each.
-    public static let sub = 3
+    public static let sub = 2
 
     private static let cells: [Bool] = bitmap.flatMap { $0.map { $0 == "#" } }
     public static func isSet(_ x: Int, _ y: Int) -> Bool { x >= 0 && x < columns && y >= 0 && y < rows && cells[y * columns + x] }

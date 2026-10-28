@@ -77,7 +77,7 @@ struct HelloFrame<Wall: View, Chooser: View>: View {
         let plate = PaintingWall.plate(window: size)
         ZStack(alignment: .topLeading) {
             wall.frame(width: size.width, height: size.height).opacity(choosing ? 0 : 1).animation(curve, value: choosing)
-            VStack(spacing: 14) {
+            VStack(spacing: Space.xl) {
                 title
                 GrailsButton("Get Started", kind: .primary) { start() }.keyboardShortcut(.defaultAction)
                     .opacity(choosing ? 0 : min(max((t - 1.3) / 0.1, 0), 1)).allowsHitTesting(t >= 1.3 && !choosing)
