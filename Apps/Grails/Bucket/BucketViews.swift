@@ -212,7 +212,13 @@ struct TeamSettingsTab: View {
         } else {
             GrailsPersonRow(invite.email, subtitle: failed ?? InviteShare.expiry(Date(timeIntervalSince1970: invite.exp), timeZone: .current), role: "Member", pending: failed == nil, revealed: failed != nil) {
                 if failed != nil {
-                    GrailsButton("Retry", kind: .quiet) { Task { await model.bucket.revoke(invite) } }
+                    GrailsButton("Retry", kind: .quiet) {
+                        if model.bucket.actions.statusLabel(invite.id) == BucketController.makingInvite {
+                            Task { await resend(invite) }
+                        } else {
+                            Task { await model.bucket.revoke(invite) }
+                        }
+                    }
                 }
                 GrailsButton("Copy link", kind: .quiet, enabled: invite.blob != nil && !model.bucket.actions.isBusy(invite.id)) { copyLink(invite) }
                 GrailsButton("Resend", kind: .quiet, enabled: !model.bucket.actions.isBusy(invite.id)) { Task { await resend(invite) } }
