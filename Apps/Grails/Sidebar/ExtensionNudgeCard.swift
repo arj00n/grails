@@ -9,20 +9,27 @@ struct ExtensionNudgeCard: View {
     var notNow: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Save from your browser")
-                .font(.grailsTitle(13))
-                .foregroundStyle(Ink.text)
-                .fixedSize(horizontal: false, vertical: true)
-            Text("Send a page here without leaving the tab.")
-                .font(.grailsBody(12))
-                .foregroundStyle(Ink.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            actions
-            GrailsButton("Not now", kind: .quiet, identifier: "extension-nudge-later") { notNow() }
-                .accessibilityHint("Hides this for 3 days")
+        VStack(alignment: .leading, spacing: Space.sm) {
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text("Save from your browser")
+                    .font(.grailsTitle(13))
+                    .foregroundStyle(Ink.text)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("Send a page here without leaving the tab.")
+                    .font(.grailsBody(12))
+                    .foregroundStyle(Ink.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            // One CTA group: installs, then Not now, one gap apart.
+            VStack(alignment: .leading, spacing: Space.xxs) {
+                install(offer.primary, kind: .primary)
+                if let secondary = offer.secondary { install(secondary, kind: offer.compact ? .secondary : .quiet) }
+                GrailsButton("Not now", kind: .quiet, identifier: "extension-nudge-later") { notNow() }
+                    .accessibilityHint("Hides this for 3 days")
+                    .alignQuietLabel()
+            }
         }
-        .padding(12)
+        .padding(Space.sm)
         .frame(maxWidth: .infinity, alignment: .leading)
         .surfaceCard()
         .accessibilityElement(children: .contain)
@@ -30,25 +37,11 @@ struct ExtensionNudgeCard: View {
         .accessibilityIdentifier("extension-nudge")
     }
 
-    @ViewBuilder private var actions: some View {
-        if offer.compact {
-            VStack(alignment: .leading, spacing: 8) {
-                install(offer.primary, kind: .primary)
-                if let secondary = offer.secondary { install(secondary, kind: .secondary) }
-            }
-        } else {
-            VStack(alignment: .leading, spacing: 6) {
-                install(offer.primary, kind: .primary)
-                if let secondary = offer.secondary { install(secondary, kind: .quiet) }
-            }
-        }
-    }
-
-    private func install(_ action: ExtensionNudgeAction, kind: GrailsButtonKind) -> some View {
+    @ViewBuilder private func install(_ action: ExtensionNudgeAction, kind: GrailsButtonKind) -> some View {
         let chrome = action == .addToChrome
-        return GrailsButton(chrome ? "Add to Chrome" : "Enable in Safari", kind: kind, identifier: chrome ? "extension-nudge-chrome" : "extension-nudge-safari") {
+        let button = GrailsButton(chrome ? "Add to Chrome" : "Enable in Safari", kind: kind, identifier: chrome ? "extension-nudge-chrome" : "extension-nudge-safari") {
             if chrome { addToChrome() } else { enableInSafari() }
         }
-        .frame(maxWidth: kind == .quiet ? nil : .infinity, alignment: .leading)
+        if kind == .quiet { button.alignQuietLabel() } else { button.frame(maxWidth: .infinity, alignment: .leading) }
     }
 }
