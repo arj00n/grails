@@ -1075,7 +1075,7 @@ struct GridView: NSViewRepresentable {
             let url = model.originalURL(for: s)
             let onDisk = url.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
             guard let drag = GridItemDrag.offer(itemID: TileKey.item(s.id), isSection: s.kind == .section, original: url, fileOnDisk: onDisk) else { return nil }
-            (cv as? GrailsCollectionView)?.dragBegan = true
+            if let grid = cv as? GrailsCollectionView { grid.dragBegan = true; grid.draggingItems = true }
             let pb = NSPasteboardItem()
             if let ids = try? JSONEncoder().encode([drag.itemID]) {
                 pb.setData(ids, forType: NSPasteboard.PasteboardType(UTType.grailsItems.identifier))
