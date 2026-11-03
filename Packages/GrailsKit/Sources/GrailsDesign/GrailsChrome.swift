@@ -276,7 +276,7 @@ struct ButtonChrome {
 
     var metrics: (height: CGFloat, pad: CGFloat, radius: CGFloat, font: Font, width: CGFloat?) {
         if visual == .quiet {
-            return (CGFloat(Space.quiet), 8, CGFloat(RadiusToken.chip), ChromeFont.body(TypeScale.quiet), nil)
+            return (CGFloat(Space.quiet), CGFloat(Space.xs), CGFloat(RadiusToken.chip), ChromeFont.body(TypeScale.quiet), nil)
         }
         if inline {
             return (CGFloat(ChromeMetrics.fieldHeight), 0, CGFloat(RadiusToken.control), ChromeFont.body(TypeScale.button), 72)
@@ -382,6 +382,14 @@ public struct GrailsButton: View {
         .buttonStyle(GrailsButtonStyle(kind, enabled: enabled, inline: inline))
         .focusEffectDisabled()
         .modifier(ChromeIdentifier(id: identifier ?? ""))
+    }
+}
+
+extension View {
+    /// A quiet `GrailsButton` stacked under content: pulls its label onto the content's leading edge. Quiet pads its label
+    /// `Space.xs` each side, so without this the word sits indented. The hover fill still reaches `Space.xs` past the edge.
+    public func alignQuietLabel() -> some View {
+        padding(.leading, -CGFloat(Space.xs))
     }
 }
 
