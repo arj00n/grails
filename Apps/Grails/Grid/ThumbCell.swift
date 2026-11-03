@@ -76,6 +76,16 @@ final class TileChromeImage: NSImageView {
 
 final class TileView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
+    /// AppKit hides a tile while it is dragged; the grid keeps it shown (see `GrailsCollectionView.draggingItems`).
+    override var isHidden: Bool {
+        get { super.isHidden }
+        set { super.isHidden = newValue && !(enclosingGrid?.draggingItems ?? false) }
+    }
+    private var enclosingGrid: GrailsCollectionView? {
+        var v = superview
+        while let view = v, !(view is GrailsCollectionView) { v = view.superview }
+        return v as? GrailsCollectionView
+    }
     /// What VoiceOver reads (and UI tests find): the item's name.
     var axLabel: String?
     override func isAccessibilityElement() -> Bool { true }

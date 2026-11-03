@@ -9,6 +9,10 @@ final class GrailsCollectionView: NSCollectionView {
     var onClickOpen: ((Int) -> Void)?
     /// Set when a press turned into a drag (the data source was asked for what to carry): that press never opens the picture.
     var dragBegan = false
+    /// From the moment the data source hands over what a drag carries until that drag ends. AppKit hides dragged tiles for the whole
+    /// drag, but its drag image only shows a frame or two later and goes away a frame or two before the tile comes back, so the
+    /// tile would blink out at the lift and at the slide back. Nothing in the grid moves into the gap, so tiles stay shown instead.
+    var draggingItems = false
     /// The picture a plain press landed on, waiting for the button to come up.
     private var pendingOpen: (item: Int, point: CGPoint)?
     /// The tile under a held click: it shrinks while held and springs back on release or once the click becomes a drag.
@@ -94,6 +98,7 @@ final class GrailsCollectionView: NSCollectionView {
             return
         }
         dragBegan = false
+        draggingItems = false
         pendingOpen = nil
         if let hit, let cell = item(at: hit) as? ThumbCell, !cell.isSection {
             LayerPress.press(cell.view, scale: Motion.tilePressScale)
@@ -128,6 +133,11 @@ final class GrailsCollectionView: NSCollectionView {
         super.mouseUp(with: event)
         guard let open, !dragBegan, hypot(event.locationInWindow.x - open.point.x, event.locationInWindow.y - open.point.y) < 3 else { return }
         onClickOpen?(open.item)
+    }
+
+    override func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
+        draggingItems = false
+        super.draggingSession(session, endedAt: screenPoint, operation: operation)
     }
 
     override func scrollWheel(with event: NSEvent) {

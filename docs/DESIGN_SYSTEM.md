@@ -356,6 +356,7 @@ The grid never opens the info panel (it would relayout a 20k grid every frame); 
 - Keyboard focus and drop target: the same ring in the focus colour.
 - The selection ring is an outset layer; the image is clipped in a sublayer. Cells update their `CGColor`s when the appearance changes.
 - The drag image shows a count when more than one tile is dragged.
+- A dragged tile stays in its place under the drag image. AppKit would hide it, and the gap shows for a frame at the lift and at the slide back.
 
 ### The preview
 
